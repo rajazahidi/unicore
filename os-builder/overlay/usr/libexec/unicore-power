@@ -1,0 +1,147 @@
+#!/bin/sh
+set -eu
+
+CONF_PATH="${UNICORE_POWER_CONF:-/data/unicore/power.conf}"
+POWER_PROFILE="balanced"
+IDLE_SCREEN_MIN=5
+IDLE_LOCK_MIN=10
+IDLE_SUSPEND_BAT_MIN=20
+
+clamp_int() {
+    val="$1"
+    min_v="$2"
+    max_v="$3"
+    printf '%s' "${val}" | grep -Eq '^[0-9]+$' || { printf '%s\n' "${min_v}"; return 0; }
+    [ "${val}" -lt "${min_v}" ] && val="${min_v}"
+    [ "${val}" -gt "${max_v}" ] && val="${max_v}"
+    printf '%s\n' "${val}"
+}
+
+load_conf() {
+    POWER_PROFILE="balanced"
+    IDLE_SCREEN_MIN=5
+    IDLE_LOCK_MIN=10
+    IDLE_SUSPEND_BAT_MIN=20
+    if [ -r "${CONF_PATH}" ]; then
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                POWER_PROFILE)
+                    case "${v}" in
+                        powersave|balanced|performance) POWER_PROFILE="${v}" ;;
+                    esac
+                    ;;
+                IDLE_SCREEN_MIN) IDLE_SCREEN_MIN="$(clamp_int "${v}" 0 120)" ;;
+                IDLE_LOCK_MIN) IDLE_LOCK_MIN="$(clamp_int "${v}" 0 120)" ;;
+                IDLE_SUSPEND_BAT_MIN) IDLE_SUSPEND_BAT_MIN="$(clamp_int "${v}" 0 240)" ;;
+            esac
+        done < "${CONF_PATH}"
+    fi
+}
+
+write_conf() {
+    mkdir -p "$(dirname "${CONF_PATH}")"
+    cat <<EOF > "${CONF_PATH}"
+POWER_PROFILE=${POWER_PROFILE}
+IDLE_SCREEN_MIN=${IDLE_SCREEN_MIN}
+IDLE_LOCK_MIN=${IDLE_LOCK_MIN}
+IDLE_SUSPEND_BAT_MIN=${IDLE_SUSPEND_BAT_MIN}
+EOF
+}
+
+apply_cpu_profile() {
+    case "${POWER_PROFILE}" in
+        powersave) gov="powersave" ;;
+        performance) gov="performance" ;;
+        *) gov="schedutil" ;;
+    esac
+    if [ -x /usr/libexec/unicore-sys-helper ] && [ "$(id -u)" -eq 0 ]; then
+        /usr/libexec/unicore-sys-helper set-cpu-governor "${gov}" >/dev/null 2>&1 || true
+    fi
+}
+
+battery_info() {
+    bat_pct="N/A"
+    on_ac="1"
+    for ps in /sys/class/power_supply/*; do
+        [ -d "${ps}" ] || continue
+        tp="$(cat "${ps}/type" 2>/dev/null || true)"
+        if [ "${tp}" = "Mains" ]; then
+            ol="$(cat "${ps}/online" 2>/dev/null || echo 1)"
+            [ "${ol}" = "0" ] && on_ac="0"
+        elif [ "${tp}" = "Battery" ]; then
+            cap="$(cat "${ps}/capacity" 2>/dev/null || true)"
+            [ -n "${cap}" ] && bat_pct="${cap}%"
+            st="$(cat "${ps}/status" 2>/dev/null || true)"
+            [ "${st}" = "Discharging" ] && on_ac="0"
+        fi
+    done
+    printf '%s\t%s\n' "${bat_pct}" "${on_ac}"
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        load_conf
+        bi="$(battery_info)"
+        bat_pct="$(printf '%s' "${bi}" | awk -F'\t' '{print $1}')"
+        on_ac="$(printf '%s' "${bi}" | awk -F'\t' '{print $2}')"
+        idle_running=0
+        pgrep -x swayidle >/dev/null 2>&1 && idle_running=1 || true
+        printf 'profile=%s\nscreen_min=%s\nlock_min=%s\nsuspend_bat_min=%s\nbattery=%s\non_ac=%s\nswayidle_running=%s\n' \
+            "${POWER_PROFILE}" "${IDLE_SCREEN_MIN}" "${IDLE_LOCK_MIN}" "${IDLE_SUSPEND_BAT_MIN}" \
+            "${bat_pct}" "${on_ac}" "${idle_running}"
+        ;;
+
+    set-profile)
+        prof="${1:-balanced}"
+        case "${prof}" in
+            powersave|balanced|performance) ;;
+            *) echo "Invalid power profile '${prof}' (powersave|balanced|performance)." >&2; exit 2 ;;
+        esac
+        load_conf
+        POWER_PROFILE="${prof}"
+        write_conf
+        apply_cpu_profile
+        echo "Power profile set to ${POWER_PROFILE}."
+        ;;
+
+    set-idle)
+        [ "$#" -eq 3 ] || { echo "Usage: unicore-power set-idle <screen_min> <lock_min> <suspend_bat_min>" >&2; exit 2; }
+        load_conf
+        IDLE_SCREEN_MIN="$(clamp_int "$1" 0 120)"
+        IDLE_LOCK_MIN="$(clamp_int "$2" 0 120)"
+        IDLE_SUSPEND_BAT_MIN="$(clamp_int "$3" 0 240)"
+        write_conf
+        ;;
+
+    apply-idle)
+        load_conf
+        pkill -x swayidle >/dev/null 2>&1 || true
+        if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" = "1" ] || ! command -v swayidle >/dev/null 2>&1; then
+            exit 0
+        fi
+        args=""
+        if [ "${IDLE_SCREEN_MIN}" -gt 0 ] && command -v wlr-randr >/dev/null 2>&1; then
+            scr_sec=$((IDLE_SCREEN_MIN * 60))
+            args="${args} timeout ${scr_sec} 'wlr-randr --output * --off >/dev/null 2>&1 || true' resume 'wlr-randr --output * --on >/dev/null 2>&1 || true'"
+        fi
+        if [ "${IDLE_LOCK_MIN}" -gt 0 ] && [ -x /usr/libexec/unicore-lock ]; then
+            lck_sec=$((IDLE_LOCK_MIN * 60))
+            args="${args} timeout ${lck_sec} '/usr/libexec/unicore-lock >/dev/null 2>&1 || true'"
+        fi
+        if [ "${IDLE_SUSPEND_BAT_MIN}" -gt 0 ]; then
+            susp_sec=$((IDLE_SUSPEND_BAT_MIN * 60))
+            args="${args} timeout ${susp_sec} 'grep -q \"0\" /sys/class/power_supply/*/online 2>/dev/null && doas /usr/libexec/unicore-sys-helper suspend >/dev/null 2>&1 || true'"
+        fi
+        if [ -n "${args}" ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
+            eval "swayidle -w ${args} </dev/null >/dev/null 2>&1 &"
+        fi
+        ;;
+
+    *)
+        echo "Usage: unicore-power <status|set-profile <mode>|set-idle <scr> <lck> <susp>|apply-idle>" >&2
+        exit 2
+        ;;
+esac

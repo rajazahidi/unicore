@@ -179,6 +179,33 @@ impl CenterBackend {
         manager.set_win_era(app_id, Some(era))
     }
 
+    pub fn update_launch_config(
+        &self,
+        app_id: &str,
+        args_raw: &str,
+        env_raw: &str,
+    ) -> Result<AppSandbox, String> {
+        let mut manager = self.open_manager()?;
+        let parsed_args = uniload::sandbox::split_launch_args(args_raw);
+        let parsed_env = uniload::sandbox::parse_env_vars_str(env_raw)?;
+        manager.update_launch_config(app_id, parsed_args, parsed_env)
+    }
+
+    pub fn reset_win32_prefix(&self, app_id: &str) -> Result<PathBuf, String> {
+        let manager = self.open_manager()?;
+        manager.reset_win32_prefix(app_id)
+    }
+
+    pub fn backup_app_save_data(&self, app_id: &str, dest_archive: &Path) -> Result<PathBuf, String> {
+        let manager = self.open_manager()?;
+        manager.backup_app_save_data(app_id, dest_archive)
+    }
+
+    pub fn restore_app_save_data(&self, app_id: &str, src_archive: &Path) -> Result<(), String> {
+        let manager = self.open_manager()?;
+        manager.restore_app_save_data(app_id, src_archive)
+    }
+
     pub fn uninstall_app(&self, app_id: &str) -> Result<(AppSandbox, usize), String> {
         let mut manager = self.open_manager()?;
         let removed = manager.uninstall(app_id)?;
@@ -419,6 +446,11 @@ impl CenterBackend {
             "sync-shortcuts" => {
                 let mut c = Command::new(&self.config.uniload_bin);
                 c.arg("android").arg("sync-shortcuts");
+                c
+            }
+            "clipboard-sync" => {
+                let mut c = Command::new(&self.config.uniload_bin);
+                c.arg("android").arg("clipboard-sync");
                 c
             }
             other => return Err(format!("Unsupported Android GUI action: {other}")),

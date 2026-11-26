@@ -154,6 +154,8 @@ pub struct AppSandbox {
     pub source_path: String,
     pub sandbox_dir: String,
     pub permissions: PermissionProfile,
+    pub launch_args: Vec<String>,
+    pub env_vars: BTreeMap<String, String>,
 }
 
 impl AppSandbox {
@@ -161,7 +163,16 @@ impl AppSandbox {
         let mut map = BTreeMap::new();
         map.insert("app_id".to_string(), JsonValue::Str(self.app_id.clone()));
         map.insert("arch".to_string(), JsonValue::Str(self.arch.clone()));
+        let mut env_obj = BTreeMap::new();
+        for (k, v) in &self.env_vars {
+            env_obj.insert(k.clone(), JsonValue::Str(v.clone()));
+        }
+        map.insert("env_vars".to_string(), JsonValue::Object(env_obj));
         map.insert("is_gui".to_string(), JsonValue::Bool(self.is_gui));
+        map.insert(
+            "launch_args".to_string(),
+            JsonValue::Array(self.launch_args.iter().map(|s| JsonValue::Str(s.clone())).collect()),
+        );
         map.insert("name".to_string(), JsonValue::Str(self.name.clone()));
         map.insert(
             "permissions".to_string(),
@@ -219,6 +230,25 @@ impl AppSandbox {
                     .collect()
             })
             .unwrap_or_default();
+        let launch_args = obj
+            .get("launch_args")
+            .and_then(JsonValue::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(JsonValue::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut env_vars = BTreeMap::new();
+        if let Some(env_obj) = obj.get("env_vars").and_then(JsonValue::as_object) {
+            for (k, v) in env_obj {
+                if let Some(val) = v.as_str() {
+                    env_vars.insert(k.clone(), val.to_string());
+                }
+            }
+        }
         let permissions = obj
             .get("permissions")
             .map(PermissionProfile::from_json)
@@ -243,8 +273,70 @@ impl AppSandbox {
             source_path: get_str("source_path")?,
             sandbox_dir: get_str("sandbox_dir")?,
             permissions,
+            launch_args,
+            env_vars,
         })
     }
+}
+
+/// Split simple whitespace/quoted launch arguments safely without shell expansion.
+pub fn split_launch_args(raw: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut cur = String::new();
+    let mut in_quote: Option<char> = None;
+    for ch in raw.chars() {
+        match in_quote {
+            Some(q) if ch == q => in_quote = None,
+            Some(_) => cur.push(ch),
+            None if ch == '\'' || ch == '"' => in_quote = Some(ch),
+            None if ch.is_whitespace() => {
+                if !cur.is_empty() {
+                    args.push(std::mem::take(&mut cur));
+                }
+            }
+            None => cur.push(ch),
+        }
+    }
+    if !cur.is_empty() {
+        args.push(cur);
+    }
+    args
+}
+
+/// Parse `KEY=VAL` environment overrides separated by commas or newlines.
+pub fn parse_env_vars_str(raw: &str) -> Result<BTreeMap<String, String>, String> {
+    let mut map = BTreeMap::new();
+    for piece in raw.split([',', '\n']) {
+        let trimmed = piece.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let Some((k, v)) = trimmed.split_once('=') else {
+            return Err(format!("Invalid environment override '{trimmed}'. Use KEY=VALUE."));
+        };
+        let key = k.trim();
+        let mut chars = key.chars();
+        let Some(first) = chars.next() else {
+            return Err("Environment variable name cannot be empty.".to_string());
+        };
+        if !(first.is_ascii_alphabetic() || first == '_')
+            || !chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            return Err(format!("Unsafe environment variable name '{key}'."));
+        }
+        if v.chars().any(|c| c.is_control()) {
+            return Err(format!("Environment value for '{key}' contains control characters."));
+        }
+        map.insert(key.to_string(), v.trim().to_string());
+    }
+    Ok(map)
+}
+
+pub fn format_env_vars_str(map: &BTreeMap<String, String>) -> String {
+    map.iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Host runtime environment context used to construct `bubblewrap` confinement arguments.
@@ -1213,6 +1305,8 @@ impl SandboxManager {
             source_path: path.display().to_string(),
             sandbox_dir: sandbox_dir.display().to_string(),
             permissions: PermissionProfile::default(),
+            launch_args: Vec::new(),
+            env_vars: BTreeMap::new(),
         };
 
         self.write_permissions_file(&sandbox)?;
@@ -1248,6 +1342,103 @@ impl SandboxManager {
         self.write_permissions_file(&updated)?;
         self.save_registry()?;
         Ok(updated)
+    }
+
+    pub fn update_launch_config(
+        &mut self,
+        app_id: &str,
+        launch_args: Vec<String>,
+        env_vars: BTreeMap<String, String>,
+    ) -> Result<AppSandbox, String> {
+        let updated = {
+            let sandbox = self
+                .apps
+                .get_mut(app_id)
+                .ok_or_else(|| format!("Application not registered: {app_id}"))?;
+            sandbox.launch_args = launch_args;
+            sandbox.env_vars = env_vars;
+            sandbox.clone()
+        };
+        self.save_registry()?;
+        Ok(updated)
+    }
+
+    /// Remove and recreate an empty `drive_c_root` Wine prefix for a Win32/Win16 app without uninstalling it.
+    pub fn reset_win32_prefix(&self, app_id: &str) -> Result<PathBuf, String> {
+        let app = self.get_app(app_id)?;
+        if platform_to_subsystem(app.platform) != Some(SubsystemKind::Win32) {
+            return Err(format!(
+                "Reset Wine prefix only applies to Win32/Win16 apps, not {}",
+                app.platform
+            ));
+        }
+        let canon_root = fs::canonicalize(&self.sandboxes_root)
+            .unwrap_or_else(|_| self.sandboxes_root.clone());
+        let canon_sandbox = fs::canonicalize(&app.sandbox_dir)
+            .map_err(|e| format!("Failed to resolve sandbox dir: {e}"))?;
+        if !canon_sandbox.starts_with(&canon_root) {
+            return Err("Refusing prefix reset outside sandboxes root.".to_string());
+        }
+        let prefix = canon_sandbox.join("drive_c_root");
+        if prefix.exists() {
+            let _ = stop_wineserver_for_prefix(&prefix);
+            fs::remove_dir_all(&prefix)
+                .map_err(|e| format!("Failed to clear Wine prefix: {e}"))?;
+        }
+        fs::create_dir_all(&prefix)
+            .map_err(|e| format!("Failed to recreate Wine prefix dir: {e}"))?;
+        Ok(prefix)
+    }
+
+    /// Archive app sandbox user/save state into a compressed tar archive.
+    pub fn backup_app_save_data(&self, app_id: &str, dest_archive: &Path) -> Result<PathBuf, String> {
+        let app = self.get_app(app_id)?;
+        let sandbox_dir = Path::new(&app.sandbox_dir);
+        if !sandbox_dir.is_dir() {
+            return Err(format!("Sandbox directory missing: {}", sandbox_dir.display()));
+        }
+        if let Some(parent) = dest_archive.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create backup dir: {e}"))?;
+        }
+        let status = std::process::Command::new("tar")
+            .arg("-czf")
+            .arg(dest_archive)
+            .arg("-C")
+            .arg(sandbox_dir)
+            .arg(".")
+            .status()
+            .map_err(|e| format!("Failed to run tar backup: {e}"))?;
+        if !status.success() {
+            return Err(format!("tar save-backup exited with status {status}"));
+        }
+        Ok(dest_archive.to_path_buf())
+    }
+
+    /// Restore app sandbox user/save state from a compressed tar archive into its existing sandbox dir.
+    pub fn restore_app_save_data(&self, app_id: &str, src_archive: &Path) -> Result<(), String> {
+        let app = self.get_app(app_id)?;
+        if !src_archive.is_file() {
+            return Err(format!("Save archive not found: {}", src_archive.display()));
+        }
+        let sandbox_dir = Path::new(&app.sandbox_dir);
+        fs::create_dir_all(sandbox_dir)
+            .map_err(|e| format!("Failed to prepare sandbox dir: {e}"))?;
+        let prefix = sandbox_dir.join("drive_c_root");
+        if prefix.is_dir() {
+            let _ = stop_wineserver_for_prefix(&prefix);
+        }
+        let status = std::process::Command::new("tar")
+            .arg("-xzf")
+            .arg(src_archive)
+            .arg("-C")
+            .arg(sandbox_dir)
+            .status()
+            .map_err(|e| format!("Failed to run tar restore: {e}"))?;
+        if !status.success() {
+            return Err(format!("tar save-restore exited with status {status}"));
+        }
+        Ok(())
     }
 
     pub fn set_permissions(
@@ -1379,13 +1570,19 @@ impl SandboxManager {
             None
         };
 
-        let (argv, mut env) = build_subsystem_invocation(
+        let (mut argv, mut env) = build_subsystem_invocation(
             subsystem,
             spec.runtime_binary,
             &sandbox,
             translation.as_deref(),
             era_override,
         );
+        for extra in &sandbox.launch_args {
+            argv.push(extra.clone());
+        }
+        for (k, v) in &sandbox.env_vars {
+            env.insert(k.clone(), v.clone());
+        }
         let flag = |b: bool| if b { "1" } else { "0" }.to_string();
         env.insert(
             "UNILOAD_ALLOW_NETWORK".to_string(),

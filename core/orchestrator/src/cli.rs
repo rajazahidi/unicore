@@ -62,10 +62,16 @@ COMMANDS:
                                        Activate subsystem and run app (ERA: win98|winxp|win7|win10)
   era <APP_ID> <win98|winxp|win7|win10>
                                        Override Windows era compatibility profile
-  win32 <status|install-dxvk|install-vkd3d|install-otvdm|install-cnc-ddraw|install-runtimes <APP_ID>>
+  config <APP_ID> [--args <ARGS>] [--env K=V,...]
+                                       Configure per-app launch arguments & environment variables
+  save-backup <APP_ID> <ARCHIVE.tar.gz>
+                                       Export isolated app sandbox save data
+  save-restore <APP_ID> <ARCHIVE.tar.gz>
+                                       Restore app sandbox save data archive
+  win32 <status|install-dxvk|install-vkd3d|install-otvdm|install-cnc-ddraw|install-runtimes <APP_ID>|reset-prefix <APP_ID>>
                                        Manage DXVK, VKD3D, OTVDM, cnc-ddraw & DX9/VC++ runtimes
   store <list|install|sync>            Browse & 1-click install verified apps from UniCore Catalog
-  android <status|init|ui|setup-arm|sync-shortcuts>
+  android <status|init|ui|setup-arm|sync-shortcuts|clipboard-sync>
                                        Manage built-in Android ART/Waydroid subsystem
   update <status|check|generate-manifest|verify-manifest|verify-file|grubenv|keygen|sign-manifest>
                                        Inspect, sign, verify, and manage A/B OS updates & grubenv
@@ -327,6 +333,58 @@ pub fn run_cli(args: &[String]) -> Result<String, String> {
             };
             Ok(to_json_pretty(&sandbox.to_json()))
         }
+        "config" => {
+            let app_id = rest
+                .first()
+                .ok_or_else(|| "config requires <APP_ID> [--args \"...\"] [--env K=V,...]".to_string())?;
+            let existing = manager.get_app(app_id)?.clone();
+            let mut next_args = existing.launch_args;
+            let mut next_env = existing.env_vars;
+            let mut idx = 1usize;
+            while idx < rest.len() {
+                match rest[idx].as_str() {
+                    "--args" => {
+                        let raw = next_flag_value(rest, &mut idx, "--args")?;
+                        next_args = crate::sandbox::split_launch_args(&raw);
+                    }
+                    "--env" => {
+                        let raw = next_flag_value(rest, &mut idx, "--env")?;
+                        next_env = crate::sandbox::parse_env_vars_str(&raw)?;
+                    }
+                    other => return Err(format!("Unexpected argument for config: {other}")),
+                }
+                idx += 1;
+            }
+            let updated = manager.update_launch_config(app_id, next_args, next_env)?;
+            Ok(to_json_pretty(&updated.to_json()))
+        }
+        "save-backup" => {
+            let app_id = rest
+                .first()
+                .ok_or_else(|| "save-backup requires <APP_ID> <DEST_ARCHIVE>".to_string())?;
+            let dest = rest
+                .get(1)
+                .ok_or_else(|| "save-backup requires <DEST_ARCHIVE>".to_string())?;
+            let out_path = manager.backup_app_save_data(app_id, Path::new(dest))?;
+            let mut out = BTreeMap::new();
+            out.insert("app_id".to_string(), JsonValue::Str(app_id.clone()));
+            out.insert("archive".to_string(), JsonValue::Str(out_path.display().to_string()));
+            out.insert("backed_up".to_string(), JsonValue::Bool(true));
+            Ok(to_json_pretty(&JsonValue::Object(out)))
+        }
+        "save-restore" => {
+            let app_id = rest
+                .first()
+                .ok_or_else(|| "save-restore requires <APP_ID> <SRC_ARCHIVE>".to_string())?;
+            let src = rest
+                .get(1)
+                .ok_or_else(|| "save-restore requires <SRC_ARCHIVE>".to_string())?;
+            manager.restore_app_save_data(app_id, Path::new(src))?;
+            let mut out = BTreeMap::new();
+            out.insert("app_id".to_string(), JsonValue::Str(app_id.clone()));
+            out.insert("restored".to_string(), JsonValue::Bool(true));
+            Ok(to_json_pretty(&JsonValue::Object(out)))
+        }
         "permissions" => {
             let app_id = rest
                 .first()
@@ -505,9 +563,10 @@ fn run_android_command(rest: &[String]) -> Result<String, String> {
             }
         }
         "sync-shortcuts" => vec!["sync-shortcuts".to_string()],
+        "clipboard-sync" => vec!["clipboard-sync".to_string()],
         other => {
             return Err(format!(
-                "Unknown android action '{other}'. Choose status, init, ui, setup-arm, or sync-shortcuts."
+                "Unknown android action '{other}'. Choose status, init, ui, setup-arm, sync-shortcuts, or clipboard-sync."
             ))
         }
     };
@@ -583,12 +642,27 @@ fn run_win32_command(state_dir: &Path, rest: &[String]) -> Result<String, String
             "--dry-run" => dry_run = true,
             "--url" => url = Some(next_flag_value(tail, &mut idx, "--url")?),
             "--from-file" => from_file = Some(next_flag_value(tail, &mut idx, "--from-file")?),
-            other if !other.starts_with('-') && sub == "install-runtimes" && target_app_id.is_none() => {
+            other if !other.starts_with('-') && matches!(sub, "install-runtimes" | "reset-prefix") && target_app_id.is_none() => {
                 target_app_id = Some(other.to_string());
             }
             other => return Err(format!("Unexpected argument for win32 {sub}: {other}")),
         }
         idx += 1;
+    }
+
+    if sub == "reset-prefix" {
+        let app_id = target_app_id
+            .as_deref()
+            .ok_or_else(|| "win32 reset-prefix requires <APP_ID>".to_string())?;
+        let mut manager = SandboxManager::new(state_dir, DEFAULT_IDLE_TIMEOUT_SEC)?;
+        let _ = &mut manager;
+        let prefix = manager.reset_win32_prefix(app_id)?;
+        let mut out = BTreeMap::new();
+        out.insert("action".to_string(), JsonValue::Str("reset-prefix".to_string()));
+        out.insert("app_id".to_string(), JsonValue::Str(app_id.to_string()));
+        out.insert("prefix".to_string(), JsonValue::Str(prefix.display().to_string()));
+        out.insert("reset".to_string(), JsonValue::Bool(true));
+        return Ok(to_json_pretty(&JsonValue::Object(out)));
     }
 
     let mut runtime_argv: Vec<String> = match sub {

@@ -12,6 +12,8 @@ pub enum LaunchMode {
     FullCenter,
     OpenDialog(PathBuf),
     PowerDialog,
+    QuickSettings,
+    LoginGreeter,
     OobeWizard,
     TaskManager,
     CheckOnly(Option<PathBuf>),
@@ -36,9 +38,11 @@ USAGE:
 OPTIONS:
   --open <FILE>          Open Quick Install & Launch dialog for .exe/.msi/.apk/ELF
   --power                Open Shutdown / Reboot / Sleep / Log Out modal dialog
+  --quick-settings       Open Win11-style Quick Settings popup panel (Wi-Fi, Audio, Brightness, Theme, Power)
+  --login                Open Multi-User Sign-In screen
   --oobe                 Open First-Boot Setup Wizard (OOBE) before entering desktop center
   --taskmgr              Open lightweight Task Manager to inspect or end running apps
-  --tab <NAME>           Open initial tab: apps | store[:retro] | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security]
+  --tab <NAME>           Open initial tab: apps | store[:retro] | dev | ai | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security|power|users]
   --state-dir <DIR>      Override sandbox registry root (default: /data/uniload or .uniload_state)
   --apps-dir <DIR>       Override .desktop applications folder (default: ~/.local/share/applications)
   --desktop-dir <DIR>    Override Desktop shortcuts folder (default: ~/Desktop)
@@ -78,6 +82,12 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
             "--power" => {
                 mode = LaunchMode::PowerDialog;
             }
+            "--quick-settings" => {
+                mode = LaunchMode::QuickSettings;
+            }
+            "--login" => {
+                mode = LaunchMode::LoginGreeter;
+            }
             "--oobe" => {
                 mode = LaunchMode::OobeWizard;
             }
@@ -96,7 +106,8 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
                         "display" | "brightness" | "appearance" | "theme" | "wallpaper" | "input" => 3,
                         "printers" | "printer" | "cups" => 4,
                         "security" | "firewall" | "backup" | "vpn" => 5,
-                        _ => return Err(format!("Unknown settings subtab '{sub}'. Choose wifi, bluetooth, audio, display, appearance, printers, or security.")),
+                        "power" | "battery" | "users" | "smart" => 6,
+                        _ => return Err(format!("Unknown settings subtab '{sub}'. Choose wifi, bluetooth, audio, display, appearance, printers, security, power, or users.")),
                     };
                 } else if let Some(sub) = lower.strip_prefix("store:") {
                     initial_tab = 4;
@@ -113,7 +124,8 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
                         "system" => 2,
                         "settings" => 3,
                         "store" | "catalog" => 4,
-                        _ => return Err(format!("Unknown --tab '{raw}'. Choose apps, install, system, settings, or store.")),
+                        "dev" | "ai" | "devbox" => 5,
+                        _ => return Err(format!("Unknown --tab '{raw}'. Choose apps, store, dev, install, system, or settings.")),
                     };
                 }
             }

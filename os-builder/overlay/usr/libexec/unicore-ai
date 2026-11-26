@@ -1,0 +1,117 @@
+#!/bin/sh
+set -eu
+
+AI_ROOT="${UNICORE_AI_ROOT:-/data/ai}"
+OLLAMA_DIR="${AI_ROOT}/ollama"
+OLLAMA_BIN="${OLLAMA_DIR}/bin/ollama"
+MODELS_DIR="${AI_ROOT}/models"
+export OLLAMA_HOST="127.0.0.1:11434"
+export OLLAMA_MODELS="${MODELS_DIR}"
+
+detect_ram_mb() {
+    awk '/^MemTotal:/{printf "%d\n", int($2 / 1024); exit}' /proc/meminfo 2>/dev/null || echo 1024
+}
+
+recommend_model() {
+    ram_mb="$(detect_ram_mb)"
+    if [ "${ram_mb}" -lt 2500 ]; then
+        printf 'qwen2.5:0.5b (Low-RAM PC warning: %s MB)\n' "${ram_mb}"
+    elif [ "${ram_mb}" -lt 7500 ]; then
+        printf 'llama3.2:1b\n'
+    elif [ "${ram_mb}" -lt 15000 ]; then
+        printf 'qwen2.5-coder:3b\n'
+    else
+        printf 'qwen2.5-coder:7b\n'
+    fi
+}
+
+validate_model() {
+    printf '%s' "$1" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,63}$'
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        installed=0
+        running=0
+        models=""
+        [ -x "${OLLAMA_BIN}" ] && installed=1 || true
+        if pgrep -x ollama >/dev/null 2>&1; then
+            running=1
+        fi
+        if [ "${running}" -eq 1 ] && command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+            models="$(curl -fsS --max-time 2 "http://${OLLAMA_HOST}/api/tags" 2>/dev/null | jq -r '.models[]?.name' 2>/dev/null | paste -sd ',' - || true)"
+        fi
+        printf 'installed=%s\nrunning=%s\nendpoint=http://%s\nrecommended_model=%s\nmodels=%s\n' \
+            "${installed}" "${running}" "${OLLAMA_HOST}" "$(recommend_model)" "${models}"
+        ;;
+
+    install)
+        mkdir -p "${OLLAMA_DIR}" "${MODELS_DIR}"
+        ARCH="$(uname -m)"
+        case "${ARCH}" in
+            x86_64) asset="ollama-linux-amd64.tgz" ;;
+            aarch64|arm64) asset="ollama-linux-arm64.tgz" ;;
+            *) echo "Unsupported CPU architecture for Ollama: ${ARCH}" >&2; exit 1 ;;
+        esac
+        url="https://ollama.com/download/${asset}"
+        tmp_tgz="/tmp/ollama-$$.tgz"
+        echo "==> Downloading Ollama (${asset}) into ${OLLAMA_DIR}..."
+        curl -fsSL --connect-timeout 15 --max-time 1800 -o "${tmp_tgz}" "${url}"
+        tar -xzf "${tmp_tgz}" -C "${OLLAMA_DIR}"
+        rm -f "${tmp_tgz}"
+        chmod +x "${OLLAMA_BIN}" 2>/dev/null || true
+        echo "Ollama installed cleanly into ${OLLAMA_DIR} (0 MB idle RAM until started)."
+        ;;
+
+    start)
+        [ -x "${OLLAMA_BIN}" ] || { echo "Ollama is not installed yet. Click Install Ollama first." >&2; exit 1; }
+        mkdir -p "${MODELS_DIR}"
+        if ! pgrep -x ollama >/dev/null 2>&1; then
+            "${OLLAMA_BIN}" serve </dev/null >/tmp/unicore-ollama.log 2>&1 &
+            tries=0
+            while [ "${tries}" -lt 25 ]; do
+                if curl -fsS --max-time 1 "http://${OLLAMA_HOST}/api/tags" >/dev/null 2>&1; then
+                    break
+                fi
+                sleep 0.2
+                tries=$((tries + 1))
+            done
+        fi
+        echo "Local AI server running on http://${OLLAMA_HOST}"
+        ;;
+
+    stop)
+        pkill -x ollama >/dev/null 2>&1 || true
+        echo "Local AI server stopped (RAM freed)."
+        ;;
+
+    pull)
+        model="${1:-}"
+        validate_model "${model}" || { echo "Invalid model name '${model}'." >&2; exit 2; }
+        [ -x "${OLLAMA_BIN}" ] || { echo "Ollama is not installed yet." >&2; exit 1; }
+        "${OLLAMA_BIN}" pull "${model}"
+        ;;
+
+    chat)
+        [ "$#" -ge 2 ] || { echo "Usage: unicore-ai chat <model> <prompt>" >&2; exit 2; }
+        model="$1"
+        shift
+        prompt="$*"
+        validate_model "${model}" || { echo "Invalid model name '${model}'." >&2; exit 2; }
+        command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || {
+            echo "curl and jq are required for Local AI chat." >&2
+            exit 1
+        }
+        payload="$(jq -nc --arg m "${model}" --arg p "${prompt}" '{model:$m, prompt:$p, stream:false}')"
+        resp="$(curl -fsS --connect-timeout 5 --max-time 120 -H 'Content-Type: application/json' -d "${payload}" "http://${OLLAMA_HOST}/api/generate")"
+        printf '%s\n' "${resp}" | jq -r '.response // empty'
+        ;;
+
+    *)
+        echo "Usage: unicore-ai <status|install|start|stop|pull <model>|chat <model> <prompt>>" >&2
+        exit 2
+        ;;
+esac

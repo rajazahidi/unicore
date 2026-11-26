@@ -61,7 +61,8 @@ window#waybar {
 
 #network,
 #pulseaudio,
-#battery {
+#battery,
+#custom-quick {
     padding: 4px 9px;
     margin: 5px 2px;
     background-color: #ffffff;
@@ -71,7 +72,9 @@ window#waybar {
 }
 
 #network:hover,
-#pulseaudio:hover {
+#pulseaudio:hover,
+#battery:hover,
+#custom-quick:hover {
     background-color: #e2e8f0;
 }
 

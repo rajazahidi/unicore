@@ -262,6 +262,22 @@ EOF
         echo "Pure-DEX and x86_64 APKs run natively without extra libraries."
         ;;
 
+    clipboard-sync)
+        if [ ! -f "${ANDROID_ROOT}/images/system.img" ] || ! pgrep -f "waydroid.*container" >/dev/null 2>&1; then
+            echo "Android container is not running (nothing to sync)."
+            exit 0
+        fi
+        if command -v wl-paste >/dev/null 2>&1 && command -v waydroid >/dev/null 2>&1; then
+            clip_txt="$(wl-paste --no-newline 2>/dev/null | head -c 4096 || true)"
+            if [ -n "${clip_txt}" ]; then
+                printf '%s' "${clip_txt}" | waydroid shell cmd clipboard set-text 2>/dev/null || true
+                echo "Synced desktop clipboard (${#clip_txt} chars) to Android container."
+            else
+                echo "Desktop clipboard is empty."
+            fi
+        fi
+        ;;
+
     *)
         echo "[uniload-art] Unknown command: ${cmd}" >&2
         exit 1

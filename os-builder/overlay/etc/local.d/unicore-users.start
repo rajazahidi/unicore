@@ -1,0 +1,4 @@
+#!/bin/sh
+if [ -x /usr/libexec/unicore-users ]; then
+    /usr/libexec/unicore-users sync-boot >/dev/null 2>&1 || true
+fi

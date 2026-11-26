@@ -17,6 +17,7 @@
     "network",
     "pulseaudio",
     "battery",
+    "custom/quick",
     "clock",
     "custom/power",
     "custom/desktop"
@@ -71,7 +72,13 @@
   },
   "battery": {
     "format": "Bat {capacity}%",
-    "tooltip": false
+    "tooltip-format": "Power & Battery Settings",
+    "on-click": "/usr/bin/unicore-center --tab settings:power"
+  },
+  "custom/quick": {
+    "format": "Quick",
+    "tooltip-format": "Quick Settings Panel (Wi-Fi / Sound / Theme / Power)",
+    "on-click": "pkill -f 'unicore-center --quick-settings' || /usr/bin/unicore-center --quick-settings &"
   },
   "clock": {
     "format": "{:%H:%M\n%d/%m/%Y}",

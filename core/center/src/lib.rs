@@ -3,6 +3,7 @@
 pub mod backend;
 pub mod cli;
 pub mod desktop;
+pub mod dev_ai;
 pub mod gaming;
 pub mod i18n;
 pub mod installer;
@@ -11,3 +12,4 @@ pub mod settings;
 pub mod store;
 pub mod taskmgr;
 pub mod updater;
+pub mod users_power;

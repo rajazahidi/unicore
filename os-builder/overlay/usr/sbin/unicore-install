@@ -317,7 +317,7 @@ if [ -d /data/network ]; then
 fi
 chown -R 1000:1000 "${MNT}/data/uniload" "${MNT}/data/home" "${MNT}/data/unicore"
 
-OS_VERSION="0.1.0"
+OS_VERSION="0.2.0"
 if [ -r /etc/os-release ]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || true)"
     [ -n "${parsed_ver}" ] && OS_VERSION="${parsed_ver}"

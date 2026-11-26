@@ -1,0 +1,61 @@
+#!/bin/sh
+set -eu
+
+cmd="${1:-health}"
+target="${2:-}"
+
+pick_default_disk() {
+    for d in /dev/nvme0n1 /dev/sda /dev/vda /dev/hda; do
+        if [ -b "${d}" ]; then
+            printf '%s\n' "${d}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if [ "${cmd}" = "list" ]; then
+    lsblk -dn -o PATH,SIZE,MODEL,TRAN 2>/dev/null || true
+    exit 0
+fi
+
+[ -n "${target}" ] || target="$(pick_default_disk || true)"
+if [ -z "${target}" ] || [ ! -b "${target}" ]; then
+    printf 'device=none\nmodel=No physical disk\nhealth=N/A\ntemp_c=N/A\npower_on_hours=N/A\n'
+    exit 0
+fi
+
+case "${target}" in
+    /dev/sd[a-z]|/dev/hd[a-z]|/dev/vd[a-z]|/dev/nvme[0-9]*n[0-9]*|/dev/mmcblk[0-9]*) ;;
+    *)
+        echo "Unsafe device path: ${target}" >&2
+        exit 1
+        ;;
+esac
+
+if ! command -v smartctl >/dev/null 2>&1; then
+    printf 'device=%s\nmodel=smartmontools missing\nhealth=Unavailable\ntemp_c=N/A\npower_on_hours=N/A\n' "${target}"
+    exit 0
+fi
+
+raw="$(smartctl -H -A -i "${target}" 2>&1 || true)"
+model="$(printf '%s\n' "${raw}" | sed -n 's/^Device Model:[[:space:]]*//p; s/^Model Number:[[:space:]]*//p; s/^Product:[[:space:]]*//p' | head -n1)"
+[ -n "${model}" ] || model="$(lsblk -dn -o MODEL "${target}" 2>/dev/null | head -n1 || echo 'Virtual/Generic Disk')"
+
+health="$(printf '%s\n' "${raw}" | sed -n 's/^SMART overall-health self-assessment test result:[[:space:]]*//p; s/^SMART Health Status:[[:space:]]*//p' | head -n1)"
+if [ -z "${health}" ]; then
+    if printf '%s' "${target}" | grep -q '/dev/vd'; then
+        health="Virtual Disk (No S.M.A.R.T.)"
+    else
+        health="Unsupported / Standby"
+    fi
+fi
+
+temp_c="$(printf '%s\n' "${raw}" | awk '/^194 Temperature_Celsius/{print $10"C"; exit} /^190 Airflow_Temperature/{print $10"C"; exit} /^Temperature:/{print $2"C"; exit}')"
+[ -n "${temp_c}" ] || temp_c="N/A"
+
+hours="$(printf '%s\n' "${raw}" | awk '/^  9 Power_On_Hours/{print $10; exit} /^Power On Hours:/{print $4; exit}')"
+[ -n "${hours}" ] || hours="N/A"
+
+printf 'device=%s\nmodel=%s\nhealth=%s\ntemp_c=%s\npower_on_hours=%s\n' \
+    "${target}" "${model}" "${health}" "${temp_c}" "${hours}"

@@ -172,6 +172,17 @@ DESKTOP_PKGS=(
     sane-backend-epson2
     sane-backend-net
     simple-scan
+    swayidle
+    smartmontools
+    shadow
+    git
+    python3
+    openssh-client
+    jq
+    podman
+    crun
+    slirp4netns
+    fuse-overlayfs
 )
 
 if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]]; then
@@ -349,10 +360,16 @@ chmod 0755 \
     "${ROOTFS_DIR}/usr/libexec/unicore-firewall" \
     "${ROOTFS_DIR}/usr/libexec/unicore-backup" \
     "${ROOTFS_DIR}/usr/libexec/unicore-personalize" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-users" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-power" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-smart" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-devbox" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-ai" \
     "${ROOTFS_DIR}/etc/local.d/unicore-binfmt.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-android.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-hwprofile.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-connectivity.start" \
+    "${ROOTFS_DIR}/etc/local.d/unicore-users.start" \
     "${ROOTFS_DIR}/etc/xdg/labwc/autostart"
 chown 0:0 "${ROOTFS_DIR}/etc/doas.d/unicore.conf"
 chmod 0600 "${ROOTFS_DIR}/etc/doas.d/unicore.conf"
@@ -438,6 +455,8 @@ chroot "${ROOTFS_DIR}" /bin/sh -c '
         addgroup "${grp}" 2>/dev/null || true
         addgroup unicore "${grp}" 2>/dev/null || true
     done
+    grep -q '^unicore:' /etc/subuid 2>/dev/null || echo 'unicore:100000:65536' >> /etc/subuid
+    grep -q '^unicore:' /etc/subgid 2>/dev/null || echo 'unicore:100000:65536' >> /etc/subgid
     chown -R unicore:unicore /home/unicore
     update-mime-database /usr/share/mime || true
     update-desktop-database /usr/share/applications || true

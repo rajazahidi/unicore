@@ -7,3 +7,5 @@
 *.key
 /release-keys/
 /os-builder/keys/
+__pycache__/
+*.pyc

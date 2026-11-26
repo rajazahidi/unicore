@@ -124,7 +124,8 @@ apply_configs() {
     no_reload="${1:-0}"
     load_conf
     USER_HOME="${HOME:-/home/unicore}"
-    CFG_ROOT="${USER_HOME}/.config"
+    CFG_ROOT="${XDG_CONFIG_HOME:-${USER_HOME}/.config}"
+    export XDG_CONFIG_HOME="${CFG_ROOT}"
     mkdir -p "${CFG_ROOT}/gtk-3.0" "${CFG_ROOT}/waybar" "${CFG_ROOT}/fuzzel" "${CFG_ROOT}/labwc"
 
     if [ "${UNICORE_THEME}" = "light" ]; then
@@ -185,8 +186,9 @@ EOF
     if [ "${no_reload}" = "0" ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
         LABWC_P="$(pgrep -u "$(id -u)" -x labwc 2>/dev/null | head -n1 || true)"
         if [ -n "${LABWC_P}" ]; then
+            LABWC_PID="${LABWC_P}" labwc --reconfigure >/dev/null 2>&1 || true
             kill -HUP "${LABWC_P}" 2>/dev/null || true
-            sleep 0.3
+            sleep 0.4
         elif command -v labwc >/dev/null 2>&1; then
             labwc --reconfigure >/dev/null 2>&1 || true
             sleep 0.3

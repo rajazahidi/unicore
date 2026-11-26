@@ -158,9 +158,10 @@ def gate1_bios_phase20d_and_ed25519():
         script = r"""#!/bin/sh
 set -eu
 
-echo "[1/5] Checking boot mode, wallpapers, and Light theme assets..."
+echo "[1/5] Checking v0.2.0 boot mode, wallpapers, Light theme & Phase 23/24/25 tools..."
 . /mnt/unicore-boot.env
 [ "${UNICORE_BOOT_MODE}" = "live" ] || { echo "Expected live boot mode, got ${UNICORE_BOOT_MODE}"; exit 1; }
+grep -q 'VERSION_ID="0.2.0"' /etc/os-release
 uname -r
 test -f /usr/share/unicore/wallpaper.png
 test -f /usr/share/unicore/wallpaper-aurora.png
@@ -169,6 +170,23 @@ test -f /usr/share/themes/UniCore-Light/openbox-3/themerc
 test -f /usr/share/unicore/themes/waybar-light.css
 test -f /usr/share/unicore/themes/fuzzel-light.ini
 test -x /usr/libexec/unicore-personalize
+test -x /usr/libexec/unicore-users
+test -x /usr/libexec/unicore-power
+test -x /usr/libexec/unicore-smart
+test -x /usr/libexec/unicore-devbox
+test -x /usr/libexec/unicore-ai
+git --version
+python3 --version
+jq --version
+podman --version
+command -v swayidle
+command -v smartctl
+/usr/libexec/unicore-power status | grep -q '^profile=balanced$'
+/usr/libexec/unicore-smart health | grep -q '^device='
+/usr/libexec/unicore-users list | grep -q '^unicore'
+/usr/libexec/unicore-devbox status | grep -q '^projects_dir=/data/dev/projects$'
+/usr/libexec/unicore-ai status | grep -q '^endpoint=http://127.0.0.1:11434$'
+echo "Verified all v0.2.0 Phase 23/24 CLI helpers OK"
 
 echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
 mkdir -p /data/unicore
@@ -217,12 +235,21 @@ su -s /bin/sh unicore -c '
     done
     sleep 4
     grim /tmp/phase20d.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --tab dev >/tmp/center_dev.log 2>&1 &
+    sleep 4
+    grim /tmp/v020_dev_ai.png
 '
 test -s /tmp/phase20d.png
+test -s /tmp/v020_dev_ai.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
 echo "===PNG_B64_END==="
+echo "===PNG_DEV_B64_START==="
+base64 /tmp/v020_dev_ai.png
+echo "===PNG_DEV_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -272,7 +299,13 @@ printf '\n===GATE1_OK===\n'
         os.makedirs(os.path.dirname(SCREENSHOT_DEST), exist_ok=True)
         with open(SCREENSHOT_DEST, "wb") as f:
             f.write(png_bytes)
-        print(f"    [PASS] Gate 1 passed! Screenshot saved ({len(png_bytes)} bytes): {SCREENSHOT_DEST}")
+        dev_m = re.search(r"===PNG_DEV_B64_START===\s*(.*?)\s*===PNG_DEV_B64_END===", out, re.DOTALL)
+        if not dev_m:
+            raise RuntimeError("Missing Dev & AI screenshot payload in Gate 1 output")
+        dev_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v020.png")
+        with open(dev_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", dev_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}")
     finally:
         h.close()
 

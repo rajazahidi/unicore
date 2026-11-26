@@ -1,10 +1,11 @@
 #!/bin/sh
 # UniCore OS Wayland Desktop Autostart
 
-mkdir -p /home/unicore/.local/share/applications /home/unicore/Desktop
-if [ ! -f /home/unicore/Desktop/unicore-center.desktop ] && [ -f /usr/share/applications/unicore-center.desktop ]; then
-    cp /usr/share/applications/unicore-center.desktop /home/unicore/Desktop/unicore-center.desktop
-    chmod +x /home/unicore/Desktop/unicore-center.desktop
+USER_HOME="${HOME:-/home/unicore}"
+mkdir -p "${USER_HOME}/.local/share/applications" "${USER_HOME}/Desktop"
+if [ ! -f "${USER_HOME}/Desktop/unicore-center.desktop" ] && [ -f /usr/share/applications/unicore-center.desktop ]; then
+    cp /usr/share/applications/unicore-center.desktop "${USER_HOME}/Desktop/unicore-center.desktop"
+    chmod +x "${USER_HOME}/Desktop/unicore-center.desktop"
 fi
 
 if command -v pipewire >/dev/null 2>&1; then
@@ -25,7 +26,7 @@ if [ -x /usr/libexec/unicore-nightlight ]; then
     /usr/libexec/unicore-nightlight apply >/dev/null 2>&1 || true
 fi
 
-# Skip heavy shell panels, wallpaper, clipboard watcher & toast daemon on 2005-2008 legacy_ultra machines (<=1.5GB RAM) to preserve memory for apps.
+# Skip heavy shell panels, wallpaper, clipboard watcher, idle lock & toast daemon on 2005-2008 legacy_ultra machines (<=1.5GB RAM).
 if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ]; then
     WALLPAPER_PATH="/usr/share/unicore/wallpaper.png"
     if [ -x /usr/libexec/unicore-personalize ]; then
@@ -45,6 +46,9 @@ if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ]; then
     fi
     if command -v wl-paste >/dev/null 2>&1 && [ -x /usr/libexec/unicore-clip-store ]; then
         wl-paste --type text --watch /usr/libexec/unicore-clip-store >/dev/null 2>&1 &
+    fi
+    if [ -x /usr/libexec/unicore-power ]; then
+        /usr/libexec/unicore-power apply-idle >/dev/null 2>&1 || true
     fi
 fi
 

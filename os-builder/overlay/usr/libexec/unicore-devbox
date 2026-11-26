@@ -1,0 +1,88 @@
+#!/bin/sh
+set -eu
+
+DEV_ROOT="/data/dev"
+PROJECTS_DIR="${DEV_ROOT}/projects"
+STORAGE_ROOT="${DEV_ROOT}/containers/storage"
+
+ensure_podman_config() {
+    USER_HOME="${HOME:-/home/unicore}"
+    mkdir -p "${PROJECTS_DIR}" "${STORAGE_ROOT}" "${USER_HOME}/.config/containers"
+    cat <<EOF > "${USER_HOME}/.config/containers/storage.conf"
+[storage]
+driver = "overlay"
+graphroot = "${STORAGE_ROOT}"
+[storage.options.overlay]
+mount_program = "/usr/bin/fuse-overlayfs"
+EOF
+    if [ ! -f "${USER_HOME}/.config/containers/registries.conf" ]; then
+        cat <<'EOF' > "${USER_HOME}/.config/containers/registries.conf"
+unqualified-search-registries = ["docker.io"]
+EOF
+    fi
+}
+
+template_image() {
+    case "$1" in
+        python) printf 'docker.io/library/python:3.12-slim\n' ;;
+        node) printf 'docker.io/library/node:22-slim\n' ;;
+        rust) printf 'docker.io/library/rust:1-slim\n' ;;
+        ubuntu) printf 'docker.io/library/ubuntu:24.04\n' ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_name() {
+    printf '%s' "$1" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$'
+}
+
+cmd="${1:-status}"
+shift || true
+
+ensure_podman_config
+
+case "${cmd}" in
+    status)
+        git_ver="$(git --version 2>/dev/null | head -n1 || echo 'missing')"
+        py_ver="$(python3 --version 2>/dev/null | head -n1 || echo 'missing')"
+        pod_ver="$(podman --version 2>/dev/null | head -n1 || echo 'missing')"
+        boxes=""
+        if command -v podman >/dev/null 2>&1; then
+            boxes="$(podman ps -a --format '{{.Names}}|{{.Image}}|{{.State}}' 2>/dev/null | paste -sd ';' - || true)"
+        fi
+        printf 'git=%s\npython=%s\npodman=%s\nprojects_dir=%s\ncontainers=%s\n' \
+            "${git_ver}" "${py_ver}" "${pod_ver}" "${PROJECTS_DIR}" "${boxes}"
+        ;;
+
+    create)
+        tpl="${1:-python}"
+        name="${2:-dev-${tpl}}"
+        img="$(template_image "${tpl}")" || { echo "Unsupported template '${tpl}'. Choose python, node, rust, or ubuntu." >&2; exit 2; }
+        validate_name "${name}" || { echo "Invalid DevBox name '${name}'." >&2; exit 1; }
+        command -v podman >/dev/null 2>&1 || { echo "podman is not installed." >&2; exit 1; }
+        podman create --name "${name}" -it \
+            -v "${PROJECTS_DIR}:/workspace" \
+            -w /workspace \
+            "${img}" /bin/sh
+        echo "Created DevBox '${name}' (${img}) -> workspace /workspace (${PROJECTS_DIR})."
+        ;;
+
+    shell)
+        name="${1:-}"
+        validate_name "${name}" || { echo "Invalid DevBox name." >&2; exit 1; }
+        podman start "${name}" >/dev/null 2>&1 || true
+        exec foot -e podman exec -it "${name}" /bin/sh
+        ;;
+
+    remove)
+        name="${1:-}"
+        validate_name "${name}" || { echo "Invalid DevBox name." >&2; exit 1; }
+        podman rm -f "${name}"
+        echo "Removed DevBox '${name}'."
+        ;;
+
+    *)
+        echo "Usage: unicore-devbox <status|create <python|node|rust|ubuntu> [name]|shell <name>|remove <name>>" >&2
+        exit 2
+        ;;
+esac

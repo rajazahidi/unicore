@@ -1345,3 +1345,90 @@ fn catalog_parse_filter_sha256_and_offline_install() {
         .get("UNILOAD_APP_WORKDIR")
         .is_some_and(|w| w.contains("cave-story")));
 }
+
+#[test]
+fn phase25_app_launch_config_env_and_prefix_reset_work() {
+    use uniload::sandbox::{format_env_vars_str, parse_env_vars_str, split_launch_args};
+
+    let args = split_launch_args("-windowed -res \"1024 768\" --fast");
+    assert_eq!(args, vec!["-windowed", "-res", "1024 768", "--fast"]);
+
+    let env = parse_env_vars_str("WINEARCH=win32, DXVK_HUD=fps").unwrap();
+    assert_eq!(env.get("WINEARCH").map(String::as_str), Some("win32"));
+    assert_eq!(env.get("DXVK_HUD").map(String::as_str), Some("fps"));
+    assert!(format_env_vars_str(&env).contains("DXVK_HUD=fps"));
+    assert!(parse_env_vars_str("1BAD_KEY=x").is_err());
+
+    let tmp = TempWorkspace::new("adv_config");
+    let state_dir = tmp.root.join("state");
+    let game_exe = tmp.root.join("AdvGame.exe");
+    write_file(&game_exe, &build_pe_bytes_with_ver(0x014C, 2, 0x010B, 0x0002, 5));
+
+    let cli_inst = run_cli(&[
+        "--state-dir".to_string(),
+        state_dir.display().to_string(),
+        "install".to_string(),
+        game_exe.display().to_string(),
+    ])
+    .unwrap();
+    let app_id = parse_json(&cli_inst)
+        .unwrap()
+        .as_object()
+        .unwrap()
+        .get("app_id")
+        .and_then(JsonValue::as_str)
+        .unwrap()
+        .to_string();
+
+    run_cli(&[
+        "--state-dir".to_string(),
+        state_dir.display().to_string(),
+        "config".to_string(),
+        app_id.clone(),
+        "--args".to_string(),
+        "-fullscreen -nosound".to_string(),
+        "--env".to_string(),
+        "PROTON_NO_ESYNC=1, MY_FLAG=yes".to_string(),
+    ])
+    .unwrap();
+
+    let launch_out = run_cli(&[
+        "--state-dir".to_string(),
+        state_dir.display().to_string(),
+        "launch".to_string(),
+        app_id.clone(),
+        "--dry-run".to_string(),
+    ])
+    .unwrap();
+    let ljson = parse_json(&launch_out).unwrap();
+    let lobj = ljson.as_object().unwrap();
+    let argv: Vec<String> = lobj
+        .get("argv")
+        .and_then(JsonValue::as_array)
+        .unwrap()
+        .iter()
+        .filter_map(JsonValue::as_str)
+        .map(str::to_string)
+        .collect();
+    assert!(argv.ends_with(&["-fullscreen".to_string(), "-nosound".to_string()]));
+    let env_obj = lobj.get("env").and_then(JsonValue::as_object).unwrap();
+    assert_eq!(env_obj.get("MY_FLAG").and_then(JsonValue::as_str), Some("yes"));
+
+    let reset_out = run_cli(&[
+        "--state-dir".to_string(),
+        state_dir.display().to_string(),
+        "win32".to_string(),
+        "reset-prefix".to_string(),
+        app_id,
+    ])
+    .unwrap();
+    assert_eq!(
+        parse_json(&reset_out)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .get("reset")
+            .and_then(JsonValue::as_bool),
+        Some(true)
+    );
+}

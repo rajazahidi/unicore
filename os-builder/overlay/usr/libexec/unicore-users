@@ -1,0 +1,248 @@
+#!/bin/sh
+set -eu
+
+USERS_DIR="/data/unicore/users"
+ACCOUNTS_FILE="${USERS_DIR}/accounts.tsv"
+SHADOW_SYNC="${USERS_DIR}/shadow.sync"
+DESKTOP_GROUPS="video input seat audio users plugdev netdev bluetooth lp lpadmin scanner"
+
+validate_username() {
+    printf '%s' "$1" | grep -Eq '^[a-z][a-z0-9_-]{1,23}$' || return 1
+    case "$1" in
+        root|daemon|bin|sys|sync|nobody|all|guest|system) return 1 ;;
+    esac
+    return 0
+}
+
+ensure_dirs() {
+    mkdir -p "${USERS_DIR}" /data/users /data/home
+    if [ ! -e /data/users/unicore ]; then
+        ln -s /data/home /data/users/unicore
+    fi
+    if [ ! -f "${ACCOUNTS_FILE}" ]; then
+        printf 'unicore\tadmin\n' > "${ACCOUNTS_FILE}"
+    fi
+}
+
+user_has_password() {
+    uname="$1"
+    [ -r /etc/shadow ] || { printf '0\n'; return 0; }
+    field="$(awk -F: -v u="${uname}" '$1==u {print $2; exit}' /etc/shadow 2>/dev/null || true)"
+    case "${field}" in
+        ""|"!"|"*"|"!!"|"!*"|"x") printf '0\n' ;;
+        *) printf '1\n' ;;
+    esac
+}
+
+ensure_subid_for_user() {
+    uname="$1"
+    uid_num="$(id -u "${uname}" 2>/dev/null || echo 1000)"
+    start_id=$((100000 + (uid_num - 1000) * 65536))
+    [ "${start_id}" -lt 100000 ] && start_id=100000
+    grep -q "^${uname}:" /etc/subuid 2>/dev/null || printf '%s:%s:65536\n' "${uname}" "${start_id}" >> /etc/subuid
+    grep -q "^${uname}:" /etc/subgid 2>/dev/null || printf '%s:%s:65536\n' "${uname}" "${start_id}" >> /etc/subgid
+}
+
+setup_user_home() {
+    uname="$1"
+    if [ "${uname}" = "unicore" ]; then
+        base="/data/home"
+    else
+        base="/data/users/${uname}"
+    fi
+    mkdir -p "${base}/Documents" "${base}/Downloads" "${base}/Desktop" "${base}/Pictures" "${base}/applications"
+    chown -R "${uname}:${uname}" "${base}" 2>/dev/null || true
+    mkdir -p "/home/${uname}/.config/gtk-3.0" "/home/${uname}/.local/share"
+    for sub in Documents Downloads Desktop Pictures; do
+        target="/home/${uname}/${sub}"
+        if [ -d "${target}" ] && [ ! -L "${target}" ]; then
+            cp -a "${target}/." "${base}/${sub}/" 2>/dev/null || true
+            rm -rf "${target}"
+        fi
+        [ -e "${target}" ] || ln -s "${base}/${sub}" "${target}"
+    done
+    app_target="/home/${uname}/.local/share/applications"
+    if [ -d "${app_target}" ] && [ ! -L "${app_target}" ]; then
+        cp -a "${app_target}/." "${base}/applications/" 2>/dev/null || true
+        rm -rf "${app_target}"
+    fi
+    [ -e "${app_target}" ] || ln -s "${base}/applications" "${app_target}"
+    chown -R "${uname}:${uname}" "/home/${uname}" 2>/dev/null || true
+}
+
+save_shadow_sync() {
+    [ -r /etc/shadow ] || return 0
+    ensure_dirs
+    (
+        umask 077
+        awk -F'\t' 'NR==FNR{u[$1]=1; next} { split($0, a, ":"); if (a[1] in u) print $0 }' "${ACCOUNTS_FILE}" /etc/shadow > "${SHADOW_SYNC}.tmp"
+        mv "${SHADOW_SYNC}.tmp" "${SHADOW_SYNC}"
+        chmod 0600 "${SHADOW_SYNC}"
+    )
+}
+
+add_user_groups() {
+    uname="$1"
+    for grp in ${DESKTOP_GROUPS}; do
+        addgroup "${uname}" "${grp}" 2>/dev/null || true
+    done
+}
+
+cmd="${1:-list}"
+shift || true
+
+case "${cmd}" in
+    list)
+        ensure_dirs
+        while IFS="$(printf '\t')" read -r uname role; do
+            [ -n "${uname}" ] || continue
+            uid_val="$(id -u "${uname}" 2>/dev/null || echo 1000)"
+            has_pw="$(user_has_password "${uname}")"
+            printf '%s\t%s\t%s\t%s\n' "${uname}" "${uid_val}" "${role:-standard}" "${has_pw}"
+        done < "${ACCOUNTS_FILE}"
+        ;;
+
+    needs-login)
+        ensure_dirs
+        count="$(awk 'NF>0{c++} END{print c+0}' "${ACCOUNTS_FILE}")"
+        if [ "${count}" -gt 1 ]; then
+            printf '1\n'
+            exit 0
+        fi
+        if [ "$(user_has_password unicore)" = "1" ]; then
+            printf '1\n'
+        else
+            printf '0\n'
+        fi
+        ;;
+
+    add)
+        [ "$#" -ge 1 ] || { echo "Usage: unicore-users add <username> [standard|admin]" >&2; exit 2; }
+        uname="$1"
+        role="${2:-standard}"
+        validate_username "${uname}" || { echo "Invalid username '${uname}' (use 2-24 lowercase a-z/0-9/-/_)." >&2; exit 1; }
+        case "${role}" in
+            standard|admin) ;;
+            *) echo "Invalid role '${role}'." >&2; exit 2 ;;
+        esac
+        ensure_dirs
+        if id -u "${uname}" >/dev/null 2>&1; then
+            echo "User '${uname}' already exists." >&2
+            exit 1
+        fi
+        IFS= read -r pw || pw=""
+        pw="${pw%$(printf '\r')}"
+        if [ -n "${pw}" ] && [ "${#pw}" -lt 4 ]; then
+            echo "Password must be at least 4 characters (or empty)." >&2
+            exit 1
+        fi
+        adduser -D -s /bin/sh "${uname}"
+        add_user_groups "${uname}"
+        ensure_subid_for_user "${uname}"
+        if [ -n "${pw}" ]; then
+            printf '%s:%s\n' "${uname}" "${pw}" | chpasswd
+        fi
+        unset pw
+        setup_user_home "${uname}"
+        grep -v "^${uname}	" "${ACCOUNTS_FILE}" > "${ACCOUNTS_FILE}.tmp" || true
+        printf '%s\t%s\n' "${uname}" "${role}" >> "${ACCOUNTS_FILE}.tmp"
+        mv "${ACCOUNTS_FILE}.tmp" "${ACCOUNTS_FILE}"
+        save_shadow_sync
+        echo "Added user '${uname}' (${role})."
+        ;;
+
+    delete)
+        uname="${1:-}"
+        [ -n "${uname}" ] || { echo "Usage: unicore-users delete <username>" >&2; exit 2; }
+        if [ "${uname}" = "unicore" ] || [ "${uname}" = "root" ]; then
+            echo "Cannot delete primary system account '${uname}'." >&2
+            exit 1
+        fi
+        ensure_dirs
+        if id -u "${uname}" >/dev/null 2>&1; then
+            deluser "${uname}" 2>/dev/null || true
+        fi
+        grep -v "^${uname}	" "${ACCOUNTS_FILE}" > "${ACCOUNTS_FILE}.tmp" || true
+        mv "${ACCOUNTS_FILE}.tmp" "${ACCOUNTS_FILE}"
+        save_shadow_sync
+        echo "Removed user '${uname}'."
+        ;;
+
+    passwd)
+        uname="${1:-}"
+        [ -n "${uname}" ] || { echo "Usage: unicore-users passwd <username>" >&2; exit 2; }
+        validate_username "${uname}" || { echo "Invalid username." >&2; exit 1; }
+        id -u "${uname}" >/dev/null 2>&1 || { echo "User '${uname}' does not exist." >&2; exit 1; }
+        IFS= read -r pw || pw=""
+        pw="${pw%$(printf '\r')}"
+        if [ -z "${pw}" ]; then
+            if [ "${uname}" != "unicore" ]; then
+                echo "Password required for secondary user accounts (min 4 chars)." >&2
+                exit 1
+            fi
+            passwd -d "${uname}" >/dev/null
+            echo "Cleared password for 'unicore' (fast local login restored)."
+        else
+            [ "${#pw}" -ge 4 ] || { echo "Password must be at least 4 characters." >&2; exit 1; }
+            printf '%s:%s\n' "${uname}" "${pw}" | chpasswd
+            echo "Updated password for '${uname}'."
+        fi
+        unset pw
+        save_shadow_sync
+        ;;
+
+    auth)
+        uname="${1:-}"
+        [ -n "${uname}" ] || exit 2
+        validate_username "${uname}" || exit 1
+        id -u "${uname}" >/dev/null 2>&1 || exit 1
+        IFS= read -r pw || pw=""
+        pw="${pw%$(printf '\r')}"
+        has_pw="$(user_has_password "${uname}")"
+        if [ "${has_pw}" = "0" ]; then
+            exit 0
+        fi
+        hash="$(awk -F: -v u="${uname}" '$1==u {print $2; exit}' /etc/shadow 2>/dev/null || true)"
+        if command -v python3 >/dev/null 2>&1; then
+            python3 -c '
+import crypt, hmac, sys
+pw = sys.stdin.read().rstrip("\r\n")
+h = sys.argv[1]
+if not h:
+    sys.exit(0)
+calc = crypt.crypt(pw, h)
+sys.exit(0 if hmac.compare_digest(calc, h) else 1)
+' "${hash}" <<EOF_PW
+${pw}
+EOF_PW
+            rc=$?
+            unset pw
+            exit "${rc}"
+        fi
+        echo "python3 crypt verifier unavailable" >&2
+        exit 1
+        ;;
+
+    sync-boot)
+        ensure_dirs
+        while IFS="$(printf '\t')" read -r uname role; do
+            [ -n "${uname}" ] || continue
+            if ! id -u "${uname}" >/dev/null 2>&1; then
+                adduser -D -s /bin/sh "${uname}" 2>/dev/null || true
+            fi
+            add_user_groups "${uname}"
+            ensure_subid_for_user "${uname}"
+            setup_user_home "${uname}"
+        done < "${ACCOUNTS_FILE}"
+        if [ -r "${SHADOW_SYNC}" ] && [ -w /etc/shadow ]; then
+            awk -F: 'NR==FNR{h[$1]=$2; next} { if ($1 in h && h[$1] != "") { $2=h[$1] } OFS=":"; print }' "${SHADOW_SYNC}" /etc/shadow > /etc/shadow.sync.tmp
+            mv /etc/shadow.sync.tmp /etc/shadow
+            chmod 0640 /etc/shadow
+        fi
+        ;;
+
+    *)
+        echo "Usage: unicore-users <list|needs-login|add|delete|passwd|auth|sync-boot>" >&2
+        exit 2
+        ;;
+esac

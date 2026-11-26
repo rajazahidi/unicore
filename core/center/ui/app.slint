@@ -70,6 +70,20 @@ export struct StoreRow {
     c: StoreEntry,
 }
 
+export struct PickerRow {
+    name: string,
+    path: string,
+    is-dir: bool,
+    detail: string,
+}
+
+export struct UserRow {
+    username: string,
+    uid: int,
+    role: string,
+    has-password: bool,
+}
+
 export struct UiText {
     title-center: string,
     title-open: string,
@@ -78,6 +92,7 @@ export struct UiText {
     title-taskmgr: string,
     tab-apps: string,
     tab-store: string,
+    tab-dev-ai: string,
     tab-install: string,
     tab-system: string,
     tab-settings: string,
@@ -134,6 +149,7 @@ export struct UiText {
     subtab-display: string,
     subtab-printers: string,
     subtab-security: string,
+    subtab-power-users: string,
     chk-night-light: string,
     lbl-night-temp: string,
     hdr-printers: string,
@@ -188,6 +204,13 @@ export struct UiText {
     chk-tap-click: string,
     lbl-pointer-speed: string,
     btn-apply-personalize: string,
+    title-quick: string,
+    title-login: string,
+    hdr-power-smart: string,
+    hdr-users: string,
+    hdr-local-ai: string,
+    hdr-devbox: string,
+    btn-browse: string,
 }
 
 export global UiTheme {
@@ -482,12 +505,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)));
-    preferred-width: root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1020px));
-    preferred-height: root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 640px));
-    min-width: root.power-dialog-only ? 400px : 520px;
-    min-height: root.power-dialog-only ? 280px : 360px;
+    title: root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))));
+    preferred-width: root.login-dialog-only ? 440px : (root.quick-settings-only ? 390px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1020px))));
+    preferred-height: root.login-dialog-only ? 320px : (root.quick-settings-only ? 460px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 640px))));
+    min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only) ? 360px : 520px;
+    min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
+
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -503,8 +528,18 @@ export component MainWindow inherits Window {
     in-out property <string> lang-badge: "EN";
     in-out property <bool> open-dialog-only: false;
     in-out property <bool> power-dialog-only: false;
+    in-out property <bool> quick-settings-only: false;
+    in-out property <bool> login-dialog-only: false;
     in-out property <bool> oobe-dialog-only: false;
     in-out property <bool> taskmgr-dialog-only: false;
+    in-out property <bool> picker-open: false;
+    in-out property <string> picker-target: "";
+    in-out property <string> picker-dir: "/";
+    in-out property <[PickerRow]> picker-entries: [];
+    in-out property <[string]> login-user-names: ["unicore"];
+    in-out property <int> login-user-idx: 0;
+    in-out property <string> login-password: "";
+    in-out property <string> login-error: "";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -540,6 +575,10 @@ export component MainWindow inherits Window {
     in-out property <bool> has-selected-app: false;
     in-out property <bool> sel-log-visible: false;
     in-out property <string> sel-log-text: "";
+    in-out property <bool> sel-show-adv: false;
+    in-out property <string> sel-launch-args: "";
+    in-out property <string> sel-env-vars: "";
+    in-out property <string> sel-save-archive: "/data/home/Documents/app-save.tar.gz";
 
     // Open / Install file form state (shared by --open dialog and Install tab)
     in-out property <string> install-path-input: "";
@@ -601,7 +640,7 @@ export component MainWindow inherits Window {
     in-out property <string> sys-cpu-governor: "-";
 
     // A/B OS Updater & Rollback state (Tab 2)
-    in-out property <string> upd-current-version: "0.1.0";
+    in-out property <string> upd-current-version: "0.2.0";
     in-out property <string> upd-active-slot: "UNICORE_SYS_A";
     in-out property <string> upd-standby-slot: "UNICORE_SYS_B";
     in-out property <string> upd-pending-summary: "Checking...";
@@ -654,6 +693,42 @@ export component MainWindow inherits Window {
     in-out property <bool> set-tap-to-click: true;
     in-out property <float> set-pointer-speed-tenths: 0;
     in-out property <string> set-personalize-status: "";
+
+    // Phase 23: Power, Swayidle, S.M.A.R.T. & Multi-User Accounts (Subtab 6)
+    in-out property <int> pwr-profile-idx: 1;
+    in-out property <float> pwr-screen-min: 5;
+    in-out property <float> pwr-lock-min: 10;
+    in-out property <float> pwr-suspend-bat-min: 20;
+    in-out property <string> pwr-battery-label: "N/A";
+    in-out property <string> pwr-smart-device: "none";
+    in-out property <string> pwr-smart-model: "-";
+    in-out property <string> pwr-smart-health: "Click Scan Disk Health";
+    in-out property <string> pwr-smart-temp: "N/A";
+    in-out property <string> pwr-smart-hours: "N/A";
+    in-out property <[UserRow]> user-list: [];
+    in-out property <int> selected-user-idx: -1;
+    in-out property <string> selected-user-name: "";
+    in-out property <string> new-user-name: "";
+    in-out property <int> new-user-role-idx: 0;
+    in-out property <string> new-user-pass: "";
+    in-out property <string> update-user-pass: "";
+
+    // Phase 24: DevBox (Podman) & Local AI (Ollama) (Tab 5)
+    in-out property <string> dev-tools-summary: "Checking tools...";
+    in-out property <string> dev-projects-dir: "/data/dev/projects";
+    in-out property <[string]> dev-containers: [];
+    in-out property <int> selected-dev-idx: -1;
+    in-out property <int> dev-template-idx: 0;
+    in-out property <string> dev-new-name: "my-devbox";
+    in-out property <bool> ai-installed: false;
+    in-out property <bool> ai-running: false;
+    in-out property <string> ai-endpoint: "http://127.0.0.1:11434";
+    in-out property <string> ai-recommended-model: "llama3.2:1b";
+    in-out property <string> ai-models-summary: "None downloaded yet";
+    in-out property <string> ai-model-input: "qwen2.5:0.5b";
+    in-out property <string> ai-prompt-input: "";
+    in-out property <string> ai-response-text: "";
+    in-out property <bool> ai-busy: false;
 
     in-out property <bool> set-cups-active: false;
     in-out property <string> set-cups-summary: "Printer service stopped to save RAM";
@@ -776,13 +851,37 @@ export component MainWindow inherits Window {
     callback store-install-app(string);
     callback store-launch-app(string);
     callback store-sync-catalog(string);
+    callback save-app-launch-config(string, string);
+    callback reset-app-prefix();
+    callback backup-app-save(string);
+    callback restore-app-save(string);
+    callback open-file-picker(string);
+    callback picker-activate-entry(int);
+    callback picker-use-current-dir();
+    callback picker-cancel();
+    callback attempt-login(int, string);
+    callback set-power-profile(int);
+    callback apply-idle-timers(int, int, int);
+    callback scan-smart-health();
+    callback select-user(int);
+    callback add-user-account(string, int, string);
+    callback delete-selected-user();
+    callback set-selected-user-password(string);
+    callback refresh-dev-ai();
+    callback create-devbox(int, string);
+    callback open-devbox-shell();
+    callback remove-devbox();
+    callback select-devbox(int);
+    callback ai-action(string, string);
+    callback ai-ask(string, string);
+    callback quick-toggle-theme(bool);
 
     VerticalLayout {
         padding: 14px;
         spacing: 12px;
 
         // Top Header Bar
-        Card {
+        if !root.quick-settings-only && !root.login-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -814,7 +913,7 @@ export component MainWindow inherits Window {
                     clicked => { root.toggle-language(); }
                 }
 
-                if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only : HorizontalLayout {
+                if root.show-tabs : HorizontalLayout {
                     alignment: center;
                     spacing: 6px;
                     TabPill {
@@ -830,6 +929,11 @@ export component MainWindow inherits Window {
                             root.store-detail-open = false;
                             root.store-filter-changed(root.store-category, root.store-search-query);
                         }
+                    }
+                    TabPill {
+                        label: root.tr.tab-dev-ai;
+                        active: root.active-tab == 5;
+                        clicked => { root.active-tab = 5; root.refresh-dev-ai(); }
                     }
                     TabPill {
                         label: root.tr.tab-install;
@@ -856,6 +960,258 @@ export component MainWindow inherits Window {
                         active: false;
                         danger: true;
                         clicked => { root.power-dialog-only = true; }
+                    }
+                }
+            }
+        }
+
+        // Win11-style Quick Settings Popup (--quick-settings)
+        if root.quick-settings-only : VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+
+                    Text {
+                        text: root.tr.title-quick;
+                        color: UiTheme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Switch {
+                            text: "Wi-Fi";
+                            checked <=> root.set-wifi-enabled;
+                            enabled: root.set-net-available;
+                            toggled => { root.toggle-wifi-radio(self.checked); }
+                        }
+                        Switch {
+                            text: "Bluetooth";
+                            checked <=> root.set-bt-powered;
+                            toggled => { root.toggle-bluetooth(self.checked); }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Switch {
+                            text: "Night Light";
+                            checked <=> root.set-nightlight-enabled;
+                            toggled => { root.nightlight-changed(self.checked, Math.round(root.set-nightlight-temp)); }
+                        }
+                        Switch {
+                            text: "Light Mode";
+                            checked: UiTheme.light;
+                            toggled => { root.quick-toggle-theme(self.checked); }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: "Volume (" + Math.round(root.set-audio-volume) + "%)"; color: UiTheme.text-secondary; font-size: 12px; width: 110px; vertical-alignment: center; }
+                        Slider {
+                            minimum: 0;
+                            maximum: 100;
+                            step: 2;
+                            value <=> root.set-audio-volume;
+                            released(v) => { root.audio-volume-changed(Math.round(v)); }
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: "Brightness (" + Math.round(root.set-brightness-pct) + "%)"; color: UiTheme.text-secondary; font-size: 12px; width: 110px; vertical-alignment: center; }
+                        Slider {
+                            minimum: 5;
+                            maximum: 100;
+                            step: 5;
+                            value <=> root.set-brightness-pct;
+                            enabled: root.set-backlight-available;
+                            released(v) => { root.brightness-changed(Math.round(v)); }
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: "Power Profile:"; color: UiTheme.text-muted; font-size: 12px; width: 110px; vertical-alignment: center; }
+                        ComboBox {
+                            model: ["Power Saver", "Balanced", "Performance"];
+                            current-index <=> root.pwr-profile-idx;
+                            selected => { root.set-power-profile(self.current-index); }
+                            horizontal-stretch: 1;
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: "All Settings";
+                    clicked => {
+                        root.quick-settings-only = false;
+                        root.active-tab = 3;
+                        root.refresh-settings();
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // Multi-User Sign-In Greeter (--login)
+        if root.login-dialog-only : VerticalLayout {
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 12px;
+                    alignment: center;
+
+                    Text {
+                        text: root.tr.title-login;
+                        color: UiTheme.text-primary;
+                        font-size: 16px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: "Account:"; color: UiTheme.text-muted; font-size: 13px; width: 90px; vertical-alignment: center; }
+                        ComboBox {
+                            model: root.login-user-names;
+                            current-index <=> root.login-user-idx;
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: "Password:"; color: UiTheme.text-muted; font-size: 13px; width: 90px; vertical-alignment: center; }
+                        LineEdit {
+                            text <=> root.login-password;
+                            placeholder-text: "Enter password (or leave empty if passwordless)";
+                            input-type: InputType.password;
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    if root.login-error != "" : Text {
+                        text: root.login-error;
+                        color: #ef4444;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Button {
+                            text: root.tr.btn-shutdown;
+                            clicked => { root.power-action("poweroff"); }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button {
+                            text: "Sign In";
+                            primary: true;
+                            clicked => { root.attempt-login(root.login-user-idx, root.login-password); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Built-in Graphical File Picker Overlay
+        if root.picker-open : Card {
+            vertical-stretch: 1;
+            VerticalLayout {
+                padding: 14px;
+                spacing: 10px;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: "Browse File / Folder";
+                        color: UiTheme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: root.picker-dir;
+                        color: UiTheme.text-accent;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                    }
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 4px;
+                        alignment: start;
+
+                        for entry[idx] in root.picker-entries : Rectangle {
+                            height: 36px;
+                            border-radius: 6px;
+                            background: pentry-ta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: UiTheme.card-border;
+
+                            pentry-ta := TouchArea {
+                                clicked => { root.picker-activate-entry(idx); }
+                            }
+
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 10px;
+                                Text {
+                                    text: entry.name;
+                                    color: UiTheme.text-primary;
+                                    font-size: 12px;
+                                    font-weight: entry.is-dir ? 700 : 500;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: entry.detail;
+                                    color: UiTheme.text-muted;
+                                    font-size: 11px;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    if root.picker-target == "backup-dir" : Button {
+                        text: "Select Current Folder";
+                        primary: true;
+                        clicked => { root.picker-use-current-dir(); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Button {
+                        text: root.tr.btn-cancel;
+                        clicked => { root.picker-cancel(); }
                     }
                 }
             }
@@ -1257,7 +1613,7 @@ export component MainWindow inherits Window {
         }
 
         // Tab 0: Installed Applications & Permissions Manager
-        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 0 : HorizontalLayout {
+        if root.show-tabs && root.active-tab == 0 : HorizontalLayout {
             spacing: 12px;
             vertical-stretch: 1;
 
@@ -1403,11 +1759,45 @@ export component MainWindow inherits Window {
                             }
                         }
 
-                        if root.has-selected-app && root.sel-supports-era : HorizontalLayout {
+                        if root.has-selected-app : HorizontalLayout {
                             spacing: 10px;
-                            Button {
+                            if root.sel-supports-era : Button {
                                 text: root.tr.btn-classic-runtimes;
                                 clicked => { root.install-runtimes-selected(); }
+                            }
+                            Button {
+                                text: root.sel-show-adv ? "v Hide App Launch / Save Controls" : "> Advanced App Launch & Save Controls";
+                                clicked => { root.sel-show-adv = !root.sel-show-adv; }
+                            }
+                        }
+
+                        if root.has-selected-app && root.sel-show-adv : Card {
+                            VerticalLayout {
+                                padding: 10px;
+                                spacing: 8px;
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { text: "Launch Args:"; color: UiTheme.text-muted; font-size: 12px; width: 105px; vertical-alignment: center; }
+                                    LineEdit { text <=> root.sel-launch-args; placeholder-text: "e.g. -windowed -skipintro"; horizontal-stretch: 1; }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { text: "Env (KEY=VAL):"; color: UiTheme.text-muted; font-size: 12px; width: 105px; vertical-alignment: center; }
+                                    LineEdit { text <=> root.sel-env-vars; placeholder-text: "e.g. DXVK_HUD=fps, PROTON_NO_ESYNC=1"; horizontal-stretch: 1; }
+                                    Button {
+                                        text: "Save Config";
+                                        primary: true;
+                                        clicked => { root.save-app-launch-config(root.sel-launch-args, root.sel-env-vars); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { text: "Save Archive:"; color: UiTheme.text-muted; font-size: 12px; width: 105px; vertical-alignment: center; }
+                                    LineEdit { text <=> root.sel-save-archive; horizontal-stretch: 1; }
+                                    Button { text: "Backup Saves"; clicked => { root.backup-app-save(root.sel-save-archive); } }
+                                    Button { text: "Restore Saves"; clicked => { root.restore-app-save(root.sel-save-archive); } }
+                                    if root.sel-supports-era : Button { text: "Reset Wine Prefix"; clicked => { root.reset-app-prefix(); } }
+                                }
                             }
                         }
 
@@ -1435,7 +1825,7 @@ export component MainWindow inherits Window {
         }
 
         // Tab 1: Browse & Install File (.exe / .msi / .apk)
-        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 1 : HorizontalLayout {
+        if root.show-tabs && root.active-tab == 1 : HorizontalLayout {
             spacing: 12px;
             vertical-stretch: 1;
 
@@ -1527,6 +1917,10 @@ export component MainWindow inherits Window {
                                 horizontal-stretch: 1;
                             }
                             Button {
+                                text: root.tr.btn-browse;
+                                clicked => { root.open-file-picker("install"); }
+                            }
+                            Button {
                                 text: "Inspect";
                                 clicked => { root.inspect-path(root.install-path-input); }
                             }
@@ -1596,7 +1990,7 @@ export component MainWindow inherits Window {
         }
 
         // Tab 2: Hardware Profile & Built-in Android Subsystem
-        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 2 : ScrollView {
+        if root.show-tabs && root.active-tab == 2 : ScrollView {
             vertical-stretch: 1;
             VerticalLayout {
                 spacing: 12px;
@@ -1849,6 +2243,10 @@ export component MainWindow inherits Window {
                                 clicked => { root.android-action("sync-shortcuts"); }
                             }
                             Button {
+                                text: "Sync Clipboard";
+                                clicked => { root.android-action("clipboard-sync"); }
+                            }
+                            Button {
                                 text: "Reclaim Idle RAM";
                                 clicked => { root.reclaim-ram(); }
                             }
@@ -1931,8 +2329,8 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Tab 3: Daily Settings (Wi-Fi, Bluetooth, Audio, Display & Brightness)
-        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 3 : VerticalLayout {
+        // Tab 3: Daily Settings (Wi-Fi, Bluetooth, Audio, Display & Brightness, Printers, Security, Power & Users)
+        if root.show-tabs && root.active-tab == 3 : VerticalLayout {
             spacing: 10px;
             vertical-stretch: 1;
 
@@ -1967,6 +2365,11 @@ export component MainWindow inherits Window {
                     label: root.tr.subtab-security;
                     active: root.settings-subtab == 5;
                     clicked => { root.settings-subtab = 5; root.refresh-settings(); }
+                }
+                TabPill {
+                    label: root.tr.subtab-power-users;
+                    active: root.settings-subtab == 6;
+                    clicked => { root.settings-subtab = 6; root.refresh-settings(); }
                 }
                 Rectangle { horizontal-stretch: 1; }
                 Button {
@@ -2422,12 +2825,16 @@ export component MainWindow inherits Window {
                             }
 
                             if root.set-wallpaper-idx == 3 : HorizontalLayout {
-                                spacing: 12px;
+                                spacing: 8px;
                                 Rectangle { width: 160px; }
                                 LineEdit {
                                     text <=> root.set-wallpaper-custom;
                                     placeholder-text: "/data/home/Pictures/wallpaper.png";
                                     horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: root.tr.btn-browse;
+                                    clicked => { root.open-file-picker("wallpaper"); }
                                 }
                             }
 
@@ -2757,6 +3164,10 @@ export component MainWindow inherits Window {
                                     horizontal-stretch: 1;
                                 }
                                 Button {
+                                    text: root.tr.btn-browse;
+                                    clicked => { root.open-file-picker("vpn"); }
+                                }
+                                Button {
                                     text: root.tr.btn-import-vpn;
                                     primary: true;
                                     clicked => { root.import-vpn(root.set-vpn-import-path); }
@@ -2838,6 +3249,11 @@ export component MainWindow inherits Window {
                                     horizontal-stretch: 1;
                                 }
                                 Button {
+                                    text: root.tr.btn-browse;
+                                    enabled: !root.set-backup-busy;
+                                    clicked => { root.open-file-picker("backup-restore"); }
+                                }
+                                Button {
                                     text: root.tr.btn-restore-backup;
                                     enabled: !root.set-backup-busy;
                                     clicked => { root.restore-backup(root.set-backup-restore-path, root.set-backup-passphrase); }
@@ -2854,10 +3270,333 @@ export component MainWindow inherits Window {
                     }
                 }
             }
+
+            // Subtab 6: Power Profiles, Auto-Lock (swayidle), S.M.A.R.T. Disk Health & Multi-User Accounts
+            if root.settings-subtab == 6 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 8px;
+
+                            Text {
+                                text: root.tr.hdr-power-smart;
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Text { text: "Power Profile:"; color: UiTheme.text-muted; font-size: 12px; width: 150px; vertical-alignment: center; }
+                                ComboBox {
+                                    model: ["Power Saver", "Balanced", "Performance"];
+                                    current-index <=> root.pwr-profile-idx;
+                                    selected => { root.set-power-profile(self.current-index); }
+                                    horizontal-stretch: 1;
+                                }
+                                Text { text: "Bat: " + root.pwr-battery-label; color: UiTheme.text-accent; font-size: 12px; vertical-alignment: center; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Text { text: "Screen Off (" + Math.round(root.pwr-screen-min) + " min):"; color: UiTheme.text-secondary; font-size: 12px; width: 170px; vertical-alignment: center; }
+                                Slider { minimum: 0; maximum: 60; step: 1; value <=> root.pwr-screen-min; horizontal-stretch: 1; }
+                            }
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Text { text: "Auto-Lock (" + Math.round(root.pwr-lock-min) + " min):"; color: UiTheme.text-secondary; font-size: 12px; width: 170px; vertical-alignment: center; }
+                                Slider { minimum: 0; maximum: 60; step: 1; value <=> root.pwr-lock-min; horizontal-stretch: 1; }
+                            }
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Text { text: "Battery Sleep (" + Math.round(root.pwr-suspend-bat-min) + " min):"; color: UiTheme.text-secondary; font-size: 12px; width: 170px; vertical-alignment: center; }
+                                Slider { minimum: 0; maximum: 120; step: 5; value <=> root.pwr-suspend-bat-min; horizontal-stretch: 1; }
+                                Button {
+                                    text: "Apply Timers";
+                                    primary: true;
+                                    clicked => { root.apply-idle-timers(Math.round(root.pwr-screen-min), Math.round(root.pwr-lock-min), Math.round(root.pwr-suspend-bat-min)); }
+                                }
+                            }
+
+                            Rectangle { height: 1px; background: UiTheme.card-border; }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: 2px;
+                                    InfoRow { label: "Disk Device:"; value: root.pwr-smart-device + " (" + root.pwr-smart-model + ")"; }
+                                    InfoRow { label: "S.M.A.R.T. Health:"; value: root.pwr-smart-health + " | Temp: " + root.pwr-smart-temp + " | Hours: " + root.pwr-smart-hours; value-color: UiTheme.text-ok; }
+                                }
+                                Button {
+                                    text: "Scan Disk Health";
+                                    clicked => { root.scan-smart-health(); }
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 8px;
+
+                            Text {
+                                text: root.tr.hdr-users;
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+
+                            for usr[idx] in root.user-list : Rectangle {
+                                height: 34px;
+                                border-radius: 6px;
+                                background: idx == root.selected-user-idx ? #0369a1 : (uta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                border-width: 1px;
+                                border-color: idx == root.selected-user-idx ? #38bdf8 : UiTheme.card-border;
+
+                                uta := TouchArea { clicked => { root.select-user(idx); } }
+
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    spacing: 10px;
+                                    Text {
+                                        text: usr.username + " (UID " + usr.uid + ", " + usr.role + ")";
+                                        color: idx == root.selected-user-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 12px;
+                                        font-weight: 600;
+                                        horizontal-stretch: 1;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        text: usr.has-password ? "Password Set" : "Auto-Login (No Password)";
+                                        color: idx == root.selected-user-idx ? #e0f2fe : UiTheme.text-muted;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit { text <=> root.new-user-name; placeholder-text: "New username (a-z, min 2 chars)"; horizontal-stretch: 1; }
+                                ComboBox { model: ["Standard", "Admin"]; current-index <=> root.new-user-role-idx; width: 110px; }
+                                LineEdit { text <=> root.new-user-pass; placeholder-text: "Password (min 4 chars)"; input-type: InputType.password; horizontal-stretch: 1; }
+                                Button {
+                                    text: "Add User";
+                                    primary: true;
+                                    clicked => { root.add-user-account(root.new-user-name, root.new-user-role-idx, root.new-user-pass); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    text <=> root.update-user-pass;
+                                    placeholder-text: "New password for '" + root.selected-user-name + "' (blank clears unicore pw)";
+                                    input-type: InputType.password;
+                                    enabled: root.selected-user-name != "";
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: "Set Password";
+                                    enabled: root.selected-user-name != "";
+                                    clicked => { root.set-selected-user-password(root.update-user-pass); }
+                                }
+                                Button {
+                                    text: "Delete User";
+                                    enabled: root.selected-user-name != "" && root.selected-user-name != "unicore";
+                                    clicked => { root.delete-selected-user(); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tab 5: Developer Environments & Local AI (Ollama + Rootless Podman DevBox)
+        if root.show-tabs && root.active-tab == 5 : ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: 12px;
+                alignment: start;
+
+                Card {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
+
+                        Text {
+                            text: root.tr.hdr-local-ai;
+                            color: UiTheme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+                        InfoRow {
+                            label: "Engine Status:";
+                            value: root.ai-running ? ("Running (" + root.ai-endpoint + ")") : (root.ai-installed ? "Installed / Idle (0 MB RAM)" : "Not installed yet (1-click install to /data/ai)");
+                            value-color: root.ai-running ? UiTheme.text-ok : UiTheme.text-accent;
+                        }
+                        InfoRow { label: "Recommended:"; value: root.ai-recommended-model; }
+                        InfoRow { label: "Downloaded Models:"; value: root.ai-models-summary; }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button {
+                                text: root.ai-installed ? "Reinstall Ollama" : "Install Ollama";
+                                enabled: !root.ai-busy;
+                                clicked => { root.ai-action("install", ""); }
+                            }
+                            Button {
+                                text: "Start Local AI";
+                                primary: true;
+                                enabled: root.ai-installed && !root.ai-running && !root.ai-busy;
+                                clicked => { root.ai-action("start", ""); }
+                            }
+                            Button {
+                                text: "Stop AI (Free RAM)";
+                                enabled: root.ai-running && !root.ai-busy;
+                                clicked => { root.ai-action("stop", ""); }
+                            }
+                            LineEdit {
+                                text <=> root.ai-model-input;
+                                placeholder-text: "Model (e.g. qwen2.5:0.5b)";
+                                enabled: !root.ai-busy;
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: "Pull Model";
+                                enabled: root.ai-installed && root.ai-running && !root.ai-busy;
+                                clicked => { root.ai-action("pull", root.ai-model-input); }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            LineEdit {
+                                text <=> root.ai-prompt-input;
+                                placeholder-text: "Ask your local offline AI a question...";
+                                enabled: root.ai-running && !root.ai-busy;
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: root.ai-busy ? "Working..." : "Ask AI";
+                                primary: true;
+                                enabled: root.ai-running && !root.ai-busy && root.ai-prompt-input != "";
+                                clicked => { root.ai-ask(root.ai-model-input, root.ai-prompt-input); }
+                            }
+                        }
+
+                        if root.ai-response-text != "" : Rectangle {
+                            height: 92px;
+                            background: UiTheme.surface-subtle;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: UiTheme.card-border;
+                            ScrollView {
+                                Text {
+                                    text: root.ai-response-text;
+                                    color: UiTheme.text-primary;
+                                    font-size: 12px;
+                                    wrap: word-wrap;
+                                    x: 8px;
+                                    y: 6px;
+                                    width: parent.width - 16px;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Card {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
+
+                        Text {
+                            text: root.tr.hdr-devbox;
+                            color: UiTheme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+                        InfoRow { label: "Host Tooling:"; value: root.dev-tools-summary; value-color: UiTheme.text-accent; }
+                        InfoRow { label: "Workspace Root:"; value: root.dev-projects-dir; }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            ComboBox {
+                                model: ["Python 3.12 (python)", "Node.js 22 (node)", "Rust Stable (rust)", "Ubuntu 24.04 glibc (ubuntu)"];
+                                current-index <=> root.dev-template-idx;
+                                width: 220px;
+                            }
+                            LineEdit {
+                                text <=> root.dev-new-name;
+                                placeholder-text: "DevBox name (e.g. py-lab)";
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: "Create DevBox";
+                                primary: true;
+                                clicked => { root.create-devbox(root.dev-template-idx, root.dev-new-name); }
+                            }
+                        }
+
+                        if root.dev-containers.length == 0 : Text {
+                            text: "No rootless Podman DevBoxes created yet. Choose a template above (mounted at /data/dev/projects -> /workspace).";
+                            color: UiTheme.text-muted;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+
+                        for box_label[idx] in root.dev-containers : Rectangle {
+                            height: 36px;
+                            border-radius: 6px;
+                            background: idx == root.selected-dev-idx ? #0369a1 : (dta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                            border-width: 1px;
+                            border-color: idx == root.selected-dev-idx ? #38bdf8 : UiTheme.card-border;
+                            dta := TouchArea { clicked => { root.select-devbox(idx); } }
+                            Text {
+                                text: box_label;
+                                color: idx == root.selected-dev-idx ? #ffffff : UiTheme.text-primary;
+                                font-size: 12px;
+                                x: 10px;
+                                vertical-alignment: center;
+                                width: parent.width - 20px;
+                                overflow: elide;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button {
+                                text: "Open Shell Terminal";
+                                enabled: root.selected-dev-idx >= 0;
+                                clicked => { root.open-devbox-shell(); }
+                            }
+                            Button {
+                                text: "Remove DevBox";
+                                enabled: root.selected-dev-idx >= 0;
+                                clicked => { root.remove-devbox(); }
+                            }
+                            Button {
+                                text: root.tr.btn-refresh;
+                                clicked => { root.refresh-dev-ai(); }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Tab 4: UniCore App Store (Microsoft Store / Play Store Storefront Layout)
-        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 4 : HorizontalLayout {
+        if root.show-tabs && root.active-tab == 4 : HorizontalLayout {
             spacing: 12px;
             vertical-stretch: 1;
 

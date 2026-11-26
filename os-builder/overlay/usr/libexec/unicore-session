@@ -15,53 +15,15 @@ if [ -f /run/unicore/hw.env ]; then
     set +a
 fi
 
-mkdir -p /data/uniload /data/home/Documents /data/home/Downloads /data/home/Desktop /data/home/Pictures /data/home/applications /data/unicore
-chown -R unicore:unicore /data/uniload /data/home /data/unicore
-
-link_persistent_dir() {
-    local_dir="$1"
-    data_dir="$2"
-    mkdir -p "$(dirname "${local_dir}")" "${data_dir}"
-    if [ -d "${local_dir}" ] && [ ! -L "${local_dir}" ]; then
-        cp -a "${local_dir}/." "${data_dir}/" 2>/dev/null || true
-        rm -rf "${local_dir}"
-    fi
-    if [ ! -e "${local_dir}" ]; then
-        ln -s "${data_dir}" "${local_dir}"
-    fi
-}
-
-link_persistent_dir /home/unicore/Documents /data/home/Documents
-link_persistent_dir /home/unicore/Downloads /data/home/Downloads
-link_persistent_dir /home/unicore/Desktop /data/home/Desktop
-link_persistent_dir /home/unicore/Pictures /data/home/Pictures
-link_persistent_dir /home/unicore/.local/share/applications /data/home/applications
-
-mkdir -p /home/unicore/.config/gtk-3.0
-if [ ! -f /home/unicore/.config/user-dirs.dirs ]; then
-    cat <<'EOF' > /home/unicore/.config/user-dirs.dirs
-XDG_DESKTOP_DIR="$HOME/Desktop"
-XDG_DOWNLOAD_DIR="$HOME/Downloads"
-XDG_DOCUMENTS_DIR="$HOME/Documents"
-XDG_PICTURES_DIR="$HOME/Pictures"
-EOF
-fi
-if [ ! -f /home/unicore/.config/gtk-3.0/bookmarks ]; then
-    cat <<'EOF' > /home/unicore/.config/gtk-3.0/bookmarks
-file:///home/unicore/Desktop Desktop
-file:///home/unicore/Documents Documents
-file:///home/unicore/Downloads Downloads
-file:///home/unicore/Pictures Pictures
-trash:/// Trash
-EOF
+if [ -x /usr/libexec/unicore-users ]; then
+    /usr/libexec/unicore-users sync-boot >/dev/null 2>&1 || true
 fi
 
-export HOME=/home/unicore
-export USER=unicore
-export XDG_RUNTIME_DIR=/run/user/1000
-export XDG_CURRENT_DESKTOP=labwc
-export WLR_RENDERER_ALLOW_SOFTWARE=1
-export UNILOAD_STATE_DIR=/data/uniload
+mkdir -p /data/uniload /data/home/Documents /data/home/Downloads /data/home/Desktop /data/home/Pictures /data/home/applications /data/unicore /data/users /run/unicore
+if [ ! -e /data/users/unicore ]; then
+    ln -s /data/home /data/users/unicore
+fi
+chown -R unicore:unicore /data/uniload /data/home /data/unicore 2>/dev/null || true
 
 if [ -r /data/unicore/oobe.conf ]; then
     set -a
@@ -77,17 +39,102 @@ else
     unset WLR_RENDERER || true
 fi
 
+# Smart Multi-User Login Gate:
+# - Auto-login 'unicore' immediately if only 1 passwordless account exists.
+# - If password set or >1 account exists, launch graphical --login greeter first.
+LOGIN_USER="unicore"
+NEED_GREETER="0"
+if [ -x /usr/libexec/unicore-users ] && [ -f /data/unicore/oobe.done ]; then
+    NEED_GREETER="$(/usr/libexec/unicore-users needs-login 2>/dev/null || echo 0)"
+fi
+
+if [ "${NEED_GREETER}" = "1" ] && [ -x /usr/bin/unicore-center ] && [ ! -f /run/unicore/active-user ]; then
+    GREET_RT="/run/user/1000"
+    mkdir -p "${GREET_RT}" /home/unicore/.config/labwc
+    chown -R unicore:unicore "${GREET_RT}" /home/unicore
+    chmod 700 "${GREET_RT}"
+    su -s /bin/sh unicore -c "
+        export HOME=/home/unicore XDG_CONFIG_HOME=/home/unicore/.config XDG_RUNTIME_DIR=${GREET_RT} WLR_RENDERER_ALLOW_SOFTWARE=1
+        ${WLR_RENDERER:+export WLR_RENDERER=${WLR_RENDERER}}
+        labwc -s '/usr/bin/unicore-center --login && labwc --exit' >/tmp/unicore-greeter.log 2>&1 || true
+    " || true
+    if [ -r /run/unicore/active-user ]; then
+        CAND_USER="$(cat /run/unicore/active-user 2>/dev/null | tr -d '\r\n' || true)"
+        if [ -n "${CAND_USER}" ] && id -u "${CAND_USER}" >/dev/null 2>&1; then
+            LOGIN_USER="${CAND_USER}"
+        fi
+        rm -f /run/unicore/active-user
+    fi
+fi
+
+USER_UID="$(id -u "${LOGIN_USER}" 2>/dev/null || echo 1000)"
+USER_HOME="/home/${LOGIN_USER}"
+if [ "${LOGIN_USER}" = "unicore" ]; then
+    DATA_BASE="/data/home"
+else
+    DATA_BASE="/data/users/${LOGIN_USER}"
+fi
+
+mkdir -p "${DATA_BASE}/Documents" "${DATA_BASE}/Downloads" "${DATA_BASE}/Desktop" "${DATA_BASE}/Pictures" "${DATA_BASE}/applications"
+chown -R "${LOGIN_USER}:${LOGIN_USER}" "${DATA_BASE}" 2>/dev/null || true
+
+link_persistent_dir() {
+    local_dir="$1"
+    data_dir="$2"
+    mkdir -p "$(dirname "${local_dir}")" "${data_dir}"
+    if [ -d "${local_dir}" ] && [ ! -L "${local_dir}" ]; then
+        cp -a "${local_dir}/." "${data_dir}/" 2>/dev/null || true
+        rm -rf "${local_dir}"
+    fi
+    if [ ! -e "${local_dir}" ]; then
+        ln -s "${data_dir}" "${local_dir}"
+    fi
+}
+
+link_persistent_dir "${USER_HOME}/Documents" "${DATA_BASE}/Documents"
+link_persistent_dir "${USER_HOME}/Downloads" "${DATA_BASE}/Downloads"
+link_persistent_dir "${USER_HOME}/Desktop" "${DATA_BASE}/Desktop"
+link_persistent_dir "${USER_HOME}/Pictures" "${DATA_BASE}/Pictures"
+link_persistent_dir "${USER_HOME}/.local/share/applications" "${DATA_BASE}/applications"
+
+mkdir -p "${USER_HOME}/.config/gtk-3.0"
+if [ ! -f "${USER_HOME}/.config/user-dirs.dirs" ]; then
+    cat <<'EOF' > "${USER_HOME}/.config/user-dirs.dirs"
+XDG_DESKTOP_DIR="$HOME/Desktop"
+XDG_DOWNLOAD_DIR="$HOME/Downloads"
+XDG_DOCUMENTS_DIR="$HOME/Documents"
+XDG_PICTURES_DIR="$HOME/Pictures"
+EOF
+fi
+if [ ! -f "${USER_HOME}/.config/gtk-3.0/bookmarks" ]; then
+    cat <<EOF > "${USER_HOME}/.config/gtk-3.0/bookmarks"
+file://${USER_HOME}/Desktop Desktop
+file://${USER_HOME}/Documents Documents
+file://${USER_HOME}/Downloads Downloads
+file://${USER_HOME}/Pictures Pictures
+trash:/// Trash
+EOF
+fi
+
+export HOME="${USER_HOME}"
+export USER="${LOGIN_USER}"
+export XDG_CONFIG_HOME="${USER_HOME}/.config"
+export XDG_RUNTIME_DIR="/run/user/${USER_UID}"
+export XDG_CURRENT_DESKTOP=labwc
+export WLR_RENDERER_ALLOW_SOFTWARE=1
+export UNILOAD_STATE_DIR=/data/uniload
+
 mkdir -p "${XDG_RUNTIME_DIR}"
-chown -R unicore:unicore "${XDG_RUNTIME_DIR}" /home/unicore
+chown -R "${LOGIN_USER}:${LOGIN_USER}" "${XDG_RUNTIME_DIR}" "${USER_HOME}"
 chmod 700 "${XDG_RUNTIME_DIR}"
 
 if [ -x /usr/libexec/unicore-personalize ]; then
-    su -s /bin/sh unicore -c "HOME=/home/unicore /usr/libexec/unicore-personalize apply --no-reload" >/dev/null 2>&1 || true
+    su -s /bin/sh "${LOGIN_USER}" -c "HOME=${USER_HOME} XDG_CONFIG_HOME=${XDG_CONFIG_HOME} /usr/libexec/unicore-personalize apply --no-reload" >/dev/null 2>&1 || true
 fi
 
-ENV_PASS="HOME=/home/unicore XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} XDG_CURRENT_DESKTOP=labwc WLR_RENDERER_ALLOW_SOFTWARE=1 UNILOAD_STATE_DIR=/data/uniload"
+ENV_PASS="HOME=${USER_HOME} USER=${LOGIN_USER} XDG_CONFIG_HOME=${XDG_CONFIG_HOME} XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} XDG_CURRENT_DESKTOP=labwc WLR_RENDERER_ALLOW_SOFTWARE=1 UNILOAD_STATE_DIR=/data/uniload"
 [ -n "${LANG:-}" ] && ENV_PASS="${ENV_PASS} LANG=${LANG}"
 [ -n "${WLR_RENDERER:-}" ] && ENV_PASS="${ENV_PASS} WLR_RENDERER=${WLR_RENDERER}"
 [ -n "${UNICORE_HW_TIER:-}" ] && ENV_PASS="${ENV_PASS} UNICORE_HW_TIER=${UNICORE_HW_TIER} UNICORE_RAM_MB=${UNICORE_RAM_MB:-0} UNICORE_ZRAM_MB=${UNICORE_ZRAM_MB:-0} UNICORE_LIGHTWEIGHT_SHELL=${UNICORE_LIGHTWEIGHT_SHELL:-0} UNILOAD_HW_WIN32_MODE=${UNILOAD_HW_WIN32_MODE:-} UNILOAD_HW_ANDROID_GRAPHICS=${UNILOAD_HW_ANDROID_GRAPHICS:-} UNILOAD_IDLE_TIMEOUT=${UNILOAD_IDLE_TIMEOUT:-30}"
 
-exec su -s /bin/sh unicore -c "export ${ENV_PASS}; DBUS_PID=''; if command -v dbus-daemon >/dev/null 2>&1; then rm -f '${XDG_RUNTIME_DIR}/bus'; dbus-daemon --session --address='unix:path=${XDG_RUNTIME_DIR}/bus' --nofork --nopidfile >/tmp/unicore-dbus.log 2>&1 & DBUS_PID=\$!; for i in \$(seq 1 20); do [ -S '${XDG_RUNTIME_DIR}/bus' ] && break; sleep 0.1; done; export DBUS_SESSION_BUS_ADDRESS='unix:path=${XDG_RUNTIME_DIR}/bus'; fi; labwc; rc=\$?; [ -n \"\${DBUS_PID}\" ] && kill \"\${DBUS_PID}\" 2>/dev/null || true; exit \${rc}"
+exec su -s /bin/sh "${LOGIN_USER}" -c "export ${ENV_PASS}; DBUS_PID=''; if command -v dbus-daemon >/dev/null 2>&1; then rm -f '${XDG_RUNTIME_DIR}/bus'; dbus-daemon --session --address='unix:path=${XDG_RUNTIME_DIR}/bus' --nofork --nopidfile >/tmp/unicore-dbus.log 2>&1 & DBUS_PID=\$!; for i in \$(seq 1 20); do [ -S '${XDG_RUNTIME_DIR}/bus' ] && break; sleep 0.1; done; export DBUS_SESSION_BUS_ADDRESS='unix:path=${XDG_RUNTIME_DIR}/bus'; fi; labwc; rc=\$?; [ -n \"\${DBUS_PID}\" ] && kill \"\${DBUS_PID}\" 2>/dev/null || true; exit \${rc}"

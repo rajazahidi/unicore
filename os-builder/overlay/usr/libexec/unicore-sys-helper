@@ -2,7 +2,7 @@
 set -eu
 
 if [ "$#" -lt 1 ] || [ "$#" -gt 4 ]; then
-    echo "Usage: unicore-sys-helper <poweroff|reboot|suspend|bt-start|bt-stop|cups-start|cups-stop|printer-discover|printer-add <name> <uri> [driver]|printer-remove <name>|printer-default <name>|fw-status|fw-set <on|off> [home|public] [0|1]|backup-targets|backup-create <dir> [encrypted]|backup-restore <file> [encrypted]|set-cpu-governor <mode>|install-disk <dev>|install-disk-encrypted <dev>|apply-oobe <tz> <host>|set-user-password|update-status|update-check [url]|update-apply-url <url>|update-apply-local <path> [allow-unsigned]|update-rollback|confirm-boot>" >&2
+    echo "Usage: unicore-sys-helper <poweroff|reboot|suspend|bt-start|bt-stop|cups-start|cups-stop|printer-discover|printer-add <name> <uri> [driver]|printer-remove <name>|printer-default <name>|fw-status|fw-set <on|off> [home|public] [0|1]|backup-targets|backup-create <dir> [encrypted]|backup-restore <file> [encrypted]|user-list|user-add <name> <role>|user-delete <name>|user-passwd <name>|auth-user <name>|power-status|power-profile <mode>|power-idle <scr> <lck> <susp>|smart-health [dev]|set-cpu-governor <mode>|install-disk <dev>|install-disk-encrypted <dev>|apply-oobe <tz> <host>|set-user-password|update-status|update-check [url]|update-apply-url <url>|update-apply-local <path> [allow-unsigned]|update-rollback|confirm-boot>" >&2
     exit 2
 fi
 
@@ -180,6 +180,46 @@ case "$1" in
             exec /usr/libexec/unicore-backup restore "$2" encrypted
         fi
         exec /usr/libexec/unicore-backup restore "$2"
+        ;;
+    user-list)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/unicore-users list
+        ;;
+    user-add)
+        [ "$#" -eq 2 ] || [ "$#" -eq 3 ] || exit 2
+        role="${3:-standard}"
+        exec /usr/libexec/unicore-users add "$2" "${role}"
+        ;;
+    user-delete)
+        [ "$#" -eq 2 ] || exit 2
+        exec /usr/libexec/unicore-users delete "$2"
+        ;;
+    user-passwd)
+        [ "$#" -eq 2 ] || exit 2
+        exec /usr/libexec/unicore-users passwd "$2"
+        ;;
+    auth-user)
+        [ "$#" -eq 2 ] || exit 2
+        exec /usr/libexec/unicore-users auth "$2"
+        ;;
+    power-status)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/unicore-power status
+        ;;
+    power-profile)
+        [ "$#" -eq 2 ] || exit 2
+        exec /usr/libexec/unicore-power set-profile "$2"
+        ;;
+    power-idle)
+        [ "$#" -eq 4 ] || exit 2
+        exec /usr/libexec/unicore-power set-idle "$2" "$3" "$4"
+        ;;
+    smart-health)
+        [ "$#" -le 2 ] || exit 2
+        if [ "$#" -eq 2 ]; then
+            exec /usr/libexec/unicore-smart health "$2"
+        fi
+        exec /usr/libexec/unicore-smart health
         ;;
     install-disk)
         [ "$#" -eq 2 ] || exit 2

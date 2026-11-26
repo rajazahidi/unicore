@@ -970,3 +970,97 @@ fn phase20d_personalization_theme_wallpaper_and_input_work() {
     assert_ne!(en.hdr_personalize, ms.hdr_personalize);
     assert_ne!(en.btn_apply_personalize, ms.btn_apply_personalize);
 }
+
+#[test]
+fn phase23_24_25_power_users_devbox_ai_and_picker_work() {
+    use unicore_center::dev_ai::{
+        list_directory_entries, parse_ai_status, parse_devbox_status, recommend_ai_model_for_ram,
+        validate_ai_model_name, validate_devbox_name,
+    };
+    use unicore_center::users_power::{
+        parse_power_status, parse_smart_health, parse_users_list, validate_new_username,
+    };
+
+    // 1. CLI flags for Quick Settings, Login, Dev & AI, Power & Users
+    let q_parsed = parse_args(&["--quick-settings".to_string()]).unwrap().unwrap();
+    assert_eq!(q_parsed.mode, LaunchMode::QuickSettings);
+
+    let l_parsed = parse_args(&["--login".to_string()]).unwrap().unwrap();
+    assert_eq!(l_parsed.mode, LaunchMode::LoginGreeter);
+
+    for tab in ["dev", "ai", "devbox"] {
+        let p = parse_args(&["--tab".to_string(), tab.to_string()]).unwrap().unwrap();
+        assert_eq!(p.initial_tab, 5);
+    }
+    for sub in ["settings:power", "settings:battery", "settings:users", "settings:smart"] {
+        let p = parse_args(&["--tab".to_string(), sub.to_string()]).unwrap().unwrap();
+        assert_eq!(p.initial_tab, 3);
+        assert_eq!(p.initial_settings_subtab, 6);
+    }
+
+    // 2. Phase 23: Multi-user, Power & S.M.A.R.T. parsers & validators
+    assert_eq!(validate_new_username("ali_01").unwrap(), "ali_01");
+    assert!(validate_new_username("root").is_err());
+    assert!(validate_new_username("A_bad").is_err());
+
+    let users = parse_users_list("unicore\t1000\tadmin\t0\nahmad\t1001\tstandard\t1\n");
+    assert_eq!(users.len(), 2);
+    assert!(!users[0].has_password);
+    assert_eq!(users[1].username, "ahmad");
+    assert!(users[1].has_password);
+
+    let pwr = parse_power_status(
+        "profile=performance\nscreen_min=15\nlock_min=20\nsuspend_bat_min=30\nbattery=82%\non_ac=0\nswayidle_running=1\n",
+    );
+    assert_eq!(pwr.profile, "performance");
+    assert_eq!(pwr.screen_min, 15);
+    assert_eq!(pwr.battery, "82%");
+    assert!(!pwr.on_ac);
+    assert!(pwr.swayidle_running);
+
+    let smart = parse_smart_health(
+        "device=/dev/nvme0n1\nmodel=Samsung SSD\nhealth=PASSED\ntemp_c=38C\npower_on_hours=120\n",
+    );
+    assert_eq!(smart.device, "/dev/nvme0n1");
+    assert_eq!(smart.health, "PASSED");
+    assert_eq!(smart.temp_c, "38C");
+
+    // 3. Phase 24: DevBox & Local AI helpers
+    assert!(recommend_ai_model_for_ram(512).contains("qwen2.5:0.5b"));
+    assert_eq!(recommend_ai_model_for_ram(4096), "llama3.2:1b");
+    assert_eq!(recommend_ai_model_for_ram(8192), "qwen2.5-coder:3b");
+    assert_eq!(recommend_ai_model_for_ram(16384), "qwen2.5-coder:7b");
+
+    assert!(validate_devbox_name("py-lab_1").is_ok());
+    assert!(validate_devbox_name("../bad").is_err());
+    assert!(validate_ai_model_name("llama3.2:1b").is_ok());
+    assert!(validate_ai_model_name("bad;rm").is_err());
+
+    let ai = parse_ai_status(
+        "installed=1\nrunning=1\nendpoint=http://127.0.0.1:11434\nrecommended_model=llama3.2:1b\nmodels=qwen2.5:0.5b,llama3.2:1b\n",
+    );
+    assert!(ai.installed && ai.running);
+    assert_eq!(ai.models, vec!["qwen2.5:0.5b", "llama3.2:1b"]);
+
+    let dev = parse_devbox_status(
+        "git=git version 2.45\npython=Python 3.12\npodman=podman 5.1\nprojects_dir=/data/dev/projects\ncontainers=py-lab|python|Up\n",
+    );
+    assert_eq!(dev.containers.len(), 1);
+    assert!(dev.podman_version.contains("podman"));
+
+    // 4. Built-in graphical File Picker directory listing
+    let root = make_temp_dir("file_picker");
+    fs::create_dir_all(root.join("alpha_dir")).unwrap();
+    fs::write(root.join("demo.conf"), b"test").unwrap();
+    let (_canon, entries) = list_directory_entries(&root).unwrap();
+    assert!(entries.iter().any(|e| e.is_dir && e.name.contains("alpha_dir")));
+    assert!(entries.iter().any(|e| !e.is_dir && e.name == "demo.conf"));
+    let _ = fs::remove_dir_all(&root);
+
+    // 5. Bilingual v0.2.0 UI labels
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.subtab_power_users, ms.subtab_power_users);
+    assert_ne!(en.hdr_local_ai, ms.hdr_local_ai);
+    assert_ne!(en.hdr_users, ms.hdr_users);
+}

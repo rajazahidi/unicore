@@ -11,6 +11,11 @@ use unicore_center::desktop::{
     platform_display_name, supports_win_era, win_era_display_name, win_era_from_index,
     win_era_to_index,
 };
+use unicore_center::dev_ai::{
+    default_picker_dir, list_directory_entries, read_ai_overview, read_devbox_overview,
+    remove_devbox, run_ai_action, run_devbox_create, spawn_devbox_shell, validate_ai_model_name,
+    PickerEntry, DEVBOX_TEMPLATES,
+};
 use unicore_center::gaming::{
     apply_cpu_governor, default_gaming_dir, load_gaming_config, read_host_cpu_governor,
     save_gaming_config, GamingConfig,
@@ -48,12 +53,18 @@ use unicore_center::updater::{
     apply_local_update, apply_remote_update, check_remote_update, read_update_overview,
     rollback_update,
 };
+use unicore_center::users_power::{
+    add_user_account, authenticate_user, delete_user_account, read_power_overview,
+    read_smart_health, read_users_list, set_account_password, set_idle_timers, set_power_profile,
+    UserAccount,
+};
 use uniload::inspector::WinEra;
-use uniload::sandbox::{AppSandbox, PermissionProfile};
+use uniload::sandbox::{format_env_vars_str, AppSandbox, PermissionProfile};
 
 slint::include_modules!();
 
 const DISPLAY_SCALES: [&str; 4] = ["1.0", "1.25", "1.5", "2.0"];
+const POWER_PROFILES: [&str; 3] = ["powersave", "balanced", "performance"];
 
 #[derive(Default)]
 struct SettingsUiState {
@@ -65,6 +76,10 @@ struct SettingsUiState {
     discovered_printers: Vec<DiscoveredPrinter>,
     vpns: Vec<VpnConnection>,
     backup_targets: Vec<BackupTarget>,
+    users: Vec<UserAccount>,
+    dev_containers: Vec<String>,
+    picker_entries: Vec<PickerEntry>,
+    picker_dir: std::path::PathBuf,
 }
 
 fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
@@ -79,6 +94,7 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         title_taskmgr: l.title_taskmgr.into(),
         tab_apps: l.tab_apps.into(),
         tab_store: l.tab_store.into(),
+        tab_dev_ai: l.tab_dev_ai.into(),
         tab_install: l.tab_install.into(),
         tab_system: l.tab_system.into(),
         tab_settings: l.tab_settings.into(),
@@ -135,6 +151,7 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         subtab_display: l.subtab_display.into(),
         subtab_printers: l.subtab_printers.into(),
         subtab_security: l.subtab_security.into(),
+        subtab_power_users: l.subtab_power_users.into(),
         chk_night_light: l.chk_night_light.into(),
         lbl_night_temp: l.lbl_night_temp.into(),
         hdr_printers: l.hdr_printers.into(),
@@ -189,6 +206,13 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         chk_tap_click: l.chk_tap_click.into(),
         lbl_pointer_speed: l.lbl_pointer_speed.into(),
         btn_apply_personalize: l.btn_apply_personalize.into(),
+        title_quick: l.title_quick.into(),
+        title_login: l.title_login.into(),
+        hdr_power_smart: l.hdr_power_smart.into(),
+        hdr_users: l.hdr_users.into(),
+        hdr_local_ai: l.hdr_local_ai.into(),
+        hdr_devbox: l.hdr_devbox.into(),
+        btn_browse: l.btn_browse.into(),
     });
 }
 
@@ -447,6 +471,98 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
     ui.set_set_backup_targets(ModelRc::new(VecModel::from(target_labels)));
     ui.set_set_backup_target_idx(0);
     state.backup_targets = targets;
+
+    let pwr = read_power_overview();
+    let prof_idx = POWER_PROFILES
+        .iter()
+        .position(|&p| p == pwr.profile)
+        .unwrap_or(1) as i32;
+    ui.set_pwr_profile_idx(prof_idx);
+    ui.set_pwr_screen_min(pwr.screen_min as f32);
+    ui.set_pwr_lock_min(pwr.lock_min as f32);
+    ui.set_pwr_suspend_bat_min(pwr.suspend_bat_min as f32);
+    ui.set_pwr_battery_label(SharedString::from(format!(
+        "{} ({})",
+        pwr.battery,
+        if pwr.on_ac { "AC" } else { "Battery" }
+    )));
+
+    let users = read_users_list();
+    let user_rows: Vec<UserRow> = users
+        .iter()
+        .map(|u| UserRow {
+            username: SharedString::from(u.username.as_str()),
+            uid: u.uid as i32,
+            role: SharedString::from(u.role.as_str()),
+            has_password: u.has_password,
+        })
+        .collect();
+    ui.set_user_list(ModelRc::new(VecModel::from(user_rows)));
+    if let Some(first) = users.first() {
+        ui.set_selected_user_idx(0);
+        ui.set_selected_user_name(SharedString::from(first.username.as_str()));
+    } else {
+        ui.set_selected_user_idx(-1);
+        ui.set_selected_user_name(SharedString::new());
+    }
+    let login_names: Vec<SharedString> = users
+        .iter()
+        .map(|u| SharedString::from(u.username.as_str()))
+        .collect();
+    if !login_names.is_empty() {
+        ui.set_login_user_names(ModelRc::new(VecModel::from(login_names)));
+        ui.set_login_user_idx(0);
+    }
+    state.users = users;
+}
+
+fn refresh_dev_ai(ui: &MainWindow, state: &mut SettingsUiState) {
+    let ai = read_ai_overview();
+    ui.set_ai_installed(ai.installed);
+    ui.set_ai_running(ai.running);
+    ui.set_ai_endpoint(SharedString::from(ai.endpoint.as_str()));
+    ui.set_ai_recommended_model(SharedString::from(ai.recommended_model.as_str()));
+    ui.set_ai_models_summary(SharedString::from(if ai.models.is_empty() {
+        "None downloaded yet".to_string()
+    } else {
+        ai.models.join(", ")
+    }));
+
+    let dev = read_devbox_overview();
+    ui.set_dev_tools_summary(SharedString::from(format!(
+        "{} | {} | {}",
+        dev.git_version, dev.python_version, dev.podman_version
+    )));
+    ui.set_dev_projects_dir(SharedString::from(dev.projects_dir.as_str()));
+    let box_labels: Vec<SharedString> = dev
+        .containers
+        .iter()
+        .map(|c| SharedString::from(c.as_str()))
+        .collect();
+    ui.set_dev_containers(ModelRc::new(VecModel::from(box_labels)));
+    ui.set_selected_dev_idx(if dev.containers.is_empty() { -1 } else { 0 });
+    state.dev_containers = dev.containers;
+}
+
+fn load_picker_dir(ui: &MainWindow, state: &mut SettingsUiState, dir: &Path) {
+    match list_directory_entries(dir) {
+        Ok((canon, entries)) => {
+            let rows: Vec<PickerRow> = entries
+                .iter()
+                .map(|e| PickerRow {
+                    name: SharedString::from(e.name.as_str()),
+                    path: SharedString::from(e.path.as_str()),
+                    is_dir: e.is_dir,
+                    detail: SharedString::from(e.detail.as_str()),
+                })
+                .collect();
+            ui.set_picker_dir(SharedString::from(canon.display().to_string()));
+            ui.set_picker_entries(ModelRc::new(VecModel::from(rows)));
+            state.picker_dir = canon;
+            state.picker_entries = entries;
+        }
+        Err(err) => set_status(ui, err, true),
+    }
 }
 
 fn set_status(ui: &MainWindow, msg: impl Into<String>, is_error: bool) {
@@ -488,6 +604,8 @@ fn apply_selected_app(ui: &MainWindow, app: Option<&AppSandbox>, idx: i32) {
             ui.set_sel_perm_documents(a.permissions.shared_documents);
             ui.set_sel_perm_camera(a.permissions.camera);
             ui.set_sel_perm_microphone(a.permissions.microphone);
+            ui.set_sel_launch_args(SharedString::from(a.launch_args.join(" ")));
+            ui.set_sel_env_vars(SharedString::from(format_env_vars_str(&a.env_vars)));
         }
         None => {
             ui.set_has_selected_app(false);
@@ -498,6 +616,8 @@ fn apply_selected_app(ui: &MainWindow, app: Option<&AppSandbox>, idx: i32) {
             ui.set_sel_source_path(SharedString::from("-"));
             ui.set_sel_sandbox_dir(SharedString::from("-"));
             ui.set_sel_supports_era(false);
+            ui.set_sel_launch_args(SharedString::new());
+            ui.set_sel_env_vars(SharedString::new());
         }
     }
 }
@@ -859,6 +979,14 @@ fn main() {
             LaunchMode::PowerDialog => {
                 ui.set_power_dialog_only(true);
             }
+            LaunchMode::QuickSettings => {
+                ui.set_quick_settings_only(true);
+                refresh_settings(&ui, &mut settings_state.borrow_mut());
+            }
+            LaunchMode::LoginGreeter => {
+                ui.set_login_dialog_only(true);
+                refresh_settings(&ui, &mut settings_state.borrow_mut());
+            }
             LaunchMode::OobeWizard => {
                 ui.set_oobe_dialog_only(true);
                 ui.set_oobe_step(0);
@@ -870,6 +998,8 @@ fn main() {
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
                     refresh_settings(&ui, &mut settings_state.borrow_mut());
+                } else if parsed.initial_tab == 5 {
+                    refresh_dev_ai(&ui, &mut settings_state.borrow_mut());
                 }
             }
         }
@@ -2349,6 +2479,440 @@ fn main() {
                                 ui.set_store_status(SharedString::from(err.as_str()));
                                 set_status(&ui, err, true);
                             }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    // Phase 25: App Launch Args / Env Vars / Prefix Reset / Save Backup
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        ui.on_save_app_launch_config(move |args_raw, env_raw| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            match b.borrow().update_launch_config(&app_id, &args_raw, &env_raw) {
+                Ok(updated) => {
+                    refresh_apps_and_browse(&ui, &b.borrow(), &cache, Some(&updated.app_id));
+                    set_status(&ui, format!("Saved launch args/env for '{}'", updated.name), false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_reset_app_prefix(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            match b.borrow().reset_win32_prefix(&app_id) {
+                Ok(prefix) => set_status(
+                    &ui,
+                    format!("Reset Wine prefix ({}). It will rebuild on next launch.", prefix.display()),
+                    false,
+                ),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_backup_app_save(move |dest| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() || dest.trim().is_empty() {
+                return;
+            }
+            match b.borrow().backup_app_save_data(&app_id, Path::new(dest.trim())) {
+                Ok(p) => set_status(&ui, format!("Exported app saves to {}", p.display()), false),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_restore_app_save(move |src| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() || src.trim().is_empty() {
+                return;
+            }
+            report_result(
+                &ui,
+                b.borrow().restore_app_save_data(&app_id, Path::new(src.trim())),
+                format!("Restored save archive into '{}'", app_id),
+            );
+        });
+    }
+
+    // Phase 25: Built-in Graphical File Picker Overlay
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_open_file_picker(move |target| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let start_dir = default_picker_dir();
+            ui.set_picker_target(target);
+            load_picker_dir(&ui, &mut st.borrow_mut(), &start_dir);
+            ui.set_picker_open(true);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_picker_activate_entry(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let chosen = st.borrow().picker_entries.get(idx as usize).cloned();
+            let Some(entry) = chosen else { return };
+            if entry.is_dir {
+                load_picker_dir(&ui, &mut st.borrow_mut(), Path::new(&entry.path));
+                return;
+            }
+            match ui.get_picker_target().as_str() {
+                "install" => ui.set_install_path_input(SharedString::from(entry.path.as_str())),
+                "wallpaper" => ui.set_set_wallpaper_custom(SharedString::from(entry.path.as_str())),
+                "vpn" => ui.set_set_vpn_import_path(SharedString::from(entry.path.as_str())),
+                "backup-restore" => {
+                    ui.set_set_backup_restore_path(SharedString::from(entry.path.as_str()))
+                }
+                _ => {}
+            }
+            ui.set_picker_open(false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_picker_use_current_dir(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_picker_open(false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_picker_cancel(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_picker_open(false);
+        });
+    }
+
+    // Phase 23: Login Greeter, Power Profiles, Swayidle Timers, S.M.A.R.T. & Multi-User Accounts
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_attempt_login(move |user_idx, pass| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let username = st
+                .borrow()
+                .users
+                .get(user_idx as usize)
+                .map(|u| u.username.clone())
+                .unwrap_or_else(|| "unicore".to_string());
+            match authenticate_user(&username, &pass) {
+                Ok(()) => {
+                    let _ = std::fs::create_dir_all("/run/unicore");
+                    let _ = std::fs::write("/run/unicore/active-user", format!("{username}\n"));
+                    let _ = slint::quit_event_loop();
+                }
+                Err(err) => {
+                    ui.set_login_error(SharedString::from(format!("Sign-in failed: {err}")));
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_set_power_profile(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let prof = POWER_PROFILES.get(idx as usize).copied().unwrap_or("balanced");
+            report_result(
+                &ui,
+                set_power_profile(prof).map(|_| ()),
+                format!("Power profile set to {prof}"),
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_apply_idle_timers(move |scr, lck, susp| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                set_idle_timers(scr, lck, susp),
+                format!("Idle timers applied (screen {scr}m, lock {lck}m, battery sleep {susp}m)"),
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_scan_smart_health(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let h = read_smart_health(None);
+            ui.set_pwr_smart_device(SharedString::from(h.device.as_str()));
+            ui.set_pwr_smart_model(SharedString::from(h.model.as_str()));
+            ui.set_pwr_smart_health(SharedString::from(h.health.as_str()));
+            ui.set_pwr_smart_temp(SharedString::from(h.temp_c.as_str()));
+            ui.set_pwr_smart_hours(SharedString::from(h.power_on_hours.as_str()));
+            set_status(&ui, format!("Disk S.M.A.R.T. scan complete ({})", h.device), false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_select_user(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let guard = st.borrow();
+            if let Some(u) = guard.users.get(idx as usize) {
+                ui.set_selected_user_idx(idx);
+                ui.set_selected_user_name(SharedString::from(u.username.as_str()));
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_add_user_account(move |name, role_idx, pass| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let role = if role_idx == 1 { "admin" } else { "standard" };
+            let res = add_user_account(&name, role, &pass);
+            if res.is_ok() {
+                ui.set_new_user_name(SharedString::new());
+                ui.set_new_user_pass(SharedString::new());
+            }
+            report_result(&ui, res.map(|_| ()), format!("Added user '{}'", name.trim()));
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_delete_selected_user(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let name = ui.get_selected_user_name().to_string();
+            let res = delete_user_account(&name);
+            report_result(&ui, res.map(|_| ()), format!("Removed user '{name}'"));
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_set_selected_user_password(move |pass| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let name = ui.get_selected_user_name().to_string();
+            let res = set_account_password(&name, &pass);
+            if res.is_ok() {
+                ui.set_update_user_pass(SharedString::new());
+            }
+            report_result(&ui, res.map(|_| ()), format!("Updated password for '{name}'"));
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_quick_toggle_theme(move |light| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let cfg_dir = persistent_display_config_dir();
+            let mut cur = load_personalize_config(&cfg_dir);
+            cur.theme = if light { "light" } else { "dark" }.to_string();
+            match save_and_apply_personalize(&cfg_dir, &cur) {
+                Ok(saved) => ui.invoke_set_theme(saved.theme == "light"),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    // Phase 24: DevBox (Rootless Podman) & Local AI (Ollama)
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_refresh_dev_ai(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_dev_ai(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_select_devbox(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            if idx >= 0 && (idx as usize) < st.borrow().dev_containers.len() {
+                ui.set_selected_dev_idx(idx);
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_create_devbox(move |tpl_idx, name| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let tpl = DEVBOX_TEMPLATES.get(tpl_idx as usize).copied().unwrap_or("python");
+            report_result(
+                &ui,
+                run_devbox_create(tpl, &name).map(|_| ()),
+                format!("Created DevBox '{}' ({tpl})", name.trim()),
+            );
+            refresh_dev_ai(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_open_devbox_shell(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let idx = ui.get_selected_dev_idx();
+            let box_name = st
+                .borrow()
+                .dev_containers
+                .get(idx as usize)
+                .and_then(|s| s.split('|').next())
+                .map(str::trim)
+                .unwrap_or("")
+                .to_string();
+            if box_name.is_empty() {
+                return;
+            }
+            report_result(
+                &ui,
+                spawn_devbox_shell(&box_name),
+                format!("Opened DevBox shell for '{box_name}'"),
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_remove_devbox(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let idx = ui.get_selected_dev_idx();
+            let box_name = st
+                .borrow()
+                .dev_containers
+                .get(idx as usize)
+                .and_then(|s| s.split('|').next())
+                .map(str::trim)
+                .unwrap_or("")
+                .to_string();
+            if box_name.is_empty() {
+                return;
+            }
+            report_result(
+                &ui,
+                remove_devbox(&box_name).map(|_| ()),
+                format!("Removed DevBox '{box_name}'"),
+            );
+            refresh_dev_ai(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_ai_action(move |action, model| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let act = action.to_string();
+            let mdl = model.trim().to_string();
+            if act == "pull" {
+                if let Err(err) = validate_ai_model_name(&mdl) {
+                    set_status(&ui, err, true);
+                    return;
+                }
+            }
+            if matches!(act.as_str(), "start" | "stop") {
+                let res = run_ai_action(&[act.as_str()]);
+                report_result(
+                    &ui,
+                    res.map(|_| ()),
+                    if act == "start" { "Local AI server started" } else { "Local AI server stopped" },
+                );
+                refresh_dev_ai(&ui, &mut st.borrow_mut());
+                return;
+            }
+
+            ui.set_ai_busy(true);
+            let prog = if act == "pull" {
+                format!("Pulling model '{mdl}'...")
+            } else {
+                "Downloading Ollama engine into /data/ai...".to_string()
+            };
+            set_status(&ui, prog, false);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = if act == "pull" {
+                    run_ai_action(&["pull", &mdl])
+                } else {
+                    run_ai_action(&["install"])
+                };
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_ai_busy(false);
+                        match res {
+                            Ok(msg) => set_status(&ui, if msg.is_empty() { "Local AI action complete".to_string() } else { msg }, false),
+                            Err(err) => set_status(&ui, err, true),
+                        }
+                        ui.invoke_refresh_dev_ai();
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_ai_ask(move |model, prompt| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let mdl = model.trim().to_string();
+            let prm = prompt.trim().to_string();
+            if let Err(err) = validate_ai_model_name(&mdl) {
+                set_status(&ui, err, true);
+                return;
+            }
+            if prm.is_empty() {
+                return;
+            }
+            ui.set_ai_busy(true);
+            set_status(&ui, format!("Querying local model '{mdl}'..."), false);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = run_ai_action(&["chat", &mdl, &prm]);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_ai_busy(false);
+                        match res {
+                            Ok(reply) => {
+                                ui.set_ai_response_text(SharedString::from(reply.as_str()));
+                                set_status(&ui, "Local AI response received", false);
+                            }
+                            Err(err) => set_status(&ui, err, true),
                         }
                     }
                 });

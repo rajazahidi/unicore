@@ -1,11 +1,16 @@
-# UniCore OS (`0.1.0`)
+# UniCore OS (`0.2.0`)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`)**, **MS-DOS (`.exe`/`.com`/`.bat` embedded seamlessly without third-party launcher branding)**, **Android (`.apk`)**, and **native Linux (`ELF`)** applications inside per-app Zero-Trust `bubblewrap` sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern PCs**.
 
 ## Key Capabilities
 
-* **Multi-Platform App Center & 1-Click Store (`unicore-center`)**:
+* **Multi-Platform App Center, Quick Settings & 1-Click Store (`unicore-center`)**:
   * Play Store / Microsoft Store-inspired storefront with **Featured Hero Pick**, Discover grid, inline detail view, bilingual UI (**EN / Bahasa Melayu**), **Google Antigravity `2.35.2`**, LibreOffice `26.8.3`, VSCodium, KeePassXC, VLC, SumatraPDF, Notepad++, 7-Zip, Android tools (`F-Droid`, `NewPipe`), and a dedicated **Retro Games Marketplace**.
+  * Win11-style **`--quick-settings` tray popup**, built-in graphical **File Picker**, and per-app advanced launch arguments, environment variables, Wine prefix reset, and save-data archive backup/restore.
+* **Daily Laptop Pack (Multi-User A/B Sync, Power & S.M.A.R.T.)**:
+  * Smart Multi-User login (`unicore-users` + `--login` greeter synced across A/B slots), `swayidle` auto-lock & battery-only sleep, **Power Saver / Balanced / Performance** profiles (`unicore-power`), and on-demand **S.M.A.R.T.** disk health checks (`unicore-smart`).
+* **Developer Environments & Local AI (`0 MB` Idle RAM)**:
+  * Built-in `git`, `python3`, `openssh-client`, `jq`, and rootless **Podman DevBoxes** (`Python`, `Node.js`, `Rust`, `Ubuntu` in `/data/dev`), plus on-demand **Local AI (Ollama)** in `/data/ai` with RAM-aware model recommendations and `127.0.0.1:11434` endpoint.
 * **Windows, Retro Gaming & Seamless MS-DOS (`uniload` + Wine/DXVK/VKD3D/OTVDM/DOS)**:
   * Windows era profiles (`Win98`, `WinXP`, `Win7`, `Win10`), offline **DXVK `v2.4.1`** (`d3d8.dll`–`d3d11.dll`), **VKD3D-Proton `v2.13`**, **`cnc-ddraw`**, **`otvdm`** (Win16 `NE`), **`winetricks`** (DX9/VC++), MangoHud FPS overlay, Game Mode CPU governor, and an embedded MS-DOS subsystem (`uniload-dos`).
 * **Productivity, Office & Hardware Settings**:
