@@ -1,0 +1,3358 @@
+import { Button, CheckBox, ComboBox, LineEdit, Palette, ScrollView, Slider, Switch } from "std-widgets.slint";
+
+export struct AppEntry {
+    name: string,
+    platform-label: string,
+}
+
+export struct BrowseFileEntry {
+    name: string,
+    path: string,
+    kind: string,
+}
+
+export struct WifiEntry {
+    in-use: bool,
+    ssid: string,
+    signal: int,
+    security: string,
+}
+
+export struct BtEntry {
+    mac: string,
+    name: string,
+    paired: bool,
+    connected: bool,
+}
+
+export struct PrinterEntry {
+    name: string,
+    status: string,
+    is-default: bool,
+}
+
+export struct VpnEntry {
+    name: string,
+    vpn-type: string,
+    active: bool,
+}
+
+export struct TaskEntry {
+    pid: int,
+    name: string,
+    ram-label: string,
+    detail: string,
+}
+
+export struct StoreEntry {
+    id: string,
+    name: string,
+    version: string,
+    size-label: string,
+    platform-label: string,
+    platform-short: string,
+    summary: string,
+    badge: string,
+    sha256-short: string,
+    category: string,
+    icon-text: string,
+    accent-color: color,
+    is-installed: bool,
+    installed-app-id: string,
+}
+
+export struct StoreRow {
+    has-a: bool,
+    a: StoreEntry,
+    has-b: bool,
+    b: StoreEntry,
+    has-c: bool,
+    c: StoreEntry,
+}
+
+export struct UiText {
+    title-center: string,
+    title-open: string,
+    title-power: string,
+    title-oobe: string,
+    title-taskmgr: string,
+    tab-apps: string,
+    tab-store: string,
+    tab-install: string,
+    tab-system: string,
+    tab-settings: string,
+    tab-tasks: string,
+    tab-power: string,
+    power-prompt: string,
+    btn-shutdown: string,
+    btn-reboot: string,
+    btn-sleep: string,
+    btn-logout: string,
+    btn-back-center: string,
+    btn-close: string,
+    oobe-step1: string,
+    oobe-step2: string,
+    oobe-step3: string,
+    oobe-lang: string,
+    oobe-tz: string,
+    oobe-hostname: string,
+    oobe-pw-hint: string,
+    oobe-pw: string,
+    oobe-pw-confirm: string,
+    oobe-ready-hint: string,
+    btn-back: string,
+    btn-skip: string,
+    btn-next: string,
+    btn-finish-install: string,
+    btn-finish: string,
+    open-app-name: string,
+    open-app-type: string,
+    open-simple-hint: string,
+    open-show-adv: string,
+    open-hide-adv: string,
+    btn-run-now: string,
+    btn-install-run: string,
+    btn-install-only: string,
+    btn-open-center: string,
+    btn-cancel: string,
+    chk-create-shortcut: string,
+    taskmgr-heading: string,
+    taskmgr-empty: string,
+    btn-end-task: string,
+    btn-force-kill: string,
+    btn-refresh: string,
+    hdr-registered-apps: string,
+    btn-add: string,
+    btn-launch-app: string,
+    btn-create-shortcut: string,
+    btn-view-log: string,
+    btn-hide-log: string,
+    btn-uninstall: string,
+    subtab-wifi: string,
+    subtab-bt: string,
+    subtab-audio: string,
+    subtab-display: string,
+    subtab-printers: string,
+    subtab-security: string,
+    chk-night-light: string,
+    lbl-night-temp: string,
+    hdr-printers: string,
+    chk-cups-service: string,
+    btn-scan-printers: string,
+    btn-open-scanner: string,
+    btn-add-printer: string,
+    btn-set-default: string,
+    btn-test-page: string,
+    btn-remove-printer: string,
+    hdr-firewall: string,
+    chk-firewall: string,
+    chk-fw-ssh: string,
+    hdr-vpn: string,
+    btn-import-vpn: string,
+    hdr-backup: string,
+    chk-backup-enc: string,
+    btn-create-backup: string,
+    btn-restore-backup: string,
+    hdr-gaming-perf: string,
+    lbl-cpu-governor: string,
+    chk-game-mode: string,
+    chk-show-fps: string,
+    gaming-hint: string,
+    btn-classic-runtimes: string,
+    hdr-store: string,
+    store-search-hint: string,
+    btn-store-install: string,
+    btn-store-launch: string,
+    btn-store-sync: string,
+    store-cat-all: string,
+    store-cat-util: string,
+    store-cat-office: string,
+    store-cat-android: string,
+    store-nav-discover: string,
+    store-featured-tag: string,
+    store-section-apps: string,
+    store-btn-get: string,
+    store-btn-open: string,
+    store-btn-back: string,
+    store-about-hdr: string,
+    store-security-hdr: string,
+    store-feed-toggle: string,
+    store-cat-retro: string,
+    store-retro-banner-title: string,
+    store-retro-banner-hint: string,
+    hdr-personalize: string,
+    lbl-theme: string,
+    lbl-wallpaper: string,
+    lbl-kb-layout: string,
+    chk-natural-scroll: string,
+    chk-tap-click: string,
+    lbl-pointer-speed: string,
+    btn-apply-personalize: string,
+}
+
+export global UiTheme {
+    in-out property <bool> light: false;
+    out property <color> bg: light ? #f1f5f9 : #0f172a;
+    out property <color> card-bg: light ? #ffffff : #1e293b;
+    out property <color> card-border: light ? #cbd5e1 : #334155;
+    out property <color> text-primary: light ? #0f172a : #f8fafc;
+    out property <color> text-secondary: light ? #334155 : #e2e8f0;
+    out property <color> text-muted: light ? #475569 : #94a3b8;
+    out property <color> text-accent: light ? #0369a1 : #38bdf8;
+    out property <color> text-ok: light ? #15803d : #4ade80;
+    out property <color> surface-subtle: light ? #e2e8f0 : #263449;
+    out property <color> surface-hover: light ? #cbd5e1 : #334155;
+}
+
+component Card inherits Rectangle {
+    background: UiTheme.card-bg;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: UiTheme.card-border;
+}
+
+component TabPill inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <bool> danger: false;
+    callback clicked();
+
+    height: 32px;
+    border-radius: 6px;
+    background: active ? #0284c7 : (danger ? (ta.has-hover ? #991b1b : #7f1d1d) : (ta.has-hover ? UiTheme.surface-hover : UiTheme.card-bg));
+    border-width: 1px;
+    border-color: active ? #38bdf8 : (danger ? #ef4444 : UiTheme.card-border);
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 9px;
+        padding-right: 9px;
+        Text {
+            text: root.label;
+            color: (active || danger) ? #f8fafc : UiTheme.text-primary;
+            font-size: 12px;
+            font-weight: active || danger ? 700 : 500;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component StoreNavItem inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+
+    height: 36px;
+    border-radius: 7px;
+    background: active ? #0369a1 : (nav-ta.has-hover ? UiTheme.surface-hover : transparent);
+    border-width: active ? 1px : 0px;
+    border-color: #38bdf8;
+
+    nav-ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 8px;
+        Rectangle {
+            width: 3px;
+            height: 18px;
+            border-radius: 2px;
+            background: active ? #38bdf8 : transparent;
+            y: 9px;
+        }
+        Text {
+            text: root.label;
+            color: active ? #ffffff : UiTheme.text-secondary;
+            font-size: 12px;
+            font-weight: active ? 700 : 500;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+component StoreAppCard inherits Rectangle {
+    in property <StoreEntry> item;
+    in property <string> get-label;
+    in property <string> open-label;
+    in property <bool> busy: false;
+    callback card-clicked(StoreEntry);
+    callback install-clicked(string);
+    callback launch-clicked(string);
+
+    height: 158px;
+    border-radius: 10px;
+    background: card-ta.has-hover ? UiTheme.surface-subtle : UiTheme.card-bg;
+    border-width: 1px;
+    border-color: item.is-installed ? #22c55e : (card-ta.has-hover ? UiTheme.text-accent : UiTheme.card-border);
+
+    card-ta := TouchArea {
+        clicked => { root.card-clicked(root.item); }
+    }
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 8px;
+
+        // Top row: Color Icon Tile + Name + Platform/Version
+        HorizontalLayout {
+            spacing: 10px;
+            Rectangle {
+                width: 46px;
+                height: 46px;
+                border-radius: 10px;
+                background: item.accent-color;
+                Text {
+                    text: item.icon-text;
+                    color: #ffffff;
+                    font-size: 15px;
+                    font-weight: 800;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 1;
+                spacing: 2px;
+                Text {
+                    text: item.name;
+                    color: UiTheme.text-primary;
+                    font-size: 13px;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+                Text {
+                    text: item.platform-short + " • v" + item.version + " • " + item.size-label;
+                    color: UiTheme.text-muted;
+                    font-size: 10px;
+                    overflow: elide;
+                }
+            }
+        }
+
+        // Middle summary
+        Text {
+            text: item.summary;
+            color: UiTheme.text-secondary;
+            font-size: 11px;
+            wrap: word-wrap;
+            overflow: elide;
+            vertical-stretch: 1;
+        }
+
+        // Bottom strip: Verification badge + Get/Open button
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: item.badge;
+                color: item.is-installed ? UiTheme.text-ok : UiTheme.text-accent;
+                font-size: 10px;
+                font-weight: 600;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+            if !item.is-installed : Button {
+                text: root.get-label;
+                primary: true;
+                enabled: !root.busy;
+                clicked => { root.install-clicked(root.item.id); }
+            }
+            if item.is-installed : Button {
+                text: root.open-label;
+                clicked => { root.launch-clicked(root.item.installed-app-id); }
+            }
+        }
+    }
+}
+
+component InfoRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> value;
+    in property <color> value-color: UiTheme.text-secondary;
+    spacing: 8px;
+    height: 22px;
+
+    Text {
+        text: root.label;
+        color: UiTheme.text-muted;
+        font-size: 12px;
+        width: 130px;
+        vertical-alignment: center;
+    }
+    Text {
+        text: root.value;
+        color: root.value-color;
+        font-size: 12px;
+        overflow: elide;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+    }
+}
+
+component PermissionGrid inherits VerticalLayout {
+    in-out property <bool> perm-network: true;
+    in-out property <bool> perm-gpu: true;
+    in-out property <bool> perm-documents: false;
+    in-out property <bool> perm-camera: false;
+    in-out property <bool> perm-microphone: false;
+    in property <bool> controls-enabled: true;
+    callback permission-toggled(string, bool);
+
+    spacing: 8px;
+
+    Text {
+        text: "Sandbox Permissions";
+        color: UiTheme.text-muted;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    HorizontalLayout {
+        spacing: 16px;
+        Switch {
+            text: "Network Access";
+            width: 210px;
+            checked <=> root.perm-network;
+            enabled: root.controls-enabled;
+            toggled => { root.permission-toggled("network", self.checked); }
+        }
+        Switch {
+            text: "GPU Acceleration";
+            checked <=> root.perm-gpu;
+            enabled: root.controls-enabled;
+            toggled => { root.permission-toggled("gpu_acceleration", self.checked); }
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 16px;
+        Switch {
+            text: "Shared Documents";
+            width: 210px;
+            checked <=> root.perm-documents;
+            enabled: root.controls-enabled;
+            toggled => { root.permission-toggled("shared_documents", self.checked); }
+        }
+        Switch {
+            text: "Camera";
+            checked <=> root.perm-camera;
+            enabled: root.controls-enabled;
+            toggled => { root.permission-toggled("camera", self.checked); }
+        }
+    }
+
+    Switch {
+        text: "Microphone";
+        width: 210px;
+        checked <=> root.perm-microphone;
+        enabled: root.controls-enabled;
+        toggled => { root.permission-toggled("microphone", self.checked); }
+    }
+}
+
+component WinEraRow inherits HorizontalLayout {
+    in-out property <int> current-index: 3;
+    in property <length> label-width: 110px;
+    in property <length> label-font-size: 13px;
+    callback era-selected(int);
+
+    spacing: 10px;
+    Text {
+        text: "Windows Era:";
+        color: UiTheme.text-muted;
+        font-size: root.label-font-size;
+        width: root.label-width;
+        vertical-alignment: center;
+    }
+    ComboBox {
+        model: ["Windows 98 (Win98)", "Windows XP (WinXP)", "Windows 7 (Win7)", "Windows 10 / 11 (Win10)"];
+        current-index <=> root.current-index;
+        selected => { root.era-selected(self.current-index); }
+        horizontal-stretch: 1;
+    }
+}
+
+export component MainWindow inherits Window {
+    title: root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)));
+    preferred-width: root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1020px));
+    preferred-height: root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 640px));
+    min-width: root.power-dialog-only ? 400px : 520px;
+    min-height: root.power-dialog-only ? 280px : 360px;
+    background: UiTheme.bg;
+
+    public function set-theme(light: bool) {
+        UiTheme.light = light;
+        Palette.color-scheme = light ? ColorScheme.light : ColorScheme.dark;
+    }
+
+    init => {
+        Palette.color-scheme = UiTheme.light ? ColorScheme.light : ColorScheme.dark;
+    }
+
+    // Localization & Navigation
+    in-out property <UiText> tr;
+    in-out property <string> lang-badge: "EN";
+    in-out property <bool> open-dialog-only: false;
+    in-out property <bool> power-dialog-only: false;
+    in-out property <bool> oobe-dialog-only: false;
+    in-out property <bool> taskmgr-dialog-only: false;
+    in-out property <bool> open-show-advanced: false;
+    in-out property <[TaskEntry]> task-list: [];
+    in-out property <int> selected-task-idx: -1;
+    in-out property <int> selected-task-pid: 0;
+    in-out property <int> oobe-step: 0;
+    in-out property <int> oobe-lang-idx: 0;
+    in-out property <int> oobe-tz-idx: 1;
+    in-out property <string> oobe-hostname: "unicore-pc";
+    in-out property <string> oobe-pass: "";
+    in-out property <string> oobe-pass-confirm: "";
+    in-out property <int> active-tab: 0; // 0: Installed Apps, 1: Install File, 2: System & Android, 3: Settings
+    in-out property <int> settings-subtab: 0; // 0: Wi-Fi, 1: Bluetooth, 2: Audio, 3: Display, 4: Printers
+    in-out property <string> hw-summary: "Detecting hardware...";
+    in-out property <string> status-message: "";
+    in-out property <bool> status-is-error: false;
+
+    // Installed apps tab state
+    in-out property <[AppEntry]> installed-apps: [];
+    in-out property <int> selected-app-idx: -1;
+    in-out property <string> sel-name: "No application selected";
+    in-out property <string> sel-app-id: "";
+    in-out property <string> sel-platform: "-";
+    in-out property <string> sel-arch: "-";
+    in-out property <string> sel-source-path: "-";
+    in-out property <string> sel-sandbox-dir: "-";
+    in-out property <bool> sel-supports-era: false;
+    in-out property <int> sel-win-era-idx: 3;
+    in-out property <bool> sel-perm-network: true;
+    in-out property <bool> sel-perm-gpu: true;
+    in-out property <bool> sel-perm-documents: false;
+    in-out property <bool> sel-perm-camera: false;
+    in-out property <bool> sel-perm-microphone: false;
+    in-out property <bool> has-selected-app: false;
+    in-out property <bool> sel-log-visible: false;
+    in-out property <string> sel-log-text: "";
+
+    // Open / Install file form state (shared by --open dialog and Install tab)
+    in-out property <string> install-path-input: "";
+    in-out property <[BrowseFileEntry]> browse-files: [];
+    in-out property <bool> open-has-file: false;
+    in-out property <string> open-name: "";
+    in-out property <string> open-path: "";
+    in-out property <string> open-platform: "-";
+    in-out property <string> open-arch: "-";
+    in-out property <string> open-sub-abis: "none";
+    in-out property <bool> open-supports-era: false;
+    in-out property <int> open-win-era-idx: 3;
+    in-out property <bool> open-already-installed: false;
+    in-out property <bool> open-perm-network: true;
+    in-out property <bool> open-perm-gpu: true;
+    in-out property <bool> open-perm-documents: false;
+    in-out property <bool> open-perm-camera: false;
+    in-out property <bool> open-perm-microphone: false;
+    in-out property <bool> open-create-shortcut: true;
+
+    // Hardware & Android system overview state
+    in-out property <string> sys-hw-tier: "-";
+    in-out property <string> sys-hw-cpu: "-";
+    in-out property <string> sys-hw-ram: "-";
+    in-out property <string> sys-hw-caps: "-";
+    in-out property <string> sys-hw-renderers: "-";
+    in-out property <string> sys-android-binder: "-";
+    in-out property <string> sys-android-engine: "-";
+    in-out property <string> sys-android-image: "-";
+    in-out property <string> sys-android-arm: "-";
+    in-out property <string> sys-android-container: "Idle (0 MB RAM)";
+    in-out property <int> android-profile-idx: 0;
+
+    // Bare-metal A/B disk installer state (shown in Live mode)
+    in-out property <string> sys-boot-mode: "Detecting...";
+    in-out property <bool> sys-is-live: false;
+    in-out property <[string]> inst-disk-labels: ["No eligible disk (>= 8 GB) found"];
+    in-out property <int> inst-disk-idx: 0;
+    in-out property <bool> inst-has-disk: false;
+    in-out property <string> inst-confirm-input: "";
+    in-out property <bool> inst-encrypt-data: false;
+    in-out property <string> inst-luks-pass: "";
+    in-out property <string> inst-luks-confirm: "";
+    in-out property <bool> inst-busy: false;
+    in-out property <string> inst-status: "";
+
+    // Win32 / Win16 optional runtime assets state (Tab 2)
+    in-out property <string> sys-win32-wine: "-";
+    in-out property <string> sys-win32-dxvk: "-";
+    in-out property <string> sys-win32-vkd3d: "-";
+    in-out property <string> sys-win32-otvdm: "-";
+    in-out property <string> sys-win32-cnc-ddraw: "-";
+    in-out property <string> sys-win32-winetricks: "-";
+    in-out property <string> sys-dos-subsystem: "-";
+
+    // Global Gaming & Performance state (Tab 2)
+    in-out property <bool> gaming-mode-enabled: false;
+    in-out property <bool> gaming-fps-enabled: false;
+    in-out property <string> sys-cpu-governor: "-";
+
+    // A/B OS Updater & Rollback state (Tab 2)
+    in-out property <string> upd-current-version: "0.1.0";
+    in-out property <string> upd-active-slot: "UNICORE_SYS_A";
+    in-out property <string> upd-standby-slot: "UNICORE_SYS_B";
+    in-out property <string> upd-pending-summary: "Checking...";
+    in-out property <string> upd-url-input: "";
+    in-out property <string> upd-local-path: "";
+    in-out property <bool> upd-allow-unsigned: false;
+    in-out property <bool> upd-can-update: false;
+    in-out property <bool> upd-can-rollback: false;
+    in-out property <bool> upd-busy: false;
+    in-out property <bool> upd-needs-reboot: false;
+    in-out property <string> upd-status: "";
+
+    // Daily Settings state (Network, Bluetooth, Audio, Display & Brightness)
+    in-out property <bool> set-net-available: true;
+    in-out property <bool> set-wifi-enabled: false;
+    in-out property <string> set-net-summary: "Checking network...";
+    in-out property <[WifiEntry]> set-wifi-list: [];
+    in-out property <int> set-selected-wifi-idx: -1;
+    in-out property <string> set-wifi-ssid: "";
+    in-out property <string> set-wifi-password: "";
+
+    in-out property <bool> set-bt-powered: false;
+    in-out property <string> set-bt-summary: "Bluetooth idle";
+    in-out property <[BtEntry]> set-bt-list: [];
+    in-out property <int> set-selected-bt-idx: -1;
+    in-out property <string> set-selected-bt-mac: "";
+
+    in-out property <bool> set-audio-available: true;
+    in-out property <float> set-audio-volume: 50;
+    in-out property <bool> set-audio-muted: false;
+    in-out property <bool> set-mic-muted: false;
+    in-out property <[string]> set-audio-sinks: ["Default Audio Output"];
+    in-out property <int> set-audio-sink-idx: 0;
+
+    in-out property <[string]> set-disp-outputs: ["Default"];
+    in-out property <int> set-disp-output-idx: 0;
+    in-out property <[string]> set-disp-modes: ["Auto"];
+    in-out property <int> set-disp-mode-idx: 0;
+    in-out property <int> set-disp-scale-idx: 0;
+    in-out property <bool> set-backlight-available: false;
+    in-out property <float> set-brightness-pct: 100;
+    in-out property <bool> set-nightlight-enabled: false;
+    in-out property <float> set-nightlight-temp: 4000;
+
+    in-out property <int> set-theme-idx: 0;
+    in-out property <int> set-wallpaper-idx: 0;
+    in-out property <string> set-wallpaper-custom: "/usr/share/unicore/wallpaper.png";
+    in-out property <int> set-kb-layout-idx: 0;
+    in-out property <bool> set-natural-scroll: true;
+    in-out property <bool> set-tap-to-click: true;
+    in-out property <float> set-pointer-speed-tenths: 0;
+    in-out property <string> set-personalize-status: "";
+
+    in-out property <bool> set-cups-active: false;
+    in-out property <string> set-cups-summary: "Printer service stopped to save RAM";
+    in-out property <[PrinterEntry]> set-printer-list: [];
+    in-out property <int> set-selected-printer-idx: -1;
+    in-out property <string> set-selected-printer-name: "";
+    in-out property <[string]> set-discovered-printers: ["Click Scan USB / Wi-Fi to search nearby printers"];
+    in-out property <int> set-discovered-idx: 0;
+    in-out property <string> set-printer-name-input: "";
+    in-out property <string> set-printer-uri-input: "";
+
+    in-out property <bool> set-fw-enabled: true;
+    in-out property <int> set-fw-profile-idx: 0;
+    in-out property <bool> set-fw-ssh: false;
+    in-out property <string> set-fw-summary: "Checking firewall...";
+
+    in-out property <[VpnEntry]> set-vpn-list: [];
+    in-out property <int> set-selected-vpn-idx: -1;
+    in-out property <string> set-selected-vpn-name: "";
+    in-out property <string> set-vpn-import-path: "";
+
+    in-out property <[string]> set-backup-targets: ["Local Backups (/data/home/Backups)"];
+    in-out property <int> set-backup-target-idx: 0;
+    in-out property <bool> set-backup-encrypted: true;
+    in-out property <string> set-backup-passphrase: "";
+    in-out property <string> set-backup-restore-path: "";
+    in-out property <bool> set-backup-busy: false;
+    in-out property <string> set-backup-status: "";
+
+    // App Catalog / Store state (Tab 4)
+    in-out property <[StoreEntry]> store-entries: [];
+    in-out property <[StoreRow]> store-rows: [];
+    in-out property <bool> store-has-featured: false;
+    in-out property <StoreEntry> store-featured;
+    in-out property <bool> store-detail-open: false;
+    in-out property <StoreEntry> store-detail;
+    in-out property <bool> store-show-feed: false;
+    in-out property <string> store-category: "all";
+    in-out property <string> store-search-query: "";
+    in-out property <bool> store-busy: false;
+    in-out property <string> store-status: "";
+    in-out property <string> store-sync-url: "";
+
+    // Callbacks handled by Rust backend
+    callback select-app(int);
+    callback selected-era-changed(int);
+    callback selected-permission-toggled(string, bool);
+    callback launch-selected();
+    callback create-shortcut-selected();
+    callback view-log-selected();
+    callback uninstall-selected();
+    callback refresh-all();
+    callback export-diagnostics();
+    callback reclaim-ram();
+
+    callback inspect-path(string);
+    callback install-and-launch-open();
+    callback install-only-open();
+    callback cancel-open();
+    callback switch-to-full-center();
+
+    callback android-action(string);
+    callback win32-asset-action(string);
+    callback install-runtimes-selected();
+    callback toggle-game-mode(bool);
+    callback toggle-show-fps(bool);
+    callback complete-oobe(bool);
+    callback skip-oobe();
+    callback toggle-language();
+    callback oobe-lang-selected(int);
+    callback refresh-tasks();
+    callback select-task(int);
+    callback end-task(int, bool);
+
+    // Settings & Power callbacks
+    callback refresh-settings();
+    callback toggle-wifi-radio(bool);
+    callback select-wifi(int);
+    callback connect-wifi(string, string);
+    callback disconnect-wifi();
+    callback forget-wifi(string);
+    callback toggle-bluetooth(bool);
+    callback scan-bluetooth();
+    callback select-bt-device(int);
+    callback bt-action(string, string);
+    callback audio-volume-changed(int);
+    callback audio-mute-toggled(bool);
+    callback mic-mute-toggled(bool);
+    callback audio-sink-selected(int);
+    callback display-output-selected(int);
+    callback apply-display(int, int, int);
+    callback brightness-changed(int);
+    callback nightlight-changed(bool, int);
+    callback apply-personalize(int, int, string, int, bool, bool, int);
+    callback toggle-cups(bool);
+    callback scan-printers();
+    callback open-document-scanner();
+    callback select-printer(int);
+    callback select-discovered-printer(int);
+    callback add-printer(string, string);
+    callback printer-action(string, string);
+    callback toggle-firewall(bool);
+    callback firewall-profile-changed(int);
+    callback firewall-ssh-toggled(bool);
+    callback select-vpn(int);
+    callback import-vpn(string);
+    callback vpn-action(string, string);
+    callback refresh-backup-targets();
+    callback create-backup(int, bool, string);
+    callback restore-backup(string, string);
+    callback power-action(string);
+    callback refresh-install-disks();
+    callback start-disk-install(int, string, bool, string, string);
+    callback refresh-update-status();
+    callback check-ota-update(string);
+    callback apply-ota-update(string);
+    callback apply-local-update(string, bool);
+    callback rollback-os-slot();
+    callback store-filter-changed(string, string);
+    callback store-install-app(string);
+    callback store-launch-app(string);
+    callback store-sync-catalog(string);
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 12px;
+
+        // Top Header Bar
+        Card {
+            height: 54px;
+            HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 14px;
+                spacing: 10px;
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 2px;
+                    horizontal-stretch: 1;
+                    Text {
+                        text: root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)));
+                        color: UiTheme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: root.hw-summary;
+                        color: UiTheme.text-accent;
+                        font-size: 11px;
+                        overflow: elide;
+                    }
+                }
+
+                TabPill {
+                    label: root.lang-badge;
+                    active: false;
+                    clicked => { root.toggle-language(); }
+                }
+
+                if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only : HorizontalLayout {
+                    alignment: center;
+                    spacing: 6px;
+                    TabPill {
+                        label: root.tr.tab-apps;
+                        active: root.active-tab == 0;
+                        clicked => { root.active-tab = 0; }
+                    }
+                    TabPill {
+                        label: root.tr.tab-store;
+                        active: root.active-tab == 4;
+                        clicked => {
+                            root.active-tab = 4;
+                            root.store-detail-open = false;
+                            root.store-filter-changed(root.store-category, root.store-search-query);
+                        }
+                    }
+                    TabPill {
+                        label: root.tr.tab-install;
+                        active: root.active-tab == 1;
+                        clicked => { root.active-tab = 1; }
+                    }
+                    TabPill {
+                        label: root.tr.tab-system;
+                        active: root.active-tab == 2;
+                        clicked => { root.active-tab = 2; root.refresh-all(); }
+                    }
+                    TabPill {
+                        label: root.tr.tab-settings;
+                        active: root.active-tab == 3;
+                        clicked => { root.active-tab = 3; root.refresh-settings(); }
+                    }
+                    TabPill {
+                        label: root.tr.tab-tasks;
+                        active: false;
+                        clicked => { root.taskmgr-dialog-only = true; root.refresh-tasks(); }
+                    }
+                    TabPill {
+                        label: root.tr.tab-power;
+                        active: false;
+                        danger: true;
+                        clicked => { root.power-dialog-only = true; }
+                    }
+                }
+            }
+        }
+
+        // Power Options Modal (--power or header Power button)
+        if root.power-dialog-only : VerticalLayout {
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 10px;
+                    alignment: center;
+
+                    Text {
+                        text: root.tr.power-prompt;
+                        color: UiTheme.text-secondary;
+                        font-size: 14px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Button {
+                            text: root.tr.btn-shutdown;
+                            primary: true;
+                            horizontal-stretch: 1;
+                            clicked => { root.power-action("poweroff"); }
+                        }
+                        Button {
+                            text: root.tr.btn-reboot;
+                            horizontal-stretch: 1;
+                            clicked => { root.power-action("reboot"); }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Button {
+                            text: root.tr.btn-sleep;
+                            horizontal-stretch: 1;
+                            clicked => { root.power-action("suspend"); }
+                        }
+                        Button {
+                            text: root.tr.btn-logout;
+                            horizontal-stretch: 1;
+                            clicked => { root.power-action("logout"); }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                Button {
+                    text: root.tr.btn-back-center;
+                    clicked => { root.power-dialog-only = false; }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // Lightweight Task Manager (--taskmgr or header Tasks button)
+        if root.taskmgr-dialog-only && !root.power-dialog-only : VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 8px;
+
+                    Text {
+                        text: root.tr.taskmgr-heading;
+                        color: UiTheme.text-accent;
+                        font-size: 13px;
+                        font-weight: 700;
+                    }
+
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: 6px;
+                            alignment: start;
+
+                            if root.task-list.length == 0 : Text {
+                                text: root.tr.taskmgr-empty;
+                                color: UiTheme.text-muted;
+                                font-size: 12px;
+                            }
+
+                            for task[idx] in root.task-list : Rectangle {
+                                height: 46px;
+                                border-radius: 6px;
+                                background: idx == root.selected-task-idx ? #0369a1 : (tta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                border-width: 1px;
+                                border-color: idx == root.selected-task-idx ? #38bdf8 : UiTheme.card-border;
+
+                                tta := TouchArea {
+                                    clicked => { root.select-task(idx); }
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    VerticalLayout {
+                                        alignment: center;
+                                        horizontal-stretch: 1;
+                                        spacing: 2px;
+                                        Text {
+                                            text: task.name + "  (PID " + task.pid + ")";
+                                            color: idx == root.selected-task-idx ? #ffffff : UiTheme.text-primary;
+                                            font-size: 13px;
+                                            font-weight: 600;
+                                            overflow: elide;
+                                        }
+                                        Text {
+                                            text: task.detail;
+                                            color: idx == root.selected-task-idx ? #e0f2fe : UiTheme.text-muted;
+                                            font-size: 11px;
+                                            overflow: elide;
+                                        }
+                                    }
+                                    Text {
+                                        text: task.ram-label;
+                                        color: UiTheme.text-accent;
+                                        font-size: 12px;
+                                        font-weight: 700;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.tr.btn-end-task;
+                    primary: true;
+                    enabled: root.selected-task-pid > 1;
+                    clicked => { root.end-task(root.selected-task-pid, false); }
+                }
+                Button {
+                    text: root.tr.btn-force-kill;
+                    enabled: root.selected-task-pid > 1;
+                    clicked => { root.end-task(root.selected-task-pid, true); }
+                }
+                Button {
+                    text: root.tr.btn-refresh;
+                    clicked => { root.refresh-tasks(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-back-center;
+                    clicked => { root.taskmgr-dialog-only = false; }
+                }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // Quick Open / Install Form (Simple Mode by default, collapsible Advanced Security & Compatibility)
+        if root.open-dialog-only && !root.power-dialog-only : VerticalLayout {
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            Card {
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text {
+                            text: root.tr.open-app-name;
+                            color: UiTheme.text-muted;
+                            font-size: 13px;
+                            width: 110px;
+                            vertical-alignment: center;
+                        }
+                        LineEdit {
+                            text <=> root.open-name;
+                            placeholder-text: "Application display name";
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    InfoRow { label: root.tr.open-app-type; value: root.open-platform; value-color: UiTheme.text-accent; }
+
+                    if !root.open-show-advanced : Text {
+                        text: root.tr.open-simple-hint;
+                        color: #22c55e;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+
+                    CheckBox {
+                        text: root.tr.chk-create-shortcut;
+                        checked <=> root.open-create-shortcut;
+                    }
+
+                    HorizontalLayout {
+                        Button {
+                            text: root.open-show-advanced ? root.tr.open-hide-adv : root.tr.open-show-adv;
+                            clicked => { root.open-show-advanced = !root.open-show-advanced; }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                    }
+
+                    if root.open-show-advanced : VerticalLayout {
+                        spacing: 8px;
+                        InfoRow { label: "CPU / ABIs:"; value: root.open-arch + "  (" + root.open-sub-abis + ")"; }
+                        InfoRow { label: "Binary Path:"; value: root.open-path; }
+                        if root.open-supports-era : WinEraRow {
+                            current-index <=> root.open-win-era-idx;
+                        }
+                    }
+                }
+            }
+
+            if root.open-show-advanced : Card {
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+
+                    PermissionGrid {
+                        perm-network <=> root.open-perm-network;
+                        perm-gpu <=> root.open-perm-gpu;
+                        perm-documents <=> root.open-perm-documents;
+                        perm-camera <=> root.open-perm-camera;
+                        perm-microphone <=> root.open-perm-microphone;
+                        controls-enabled: root.open-has-file;
+                    }
+                }
+            }
+
+            Rectangle { vertical-stretch: 1; }
+
+            HorizontalLayout {
+                spacing: 10px;
+                Button {
+                    text: root.open-already-installed ? root.tr.btn-run-now : root.tr.btn-install-run;
+                    primary: true;
+                    enabled: root.open-has-file;
+                    clicked => { root.install-and-launch-open(); }
+                }
+                Button {
+                    text: root.tr.btn-install-only;
+                    enabled: root.open-has-file;
+                    clicked => { root.install-only-open(); }
+                }
+                if root.open-show-advanced : Button {
+                    text: root.tr.btn-open-center;
+                    clicked => { root.switch-to-full-center(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-cancel;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // First-Boot Setup Wizard (--oobe)
+        if root.oobe-dialog-only && !root.power-dialog-only && !root.taskmgr-dialog-only : VerticalLayout {
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 12px;
+                    alignment: start;
+
+                    Text {
+                        text: root.oobe-step == 0 ? root.tr.oobe-step1 : (root.oobe-step == 1 ? root.tr.oobe-step2 : root.tr.oobe-step3);
+                        color: UiTheme.text-accent;
+                        font-size: 15px;
+                        font-weight: 700;
+                    }
+
+                    if root.oobe-step == 0 : VerticalLayout {
+                        spacing: 10px;
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Text { text: root.tr.oobe-lang; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
+                            ComboBox {
+                                model: ["English (United States - en_US.UTF-8)", "Bahasa Melayu (Malaysia - ms_MY.UTF-8)", "Minimal POSIX UTF-8 (C.UTF-8)"];
+                                current-index <=> root.oobe-lang-idx;
+                                selected => { root.oobe-lang-selected(self.current-index); }
+                                horizontal-stretch: 1;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Text { text: root.tr.oobe-tz; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
+                            ComboBox {
+                                model: ["UTC", "Asia/Kuala_Lumpur", "Asia/Singapore", "America/New_York", "Europe/London", "Asia/Tokyo"];
+                                current-index <=> root.oobe-tz-idx;
+                                horizontal-stretch: 1;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Text { text: root.tr.oobe-hostname; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
+                            LineEdit {
+                                text <=> root.oobe-hostname;
+                                placeholder-text: "unicore-pc";
+                                horizontal-stretch: 1;
+                            }
+                        }
+                    }
+
+                    if root.oobe-step == 1 : VerticalLayout {
+                        spacing: 10px;
+                        Text {
+                            text: root.tr.oobe-pw-hint;
+                            color: UiTheme.text-muted;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Text { text: root.tr.oobe-pw; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
+                            LineEdit {
+                                text <=> root.oobe-pass;
+                                placeholder-text: "Optional (min 4 chars)";
+                                input-type: InputType.password;
+                                horizontal-stretch: 1;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Text { text: root.tr.oobe-pw-confirm; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
+                            LineEdit {
+                                text <=> root.oobe-pass-confirm;
+                                placeholder-text: "Re-enter password";
+                                input-type: InputType.password;
+                                horizontal-stretch: 1;
+                            }
+                        }
+                    }
+
+                    if root.oobe-step == 2 : VerticalLayout {
+                        spacing: 10px;
+                        Text {
+                            text: root.tr.oobe-ready-hint;
+                            color: UiTheme.text-secondary;
+                            font-size: 13px;
+                            wrap: word-wrap;
+                        }
+                        InfoRow { label: "Boot Mode:"; value: root.sys-boot-mode; value-color: UiTheme.text-ok; }
+                        InfoRow { label: root.tr.oobe-hostname; value: root.oobe-hostname; }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+                if root.oobe-step > 0 : Button {
+                    text: root.tr.btn-back;
+                    clicked => { root.oobe-step -= 1; }
+                }
+                Button {
+                    text: root.tr.btn-skip;
+                    clicked => { root.skip-oobe(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if root.oobe-step < 2 : Button {
+                    text: root.tr.btn-next;
+                    primary: true;
+                    clicked => { root.oobe-step += 1; }
+                }
+                if root.oobe-step == 2 && root.sys-is-live : Button {
+                    text: root.tr.btn-finish-install;
+                    clicked => { root.complete-oobe(true); }
+                }
+                if root.oobe-step == 2 : Button {
+                    text: root.tr.btn-finish;
+                    primary: true;
+                    clicked => { root.complete-oobe(false); }
+                }
+            }
+        }
+
+        // Tab 0: Installed Applications & Permissions Manager
+        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 0 : HorizontalLayout {
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            // Left sidebar: app list
+            Card {
+                width: 240px;
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        Text {
+                            text: root.tr.hdr-registered-apps;
+                            color: UiTheme.text-secondary;
+                            font-size: 13px;
+                            font-weight: 700;
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                        }
+                        Button {
+                            text: root.tr.btn-add;
+                            clicked => { root.active-tab = 1; }
+                        }
+                    }
+
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: 6px;
+                            alignment: start;
+
+                            if root.installed-apps.length == 0 : Text {
+                                text: "No apps installed yet.\nClick '+ Add' or double-click a .exe / .apk in File Manager.";
+                                color: UiTheme.text-muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+
+                            for app[idx] in root.installed-apps : Rectangle {
+                                height: 50px;
+                                border-radius: 6px;
+                                background: idx == root.selected-app-idx ? #0369a1 : (item-ta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                border-width: 1px;
+                                border-color: idx == root.selected-app-idx ? #38bdf8 : UiTheme.card-border;
+
+                                item-ta := TouchArea {
+                                    clicked => { root.select-app(idx); }
+                                }
+
+                                VerticalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    alignment: center;
+                                    spacing: 2px;
+                                    Text {
+                                        text: app.name;
+                                        color: idx == root.selected-app-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 13px;
+                                        font-weight: 600;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: app.platform-label;
+                                        color: idx == root.selected-app-idx ? #e0f2fe : UiTheme.text-muted;
+                                        font-size: 11px;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Right details pane
+            Card {
+                horizontal-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 12px;
+                        alignment: start;
+
+                        Text {
+                            text: root.sel-name;
+                            color: UiTheme.text-primary;
+                            font-size: 17px;
+                            font-weight: 700;
+                        }
+
+                        InfoRow { label: "Platform:"; value: root.sel-platform; value-color: UiTheme.text-accent; }
+                        InfoRow { label: "Architecture:"; value: root.sel-arch; }
+                        InfoRow { label: "App ID:"; value: root.sel-app-id; }
+                        InfoRow { label: "Binary Path:"; value: root.sel-source-path; }
+                        InfoRow { label: "Sandbox Dir:"; value: root.sel-sandbox-dir; }
+
+                        if root.has-selected-app && root.sel-supports-era : WinEraRow {
+                            label-width: 130px;
+                            label-font-size: 12px;
+                            current-index <=> root.sel-win-era-idx;
+                            era-selected(idx) => { root.selected-era-changed(idx); }
+                        }
+
+                        Rectangle { height: 1px; background: UiTheme.card-border; }
+
+                        PermissionGrid {
+                            perm-network <=> root.sel-perm-network;
+                            perm-gpu <=> root.sel-perm-gpu;
+                            perm-documents <=> root.sel-perm-documents;
+                            perm-camera <=> root.sel-perm-camera;
+                            perm-microphone <=> root.sel-perm-microphone;
+                            controls-enabled: root.has-selected-app;
+                            permission-toggled(name, val) => { root.selected-permission-toggled(name, val); }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Button {
+                                text: root.tr.btn-launch-app;
+                                primary: true;
+                                enabled: root.has-selected-app;
+                                clicked => { root.launch-selected(); }
+                            }
+                            Button {
+                                text: root.tr.btn-create-shortcut;
+                                enabled: root.has-selected-app;
+                                clicked => { root.create-shortcut-selected(); }
+                            }
+                            Button {
+                                text: root.sel-log-visible ? root.tr.btn-hide-log : root.tr.btn-view-log;
+                                enabled: root.has-selected-app;
+                                clicked => { root.view-log-selected(); }
+                            }
+                            Button {
+                                text: root.tr.btn-uninstall;
+                                enabled: root.has-selected-app;
+                                clicked => { root.uninstall-selected(); }
+                            }
+                            Button {
+                                text: root.tr.btn-refresh;
+                                clicked => { root.refresh-all(); }
+                            }
+                        }
+
+                        if root.has-selected-app && root.sel-supports-era : HorizontalLayout {
+                            spacing: 10px;
+                            Button {
+                                text: root.tr.btn-classic-runtimes;
+                                clicked => { root.install-runtimes-selected(); }
+                            }
+                        }
+
+                        if root.sel-log-visible : Rectangle {
+                            height: 120px;
+                            background: #020617;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: UiTheme.card-border;
+                            ScrollView {
+                                Text {
+                                    text: root.sel-log-text;
+                                    color: UiTheme.text-muted;
+                                    font-size: 11px;
+                                    wrap: word-wrap;
+                                    x: 8px;
+                                    y: 6px;
+                                    width: parent.width - 16px;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tab 1: Browse & Install File (.exe / .msi / .apk)
+        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 1 : HorizontalLayout {
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            Card {
+                width: 270px;
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+
+                    Text {
+                        text: "Detected Binaries (.exe / .com / .bat / .apk)";
+                        color: UiTheme.text-secondary;
+                        font-size: 13px;
+                        font-weight: 700;
+                    }
+
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: 6px;
+                            alignment: start;
+
+                            if root.browse-files.length == 0 : Text {
+                                text: "No .exe, .com, .bat, or .apk files found in Home / Downloads / /usr/share/unicore.";
+                                color: UiTheme.text-muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+
+                            for file in root.browse-files : Rectangle {
+                                height: 48px;
+                                border-radius: 6px;
+                                background: file-ta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle;
+                                border-width: 1px;
+                                border-color: UiTheme.card-border;
+
+                                file-ta := TouchArea {
+                                    clicked => {
+                                        root.install-path-input = file.path;
+                                        root.inspect-path(file.path);
+                                    }
+                                }
+
+                                VerticalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    alignment: center;
+                                    spacing: 2px;
+                                    Text {
+                                        text: file.name;
+                                        color: UiTheme.text-primary;
+                                        font-size: 12px;
+                                        font-weight: 600;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: file.kind + " - " + file.path;
+                                        color: UiTheme.text-muted;
+                                        font-size: 10px;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Card {
+                horizontal-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+                        alignment: start;
+
+                        Text {
+                            text: "Inspect & Install Application";
+                            color: UiTheme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            LineEdit {
+                                text <=> root.install-path-input;
+                                placeholder-text: "/path/to/app.exe, game.com, run.bat, or app.apk";
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: "Inspect";
+                                clicked => { root.inspect-path(root.install-path-input); }
+                            }
+                        }
+
+                        if !root.open-has-file : Text {
+                            text: "Select a file on the left or enter a file path above to configure Windows Era and Sandbox Permissions.";
+                            color: UiTheme.text-muted;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+
+                        if root.open-has-file : VerticalLayout {
+                            spacing: 10px;
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: "App Name:";
+                                    color: UiTheme.text-muted;
+                                    font-size: 12px;
+                                    width: 110px;
+                                    vertical-alignment: center;
+                                }
+                                LineEdit {
+                                    text <=> root.open-name;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                            InfoRow { label: "Platform:"; value: root.open-platform; value-color: UiTheme.text-accent; }
+                            InfoRow { label: "CPU / ABIs:"; value: root.open-arch + "  (" + root.open-sub-abis + ")"; }
+
+                            if root.open-supports-era : WinEraRow {
+                                label-font-size: 12px;
+                                current-index <=> root.open-win-era-idx;
+                            }
+
+                            PermissionGrid {
+                                perm-network <=> root.open-perm-network;
+                                perm-gpu <=> root.open-perm-gpu;
+                                perm-documents <=> root.open-perm-documents;
+                                perm-camera <=> root.open-perm-camera;
+                                perm-microphone <=> root.open-perm-microphone;
+                                controls-enabled: true;
+                            }
+
+                            CheckBox {
+                                text: "Create Start Menu & Desktop shortcut (.desktop)";
+                                checked <=> root.open-create-shortcut;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Button {
+                                    text: "Install & Launch";
+                                    primary: true;
+                                    clicked => { root.install-and-launch-open(); }
+                                }
+                                Button {
+                                    text: "Install Only";
+                                    clicked => { root.install-only-open(); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tab 2: Hardware Profile & Built-in Android Subsystem
+        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 2 : ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: 12px;
+                alignment: start;
+
+                Card {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 6px;
+                        Text {
+                            text: "Adaptive Hardware Profile (2005 - Present)";
+                            color: UiTheme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+                        InfoRow { label: "Hardware Tier:"; value: root.sys-hw-tier; value-color: UiTheme.text-accent; }
+                        InfoRow { label: "Processor:"; value: root.sys-hw-cpu; }
+                        InfoRow { label: "Memory / zram:"; value: root.sys-hw-ram; }
+                        InfoRow { label: "CPU / GPU Caps:"; value: root.sys-hw-caps; }
+                        InfoRow { label: "Active Backends:"; value: root.sys-hw-renderers; }
+                        InfoRow { label: "Boot Mode:"; value: root.sys-boot-mode; value-color: root.sys-is-live ? #fbbf24 : #22c55e; }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Button {
+                                text: "Export Diagnostics";
+                                clicked => { root.export-diagnostics(); }
+                            }
+                        }
+                    }
+                }
+
+                if root.sys-is-live : Card {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
+                        Text {
+                            text: "Install UniCore OS to Disk (A/B Hybrid BIOS + UEFI)";
+                            color: UiTheme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+                        Text {
+                            text: "Creates GPT Hybrid BIOS + UEFI layout with Slot A (UNICORE_SYS_A), Slot B fallback (UNICORE_SYS_B), and persistent UNICORE_DATA. ALL existing data on the selected disk will be erased; active Live media is automatically excluded.";
+                            color: #fbbf24;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            ComboBox {
+                                model: root.inst-disk-labels;
+                                current-index <=> root.inst-disk-idx;
+                                enabled: root.inst-has-disk && !root.inst-busy;
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: "Refresh Disks";
+                                enabled: !root.inst-busy;
+                                clicked => { root.refresh-install-disks(); }
+                            }
+                        }
+                        CheckBox {
+                            text: "Encrypt persistent /data partition with LUKS2 (recommended for laptops)";
+                            checked <=> root.inst-encrypt-data;
+                            enabled: root.inst-has-disk && !root.inst-busy;
+                        }
+                        if root.inst-encrypt-data : HorizontalLayout {
+                            spacing: 10px;
+                            LineEdit {
+                                text <=> root.inst-luks-pass;
+                                placeholder-text: "LUKS2 passphrase (min 8 chars)";
+                                input-type: InputType.password;
+                                enabled: !root.inst-busy;
+                                horizontal-stretch: 1;
+                            }
+                            LineEdit {
+                                text <=> root.inst-luks-confirm;
+                                placeholder-text: "Confirm LUKS2 passphrase";
+                                input-type: InputType.password;
+                                enabled: !root.inst-busy;
+                                horizontal-stretch: 1;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            LineEdit {
+                                text <=> root.inst-confirm-input;
+                                placeholder-text: "Type device name to confirm (e.g. sda or vda)";
+                                enabled: root.inst-has-disk && !root.inst-busy;
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: root.inst-busy ? "Installing..." : "Install UniCore OS to Disk";
+                                primary: true;
+                                enabled: root.inst-has-disk && !root.inst-busy;
+                                clicked => { root.start-disk-install(root.inst-disk-idx, root.inst-confirm-input, root.inst-encrypt-data, root.inst-luks-pass, root.inst-luks-confirm); }
+                            }
+                        }
+                        if root.inst-status != "" : Text {
+                            text: root.inst-status;
+                            color: UiTheme.text-accent;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+
+                Card {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
+                        Text {
+                            text: "System Updates & A/B Rollback";
+                            color: UiTheme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+                        InfoRow { label: "OS Version:"; value: root.upd-current-version; value-color: UiTheme.text-accent; }
+                        InfoRow { label: "Active Slot:"; value: root.upd-active-slot; }
+                        InfoRow { label: "Standby Slot:"; value: root.upd-standby-slot; }
+                        InfoRow { label: "Boot Health:"; value: root.upd-pending-summary; value-color: UiTheme.text-ok; }
+
+                        if !root.upd-can-update : Text {
+                            text: "Note: A/B OTA updates and slot rollback are active once installed to disk (current mode: " + root.sys-boot-mode + ").";
+                            color: #fbbf24;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            LineEdit {
+                                text <=> root.upd-url-input;
+                                placeholder-text: "HTTPS manifest URL (https://.../unicore-manifest.json)";
+                                enabled: !root.upd-busy;
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: "Check Updates";
+                                enabled: !root.upd-busy;
+                                clicked => { root.check-ota-update(root.upd-url-input); }
+                            }
+                            Button {
+                                text: root.upd-busy ? "Updating..." : "Apply OTA Update";
+                                primary: true;
+                                enabled: root.upd-can-update && !root.upd-busy;
+                                clicked => { root.apply-ota-update(root.upd-url-input); }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            LineEdit {
+                                text <=> root.upd-local-path;
+                                placeholder-text: "Local ISO or manifest path (/data/home/Downloads/unicore-os-x86_64.iso)";
+                                enabled: !root.upd-busy;
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: "Apply Local Update";
+                                enabled: root.upd-can-update && !root.upd-busy;
+                                clicked => { root.apply-local-update(root.upd-local-path, root.upd-allow-unsigned); }
+                            }
+                        }
+
+                        CheckBox {
+                            text: "Allow unsigned local ISO / dev build (SHA-256 verified when manifest present)";
+                            checked <=> root.upd-allow-unsigned;
+                            enabled: !root.upd-busy;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Button {
+                                text: "Rollback to Standby Slot";
+                                enabled: root.upd-can-rollback && !root.upd-busy;
+                                clicked => { root.rollback-os-slot(); }
+                            }
+                            Button {
+                                text: "Refresh Status";
+                                enabled: !root.upd-busy;
+                                clicked => { root.refresh-update-status(); }
+                            }
+                            if root.upd-needs-reboot : Button {
+                                text: "Reboot Now";
+                                primary: true;
+                                enabled: !root.upd-busy;
+                                clicked => { root.power-action("reboot"); }
+                            }
+                        }
+
+                        if root.upd-status != "" : Text {
+                            text: root.upd-status;
+                            color: UiTheme.text-accent;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+
+                Card {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
+                        Text {
+                            text: "Built-in Android Subsystem (ART / Waydroid)";
+                            color: UiTheme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+                        InfoRow { label: "Kernel BinderFS:"; value: root.sys-android-binder; }
+                        InfoRow { label: "Container Engine:"; value: root.sys-android-engine; }
+                        InfoRow { label: "Android Image:"; value: root.sys-android-image; }
+                        InfoRow { label: "ARM Translator:"; value: root.sys-android-arm; }
+                        InfoRow { label: "Runtime State:"; value: root.sys-android-container; value-color: UiTheme.text-ok; }
+
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Text {
+                                text: "Image Profile:";
+                                color: UiTheme.text-muted;
+                                font-size: 12px;
+                                width: 130px;
+                                vertical-alignment: center;
+                            }
+                            ComboBox {
+                                model: ["VANILLA (Minimal Open-Source)", "MICROG (Open-Source Play Services)", "GAPPS"];
+                                current-index <=> root.android-profile-idx;
+                                horizontal-stretch: 1;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Button {
+                                text: "Initialize Android";
+                                primary: true;
+                                clicked => { root.android-action("init"); }
+                            }
+                            Button {
+                                text: "Open Android UI";
+                                clicked => { root.android-action("ui"); }
+                            }
+                            Button {
+                                text: "ARM Translation Setup";
+                                clicked => { root.android-action("setup-arm"); }
+                            }
+                            Button {
+                                text: "Sync App Shortcuts";
+                                clicked => { root.android-action("sync-shortcuts"); }
+                            }
+                            Button {
+                                text: "Reclaim Idle RAM";
+                                clicked => { root.reclaim-ram(); }
+                            }
+                            Button {
+                                text: "Refresh";
+                                clicked => { root.refresh-all(); }
+                            }
+                        }
+                    }
+                }
+
+                Card {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
+                        Text {
+                            text: root.tr.hdr-gaming-perf;
+                            color: UiTheme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+                        InfoRow { label: root.tr.lbl-cpu-governor; value: root.sys-cpu-governor; value-color: UiTheme.text-accent; }
+                        Switch {
+                            text: root.tr.chk-game-mode;
+                            checked <=> root.gaming-mode-enabled;
+                            toggled => { root.toggle-game-mode(self.checked); }
+                        }
+                        Switch {
+                            text: root.tr.chk-show-fps;
+                            checked <=> root.gaming-fps-enabled;
+                            toggled => { root.toggle-show-fps(self.checked); }
+                        }
+                        Text {
+                            text: root.tr.gaming-hint;
+                            color: #22c55e;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+
+                Card {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
+                        Text {
+                            text: "Win32 / Win16 / MS-DOS Subsystems & Runtime Assets";
+                            color: UiTheme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+                        InfoRow { label: "Wine Core:"; value: root.sys-win32-wine; }
+                        InfoRow { label: "DXVK (D3D8-11):"; value: root.sys-win32-dxvk; }
+                        InfoRow { label: "VKD3D (Direct3D 12):"; value: root.sys-win32-vkd3d; }
+                        InfoRow { label: "cnc-ddraw (Win98/XP):"; value: root.sys-win32-cnc-ddraw; }
+                        InfoRow { label: "OTVDM (Win16 NE):"; value: root.sys-win32-otvdm; }
+                        InfoRow { label: "Winetricks (DX9/VC++):"; value: root.sys-win32-winetricks; }
+                        InfoRow { label: "MS-DOS Subsystem:"; value: root.sys-dos-subsystem; }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Button {
+                                text: "Install DXVK";
+                                clicked => { root.win32-asset-action("install-dxvk"); }
+                            }
+                            Button {
+                                text: "Install VKD3D";
+                                clicked => { root.win32-asset-action("install-vkd3d"); }
+                            }
+                            Button {
+                                text: "Install cnc-ddraw";
+                                clicked => { root.win32-asset-action("install-cnc-ddraw"); }
+                            }
+                            Button {
+                                text: "Install OTVDM (Win16)";
+                                clicked => { root.win32-asset-action("install-otvdm"); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tab 3: Daily Settings (Wi-Fi, Bluetooth, Audio, Display & Brightness)
+        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 3 : VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: 8px;
+                TabPill {
+                    label: root.tr.subtab-wifi;
+                    active: root.settings-subtab == 0;
+                    clicked => { root.settings-subtab = 0; root.refresh-settings(); }
+                }
+                TabPill {
+                    label: root.tr.subtab-bt;
+                    active: root.settings-subtab == 1;
+                    clicked => { root.settings-subtab = 1; root.refresh-settings(); }
+                }
+                TabPill {
+                    label: root.tr.subtab-audio;
+                    active: root.settings-subtab == 2;
+                    clicked => { root.settings-subtab = 2; root.refresh-settings(); }
+                }
+                TabPill {
+                    label: root.tr.subtab-display;
+                    active: root.settings-subtab == 3;
+                    clicked => { root.settings-subtab = 3; root.refresh-settings(); }
+                }
+                TabPill {
+                    label: root.tr.subtab-printers;
+                    active: root.settings-subtab == 4;
+                    clicked => { root.settings-subtab = 4; root.refresh-settings(); }
+                }
+                TabPill {
+                    label: root.tr.subtab-security;
+                    active: root.settings-subtab == 5;
+                    clicked => { root.settings-subtab = 5; root.refresh-settings(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-refresh;
+                    clicked => { root.refresh-settings(); }
+                }
+            }
+
+            // Subtab 0: Wi-Fi & Network
+            if root.settings-subtab == 0 : Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+
+                    InfoRow { label: "Network Status:"; value: root.set-net-summary; value-color: UiTheme.text-accent; }
+
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Switch {
+                            text: "Wi-Fi Radio";
+                            checked <=> root.set-wifi-enabled;
+                            enabled: root.set-net-available;
+                            toggled => { root.toggle-wifi-radio(self.checked); }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button {
+                            text: "Scan Wi-Fi";
+                            enabled: root.set-net-available;
+                            clicked => { root.refresh-settings(); }
+                        }
+                    }
+
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: 6px;
+                            alignment: start;
+
+                            if root.set-wifi-list.length == 0 : Text {
+                                text: root.set-wifi-enabled ? "No Wi-Fi networks detected yet (wired Ethernet DHCP connects automatically)." : "Wi-Fi radio is off or no Wi-Fi adapter found.";
+                                color: UiTheme.text-muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+
+                            for net[idx] in root.set-wifi-list : Rectangle {
+                                height: 42px;
+                                border-radius: 6px;
+                                background: idx == root.set-selected-wifi-idx ? #0369a1 : (wta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                border-width: 1px;
+                                border-color: net.in-use ? #22c55e : (idx == root.set-selected-wifi-idx ? #38bdf8 : #334155);
+
+                                wta := TouchArea {
+                                    clicked => { root.select-wifi(idx); }
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    Text {
+                                        text: net.in-use ? "* " + net.ssid : net.ssid;
+                                        color: idx == root.set-selected-wifi-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 13px;
+                                        font-weight: net.in-use ? 700 : 500;
+                                        horizontal-stretch: 1;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        text: net.security + " | " + net.signal + "%";
+                                        color: UiTheme.text-muted;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        LineEdit {
+                            text <=> root.set-wifi-ssid;
+                            placeholder-text: "Wi-Fi SSID";
+                            horizontal-stretch: 1;
+                        }
+                        LineEdit {
+                            text <=> root.set-wifi-password;
+                            placeholder-text: "Password (blank if open)";
+                            input-type: InputType.password;
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Button {
+                            text: "Connect";
+                            primary: true;
+                            enabled: root.set-net-available;
+                            clicked => { root.connect-wifi(root.set-wifi-ssid, root.set-wifi-password); }
+                        }
+                        Button {
+                            text: "Disconnect";
+                            enabled: root.set-net-available;
+                            clicked => { root.disconnect-wifi(); }
+                        }
+                        Button {
+                            text: "Forget Saved";
+                            enabled: root.set-net-available;
+                            clicked => { root.forget-wifi(root.set-wifi-ssid); }
+                        }
+                    }
+                }
+            }
+
+            // Subtab 1: Bluetooth (On-Demand BlueZ)
+            if root.settings-subtab == 1 : Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+
+                    InfoRow { label: "Bluetooth Status:"; value: root.set-bt-summary; value-color: UiTheme.text-accent; }
+
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Switch {
+                            text: "Enable Bluetooth (On-Demand)";
+                            checked <=> root.set-bt-powered;
+                            toggled => { root.toggle-bluetooth(self.checked); }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button {
+                            text: "Scan Devices (5s)";
+                            enabled: root.set-bt-powered;
+                            clicked => { root.scan-bluetooth(); }
+                        }
+                    }
+
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: 6px;
+                            alignment: start;
+
+                            if root.set-bt-list.length == 0 : Text {
+                                text: "No Bluetooth devices listed. Enable Bluetooth and click Scan Devices.";
+                                color: UiTheme.text-muted;
+                                font-size: 12px;
+                            }
+
+                            for dev[idx] in root.set-bt-list : Rectangle {
+                                height: 42px;
+                                border-radius: 6px;
+                                background: idx == root.set-selected-bt-idx ? #0369a1 : (bta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                border-width: 1px;
+                                border-color: dev.connected ? #22c55e : (idx == root.set-selected-bt-idx ? #38bdf8 : #334155);
+
+                                bta := TouchArea {
+                                    clicked => { root.select-bt-device(idx); }
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    Text {
+                                        text: dev.name + " (" + dev.mac + ")";
+                                        color: idx == root.set-selected-bt-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 12px;
+                                        horizontal-stretch: 1;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        text: dev.connected ? "Connected" : (dev.paired ? "Paired" : "Available");
+                                        color: dev.connected ? #4ade80 : UiTheme.text-muted;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Button {
+                            text: "Pair & Connect";
+                            primary: true;
+                            enabled: root.set-selected-bt-mac != "";
+                            clicked => { root.bt-action("pair-connect", root.set-selected-bt-mac); }
+                        }
+                        Button {
+                            text: "Disconnect";
+                            enabled: root.set-selected-bt-mac != "";
+                            clicked => { root.bt-action("disconnect", root.set-selected-bt-mac); }
+                        }
+                        Button {
+                            text: "Remove";
+                            enabled: root.set-selected-bt-mac != "";
+                            clicked => { root.bt-action("remove", root.set-selected-bt-mac); }
+                        }
+                    }
+                }
+            }
+
+            // Subtab 2: Audio (PipeWire)
+            if root.settings-subtab == 2 : Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 14px;
+                    alignment: start;
+
+                    Text {
+                        text: "PipeWire Sound & Microphone";
+                        color: UiTheme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: "Output Volume (" + Math.round(root.set-audio-volume) + "%):";
+                            color: UiTheme.text-secondary;
+                            font-size: 13px;
+                            width: 170px;
+                            vertical-alignment: center;
+                        }
+                        Slider {
+                            minimum: 0;
+                            maximum: 100;
+                            step: 2;
+                            value <=> root.set-audio-volume;
+                            enabled: root.set-audio-available;
+                            released(val) => { root.audio-volume-changed(Math.round(val)); }
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: "Output Device:";
+                            color: UiTheme.text-muted;
+                            font-size: 13px;
+                            width: 170px;
+                            vertical-alignment: center;
+                        }
+                        ComboBox {
+                            model: root.set-audio-sinks;
+                            current-index <=> root.set-audio-sink-idx;
+                            enabled: root.set-audio-available;
+                            selected => { root.audio-sink-selected(self.current-index); }
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 24px;
+                        Switch {
+                            text: "Mute Output";
+                            checked <=> root.set-audio-muted;
+                            enabled: root.set-audio-available;
+                            toggled => { root.audio-mute-toggled(self.checked); }
+                        }
+                        Switch {
+                            text: "Mute Microphone";
+                            checked <=> root.set-mic-muted;
+                            enabled: root.set-audio-available;
+                            toggled => { root.mic-mute-toggled(self.checked); }
+                        }
+                    }
+                }
+            }
+
+            // Subtab 3: Display, Brightness & Appearance/Input Personalization
+            if root.settings-subtab == 3 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 10px;
+                            alignment: start;
+
+                            Text {
+                                text: "Wayland Display & Screen Brightness";
+                                color: UiTheme.text-primary;
+                                font-size: 15px;
+                                font-weight: 700;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "Display Output:";
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: root.set-disp-outputs;
+                                    current-index <=> root.set-disp-output-idx;
+                                    selected => { root.display-output-selected(self.current-index); }
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "Resolution & Refresh:";
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: root.set-disp-modes;
+                                    current-index <=> root.set-disp-mode-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "UI Scale:";
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["1.0", "1.25", "1.5", "2.0"];
+                                    current-index <=> root.set-disp-scale-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            Button {
+                                text: "Apply & Save Display Settings";
+                                primary: true;
+                                clicked => { root.apply-display(root.set-disp-output-idx, root.set-disp-mode-idx, root.set-disp-scale-idx); }
+                            }
+
+                            Rectangle { height: 1px; background: UiTheme.card-border; }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.set-backlight-available ? "Backlight (" + Math.round(root.set-brightness-pct) + "%):" : "Backlight (N/A on VM):";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 13px;
+                                    width: 215px;
+                                    vertical-alignment: center;
+                                }
+                                Slider {
+                                    minimum: 5;
+                                    maximum: 100;
+                                    step: 5;
+                                    value <=> root.set-brightness-pct;
+                                    enabled: root.set-backlight-available;
+                                    released(val) => { root.brightness-changed(Math.round(val)); }
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            Rectangle { height: 1px; background: UiTheme.card-border; }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Switch {
+                                    text: root.tr.chk-night-light;
+                                    checked <=> root.set-nightlight-enabled;
+                                    toggled => { root.nightlight-changed(self.checked, Math.round(root.set-nightlight-temp)); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.tr.lbl-night-temp + " (" + Math.round(root.set-nightlight-temp) + "K):";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 13px;
+                                    width: 215px;
+                                    vertical-alignment: center;
+                                }
+                                Slider {
+                                    minimum: 2700;
+                                    maximum: 5500;
+                                    step: 100;
+                                    value <=> root.set-nightlight-temp;
+                                    enabled: root.set-nightlight-enabled;
+                                    released(val) => { root.nightlight-changed(root.set-nightlight-enabled, Math.round(val)); }
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 10px;
+                            alignment: start;
+
+                            Text {
+                                text: root.tr.hdr-personalize;
+                                color: UiTheme.text-primary;
+                                font-size: 15px;
+                                font-weight: 700;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.tr.lbl-theme;
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["Dark (UniCore Midnight)", "Light (UniCore Daylight)"];
+                                    current-index <=> root.set-theme-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.tr.lbl-wallpaper;
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["Midnight Blue (Default)", "Aurora Violet", "Daylight Slate", "Custom Image Path"];
+                                    current-index <=> root.set-wallpaper-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            if root.set-wallpaper-idx == 3 : HorizontalLayout {
+                                spacing: 12px;
+                                Rectangle { width: 160px; }
+                                LineEdit {
+                                    text <=> root.set-wallpaper-custom;
+                                    placeholder-text: "/data/home/Pictures/wallpaper.png";
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.tr.lbl-kb-layout;
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["US English (us)", "Malay / QWERTY (my)", "UK English (gb)", "German (de)", "French (fr)", "Japanese (jp)"];
+                                    current-index <=> root.set-kb-layout-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 18px;
+                                Switch {
+                                    text: root.tr.chk-natural-scroll;
+                                    checked <=> root.set-natural-scroll;
+                                }
+                                Switch {
+                                    text: root.tr.chk-tap-click;
+                                    checked <=> root.set-tap-to-click;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.tr.lbl-pointer-speed + " (" + (Math.round(root.set-pointer-speed-tenths) / 10) + ")";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                Slider {
+                                    minimum: -8;
+                                    maximum: 8;
+                                    step: 1;
+                                    value <=> root.set-pointer-speed-tenths;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Button {
+                                    text: root.tr.btn-apply-personalize;
+                                    primary: true;
+                                    clicked => {
+                                        root.apply-personalize(
+                                            root.set-theme-idx,
+                                            root.set-wallpaper-idx,
+                                            root.set-wallpaper-custom,
+                                            root.set-kb-layout-idx,
+                                            root.set-natural-scroll,
+                                            root.set-tap-to-click,
+                                            Math.round(root.set-pointer-speed-tenths)
+                                        );
+                                    }
+                                }
+                                if root.set-personalize-status != "" : Text {
+                                    text: root.set-personalize-status;
+                                    color: UiTheme.text-accent;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Subtab 4: Printers (On-Demand CUPS)
+            if root.settings-subtab == 4 : Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+
+                    Text {
+                        text: root.tr.hdr-printers;
+                        color: UiTheme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                    }
+
+                    InfoRow { label: "CUPS Status:"; value: root.set-cups-summary; value-color: root.set-cups-active ? UiTheme.text-ok : UiTheme.text-accent; }
+
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Switch {
+                            text: root.tr.chk-cups-service;
+                            checked <=> root.set-cups-active;
+                            toggled => { root.toggle-cups(self.checked); }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button {
+                            text: root.tr.btn-open-scanner;
+                            clicked => { root.open-document-scanner(); }
+                        }
+                        Button {
+                            text: root.tr.btn-scan-printers;
+                            enabled: root.set-cups-active;
+                            clicked => { root.scan-printers(); }
+                        }
+                    }
+
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: 6px;
+                            alignment: start;
+
+                            if root.set-printer-list.length == 0 : Text {
+                                text: root.set-cups-active ? "No printers configured yet. Click Scan USB / Wi-Fi or enter an IPP/USB printer URI below." : "Enable the printer service above to manage USB & Wi-Fi printers (0 MB idle RAM when off).";
+                                color: UiTheme.text-muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+
+                            for pr[idx] in root.set-printer-list : Rectangle {
+                                height: 40px;
+                                border-radius: 6px;
+                                background: idx == root.set-selected-printer-idx ? #0369a1 : (pta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                border-width: 1px;
+                                border-color: pr.is-default ? #22c55e : (idx == root.set-selected-printer-idx ? #38bdf8 : #334155);
+
+                                pta := TouchArea {
+                                    clicked => { root.select-printer(idx); }
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    Text {
+                                        text: pr.is-default ? "* " + pr.name + " (Default)" : pr.name;
+                                        color: idx == root.set-selected-printer-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 12px;
+                                        font-weight: pr.is-default ? 700 : 500;
+                                        horizontal-stretch: 1;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        text: pr.status;
+                                        color: UiTheme.text-muted;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Button {
+                            text: root.tr.btn-set-default;
+                            enabled: root.set-cups-active && root.set-selected-printer-name != "";
+                            clicked => { root.printer-action("default", root.set-selected-printer-name); }
+                        }
+                        Button {
+                            text: root.tr.btn-test-page;
+                            enabled: root.set-cups-active && root.set-selected-printer-name != "";
+                            clicked => { root.printer-action("test", root.set-selected-printer-name); }
+                        }
+                        Button {
+                            text: root.tr.btn-remove-printer;
+                            enabled: root.set-cups-active && root.set-selected-printer-name != "";
+                            clicked => { root.printer-action("remove", root.set-selected-printer-name); }
+                        }
+                    }
+
+                    Rectangle { height: 1px; background: UiTheme.card-border; }
+
+                    ComboBox {
+                        model: root.set-discovered-printers;
+                        current-index <=> root.set-discovered-idx;
+                        enabled: root.set-cups-active;
+                        selected => { root.select-discovered-printer(self.current-index); }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        LineEdit {
+                            text <=> root.set-printer-name-input;
+                            placeholder-text: "Printer Name (e.g. Office_Laser)";
+                            enabled: root.set-cups-active;
+                            horizontal-stretch: 1;
+                        }
+                        LineEdit {
+                            text <=> root.set-printer-uri-input;
+                            placeholder-text: "ipp://192.168.1.50/ipp/print or usb://...";
+                            enabled: root.set-cups-active;
+                            horizontal-stretch: 2;
+                        }
+                        Button {
+                            text: root.tr.btn-add-printer;
+                            primary: true;
+                            enabled: root.set-cups-active;
+                            clicked => { root.add-printer(root.set-printer-name-input, root.set-printer-uri-input); }
+                        }
+                    }
+                }
+            }
+
+            // Subtab 5: Security, Firewall, VPN & 1-Click Backup
+            if root.settings-subtab == 5 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 8px;
+
+                            Text {
+                                text: root.tr.hdr-firewall;
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+                            InfoRow { label: "Status:"; value: root.set-fw-summary; value-color: root.set-fw-enabled ? #4ade80 : #fbbf24; }
+
+                            HorizontalLayout {
+                                spacing: 14px;
+                                Switch {
+                                    text: root.tr.chk-firewall;
+                                    checked <=> root.set-fw-enabled;
+                                    toggled => { root.toggle-firewall(self.checked); }
+                                }
+                                Switch {
+                                    text: root.tr.chk-fw-ssh;
+                                    checked <=> root.set-fw-ssh;
+                                    enabled: root.set-fw-enabled;
+                                    toggled => { root.firewall-ssh-toggled(self.checked); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: "Network Profile:";
+                                    color: UiTheme.text-muted;
+                                    font-size: 12px;
+                                    width: 130px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["Home / Office (Allow LAN & mDNS Printers)", "Public Wi-Fi (Strict Block Inbound)"];
+                                    current-index <=> root.set-fw-profile-idx;
+                                    enabled: root.set-fw-enabled;
+                                    selected => { root.firewall-profile-changed(self.current-index); }
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 8px;
+
+                            Text {
+                                text: root.tr.hdr-vpn;
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+
+                            if root.set-vpn-list.length == 0 : Text {
+                                text: "No VPN profiles imported yet. Enter a WireGuard (.conf) or OpenVPN (.ovpn) file path below.";
+                                color: UiTheme.text-muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+
+                            for vpn[idx] in root.set-vpn-list : Rectangle {
+                                height: 36px;
+                                border-radius: 6px;
+                                background: idx == root.set-selected-vpn-idx ? #0369a1 : (vta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                border-width: 1px;
+                                border-color: vpn.active ? #22c55e : (idx == root.set-selected-vpn-idx ? #38bdf8 : #334155);
+
+                                vta := TouchArea {
+                                    clicked => { root.select-vpn(idx); }
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    Text {
+                                        text: vpn.name + " [" + vpn.vpn-type + "]";
+                                        color: idx == root.set-selected-vpn-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 12px;
+                                        font-weight: vpn.active ? 700 : 500;
+                                        horizontal-stretch: 1;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        text: vpn.active ? "Connected" : "Idle";
+                                        color: vpn.active ? #4ade80 : UiTheme.text-muted;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    text <=> root.set-vpn-import-path;
+                                    placeholder-text: "/data/home/Downloads/wg0.conf or office.ovpn";
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: root.tr.btn-import-vpn;
+                                    primary: true;
+                                    clicked => { root.import-vpn(root.set-vpn-import-path); }
+                                }
+                                Button {
+                                    text: "Connect";
+                                    enabled: root.set-selected-vpn-name != "";
+                                    clicked => { root.vpn-action("connect", root.set-selected-vpn-name); }
+                                }
+                                Button {
+                                    text: "Disconnect";
+                                    enabled: root.set-selected-vpn-name != "";
+                                    clicked => { root.vpn-action("disconnect", root.set-selected-vpn-name); }
+                                }
+                                Button {
+                                    text: "Delete";
+                                    enabled: root.set-selected-vpn-name != "";
+                                    clicked => { root.vpn-action("delete", root.set-selected-vpn-name); }
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 8px;
+
+                            Text {
+                                text: root.tr.hdr-backup;
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                ComboBox {
+                                    model: root.set-backup-targets;
+                                    current-index <=> root.set-backup-target-idx;
+                                    enabled: !root.set-backup-busy;
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: root.tr.btn-refresh;
+                                    enabled: !root.set-backup-busy;
+                                    clicked => { root.refresh-backup-targets(); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                CheckBox {
+                                    text: root.tr.chk-backup-enc;
+                                    checked <=> root.set-backup-encrypted;
+                                    enabled: !root.set-backup-busy;
+                                }
+                                LineEdit {
+                                    text <=> root.set-backup-passphrase;
+                                    placeholder-text: "Backup / Restore passphrase (min 8 chars)";
+                                    input-type: InputType.password;
+                                    enabled: !root.set-backup-busy;
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: root.set-backup-busy ? "Working..." : root.tr.btn-create-backup;
+                                    primary: true;
+                                    enabled: !root.set-backup-busy;
+                                    clicked => { root.create-backup(root.set-backup-target-idx, root.set-backup-encrypted, root.set-backup-passphrase); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    text <=> root.set-backup-restore-path;
+                                    placeholder-text: "/media/usb/unicore-backup-YYYYMMDD.tar.zst.enc";
+                                    enabled: !root.set-backup-busy;
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: root.tr.btn-restore-backup;
+                                    enabled: !root.set-backup-busy;
+                                    clicked => { root.restore-backup(root.set-backup-restore-path, root.set-backup-passphrase); }
+                                }
+                            }
+
+                            if root.set-backup-status != "" : Text {
+                                text: root.set-backup-status;
+                                color: UiTheme.text-accent;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tab 4: UniCore App Store (Microsoft Store / Play Store Storefront Layout)
+        if !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && root.active-tab == 4 : HorizontalLayout {
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            // Left Store Navigation Rail
+            Card {
+                width: 158px;
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 6px;
+
+                    Text {
+                        text: root.tr.tab-store + " UniCore";
+                        color: UiTheme.text-primary;
+                        font-size: 14px;
+                        font-weight: 800;
+                        height: 28px;
+                        vertical-alignment: center;
+                    }
+
+                    StoreNavItem {
+                        label: root.tr.store-nav-discover;
+                        active: root.store-category == "all";
+                        clicked => {
+                            root.store-detail-open = false;
+                            root.store-category = "all";
+                            root.store-filter-changed("all", root.store-search-query);
+                        }
+                    }
+                    StoreNavItem {
+                        label: root.tr.store-cat-retro;
+                        active: root.store-category == "retro";
+                        clicked => {
+                            root.store-detail-open = false;
+                            root.store-category = "retro";
+                            root.store-filter-changed("retro", root.store-search-query);
+                        }
+                    }
+                    StoreNavItem {
+                        label: root.tr.store-cat-util;
+                        active: root.store-category == "utilities";
+                        clicked => {
+                            root.store-detail-open = false;
+                            root.store-category = "utilities";
+                            root.store-filter-changed("utilities", root.store-search-query);
+                        }
+                    }
+                    StoreNavItem {
+                        label: root.tr.store-cat-office;
+                        active: root.store-category == "office";
+                        clicked => {
+                            root.store-detail-open = false;
+                            root.store-category = "office";
+                            root.store-filter-changed("office", root.store-search-query);
+                        }
+                    }
+                    StoreNavItem {
+                        label: root.tr.store-cat-android;
+                        active: root.store-category == "android";
+                        clicked => {
+                            root.store-detail-open = false;
+                            root.store-category = "android";
+                            root.store-filter-changed("android", root.store-search-query);
+                        }
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+
+                    Rectangle { height: 1px; background: UiTheme.card-border; }
+
+                    Button {
+                        text: root.tr.store-feed-toggle;
+                        clicked => { root.store-show-feed = !root.store-show-feed; }
+                    }
+                }
+            }
+
+            // Right Storefront Canvas / App Detail Page
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 10px;
+
+                // Top Search Bar (when in storefront view)
+                if !root.store-detail-open : HorizontalLayout {
+                    spacing: 8px;
+                    LineEdit {
+                        text <=> root.store-search-query;
+                        placeholder-text: root.tr.store-search-hint;
+                        horizontal-stretch: 1;
+                        edited(txt) => { root.store-filter-changed(root.store-category, txt); }
+                    }
+                    Rectangle {
+                        width: 72px;
+                        border-radius: 6px;
+                        background: UiTheme.card-bg;
+                        border-width: 1px;
+                        border-color: UiTheme.card-border;
+                        Text {
+                            text: root.store-entries.length + " apps";
+                            color: UiTheme.text-muted;
+                            font-size: 11px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                // Collapsible Custom HTTPS Catalog Feed URL Bar
+                if root.store-show-feed && !root.store-detail-open : Card {
+                    HorizontalLayout {
+                        padding: 10px;
+                        spacing: 8px;
+                        LineEdit {
+                            text <=> root.store-sync-url;
+                            placeholder-text: "Custom HTTPS catalog URL (https://.../catalog.json)";
+                            enabled: !root.store-busy;
+                            horizontal-stretch: 1;
+                        }
+                        Button {
+                            text: root.tr.btn-store-sync;
+                            enabled: !root.store-busy && root.store-sync-url != "";
+                            clicked => { root.store-sync-catalog(root.store-sync-url); }
+                        }
+                    }
+                }
+
+                if root.store-status != "" && !root.store-detail-open : Text {
+                    text: root.store-status;
+                    color: root.store-busy ? #fbbf24 : #38bdf8;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+
+                // STOREFRONT GRID VIEW
+                if !root.store-detail-open : ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 12px;
+                        alignment: start;
+
+                        // Featured Hero Banner (shown on Discover view without active search)
+                        if root.store-has-featured && root.store-category == "all" && root.store-search-query == "" : Rectangle {
+                            height: 136px;
+                            border-radius: 12px;
+                            background: @linear-gradient(135deg, #0c4a6e 0%, #1d4ed8 55%, #312e81 100%);
+                            border-width: 1px;
+                            border-color: #38bdf8;
+
+                            hero-ta := TouchArea {
+                                clicked => {
+                                    root.store-detail = root.store-featured;
+                                    root.store-detail-open = true;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                padding: 16px;
+                                spacing: 16px;
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+                                    spacing: 5px;
+
+                                    Text {
+                                        text: root.tr.store-featured-tag + " • " + root.store-featured.platform-short;
+                                        color: #7dd3fc;
+                                        font-size: 10px;
+                                        font-weight: 800;
+                                    }
+                                    Text {
+                                        text: root.store-featured.name + "  v" + root.store-featured.version;
+                                        color: #ffffff;
+                                        font-size: 18px;
+                                        font-weight: 800;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: root.store-featured.summary;
+                                        color: #e0f2fe;
+                                        font-size: 12px;
+                                        wrap: word-wrap;
+                                        overflow: elide;
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 12px;
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 72px;
+                                        height: 72px;
+                                        border-radius: 14px;
+                                        background: root.store-featured.accent-color;
+                                        border-width: 2px;
+                                        border-color: #e0f2fe;
+                                        y: 16px;
+                                        Text {
+                                            text: root.store-featured.icon-text;
+                                            color: #ffffff;
+                                            font-size: 22px;
+                                            font-weight: 800;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        if !root.store-featured.is-installed : Button {
+                                            text: root.tr.store-btn-get;
+                                            primary: true;
+                                            enabled: !root.store-busy;
+                                            clicked => { root.store-install-app(root.store-featured.id); }
+                                        }
+                                        if root.store-featured.is-installed : Button {
+                                            text: root.tr.store-btn-open;
+                                            clicked => { root.store-launch-app(root.store-featured.installed-app-id); }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Retro & Classic Games Marketplace Banner
+                        if root.store-category == "retro" && root.store-search-query == "" : Rectangle {
+                            height: 112px;
+                            border-radius: 12px;
+                            background: @linear-gradient(135deg, #4c1d95 0%, #9d174d 60%, #7f1d1d 100%);
+                            border-width: 1px;
+                            border-color: #c084fc;
+
+                            HorizontalLayout {
+                                padding: 16px;
+                                spacing: 14px;
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+                                    spacing: 5px;
+                                    Text {
+                                        text: root.tr.store-retro-banner-title;
+                                        color: #ffffff;
+                                        font-size: 16px;
+                                        font-weight: 800;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: root.tr.store-retro-banner-hint;
+                                        color: #f3e8ff;
+                                        font-size: 11px;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                                Rectangle {
+                                    width: 148px;
+                                    height: 36px;
+                                    y: 22px;
+                                    border-radius: 8px;
+                                    background: #3b0764;
+                                    border-width: 1px;
+                                    border-color: #e879f9;
+                                    Text {
+                                        text: "MS-DOS • Win98 • WinXP";
+                                        color: #fae8ff;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: root.tr.store-section-apps;
+                            color: UiTheme.text-primary;
+                            font-size: 14px;
+                            font-weight: 700;
+                        }
+
+                        if root.store-rows.length == 0 : Text {
+                            text: "No matching applications in catalog.";
+                            color: UiTheme.text-muted;
+                            font-size: 12px;
+                        }
+
+                        for row in root.store-rows : HorizontalLayout {
+                            spacing: 10px;
+
+                            if row.has-a : StoreAppCard {
+                                item: row.a;
+                                get-label: root.tr.store-btn-get;
+                                open-label: root.tr.store-btn-open;
+                                busy: root.store-busy;
+                                horizontal-stretch: 1;
+                                card-clicked(entry) => {
+                                    root.store-detail = entry;
+                                    root.store-detail-open = true;
+                                }
+                                install-clicked(id) => { root.store-install-app(id); }
+                                launch-clicked(app-id) => { root.store-launch-app(app-id); }
+                            }
+                            if !row.has-a : Rectangle { horizontal-stretch: 1; }
+
+                            if row.has-b : StoreAppCard {
+                                item: row.b;
+                                get-label: root.tr.store-btn-get;
+                                open-label: root.tr.store-btn-open;
+                                busy: root.store-busy;
+                                horizontal-stretch: 1;
+                                card-clicked(entry) => {
+                                    root.store-detail = entry;
+                                    root.store-detail-open = true;
+                                }
+                                install-clicked(id) => { root.store-install-app(id); }
+                                launch-clicked(app-id) => { root.store-launch-app(app-id); }
+                            }
+                            if !row.has-b : Rectangle { horizontal-stretch: 1; }
+
+                            if row.has-c : StoreAppCard {
+                                item: row.c;
+                                get-label: root.tr.store-btn-get;
+                                open-label: root.tr.store-btn-open;
+                                busy: root.store-busy;
+                                horizontal-stretch: 1;
+                                card-clicked(entry) => {
+                                    root.store-detail = entry;
+                                    root.store-detail-open = true;
+                                }
+                                install-clicked(id) => { root.store-install-app(id); }
+                                launch-clicked(app-id) => { root.store-launch-app(app-id); }
+                            }
+                            if !row.has-c : Rectangle { horizontal-stretch: 1; }
+                        }
+                    }
+                }
+
+                // PLAY STORE / MICROSOFT STORE APP DETAIL VIEW
+                if root.store-detail-open : ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 12px;
+                        alignment: start;
+
+                        HorizontalLayout {
+                            Button {
+                                text: root.tr.store-btn-back;
+                                clicked => { root.store-detail-open = false; }
+                            }
+                            Rectangle { horizontal-stretch: 1; }
+                        }
+
+                        Card {
+                            VerticalLayout {
+                                padding: 16px;
+                                spacing: 14px;
+
+                                HorizontalLayout {
+                                    spacing: 16px;
+                                    Rectangle {
+                                        width: 72px;
+                                        height: 72px;
+                                        border-radius: 14px;
+                                        background: root.store-detail.accent-color;
+                                        Text {
+                                            text: root.store-detail.icon-text;
+                                            color: #ffffff;
+                                            font-size: 24px;
+                                            font-weight: 800;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        horizontal-stretch: 1;
+                                        spacing: 4px;
+                                        Text {
+                                            text: root.store-detail.name;
+                                            color: UiTheme.text-primary;
+                                            font-size: 20px;
+                                            font-weight: 800;
+                                            overflow: elide;
+                                        }
+                                        Text {
+                                            text: root.store-detail.platform-label + " • v" + root.store-detail.version;
+                                            color: UiTheme.text-accent;
+                                            font-size: 12px;
+                                        }
+                                        Text {
+                                            text: root.store-detail.badge;
+                                            color: root.store-detail.is-installed ? #4ade80 : UiTheme.text-muted;
+                                            font-size: 11px;
+                                            font-weight: 600;
+                                        }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        if !root.store-detail.is-installed : Button {
+                                            text: root.tr.btn-store-install;
+                                            primary: true;
+                                            enabled: !root.store-busy;
+                                            clicked => { root.store-install-app(root.store-detail.id); }
+                                        }
+                                        if root.store-detail.is-installed : Button {
+                                            text: root.tr.btn-store-launch;
+                                            primary: true;
+                                            clicked => { root.store-launch-app(root.store-detail.installed-app-id); }
+                                        }
+                                    }
+                                }
+
+                                if root.store-status != "" : Text {
+                                    text: root.store-status;
+                                    color: root.store-busy ? #fbbf24 : #38bdf8;
+                                    font-size: 12px;
+                                    wrap: word-wrap;
+                                }
+
+                                Rectangle { height: 1px; background: UiTheme.card-border; }
+
+                                // 3-Column Play Store Info Strip
+                                HorizontalLayout {
+                                    spacing: 12px;
+                                    VerticalLayout {
+                                        horizontal-stretch: 1;
+                                        spacing: 2px;
+                                        Text { text: root.store-detail.size-label; color: UiTheme.text-primary; font-size: 14px; font-weight: 700; horizontal-alignment: center; }
+                                        Text { text: "Download Size"; color: UiTheme.text-muted; font-size: 11px; horizontal-alignment: center; }
+                                    }
+                                    Rectangle { width: 1px; height: 34px; background: UiTheme.card-border; }
+                                    VerticalLayout {
+                                        horizontal-stretch: 1;
+                                        spacing: 2px;
+                                        Text { text: root.store-detail.platform-short; color: UiTheme.text-primary; font-size: 14px; font-weight: 700; horizontal-alignment: center; }
+                                        Text { text: "Built-in Subsystem"; color: UiTheme.text-muted; font-size: 11px; horizontal-alignment: center; }
+                                    }
+                                    Rectangle { width: 1px; height: 34px; background: UiTheme.card-border; }
+                                    VerticalLayout {
+                                        horizontal-stretch: 1;
+                                        spacing: 2px;
+                                        Text { text: root.store-detail.badge; color: UiTheme.text-ok; font-size: 14px; font-weight: 700; horizontal-alignment: center; }
+                                        Text { text: "Integrity"; color: UiTheme.text-muted; font-size: 11px; horizontal-alignment: center; }
+                                    }
+                                }
+                            }
+                        }
+
+                        Card {
+                            VerticalLayout {
+                                padding: 16px;
+                                spacing: 10px;
+                                Text {
+                                    text: root.tr.store-about-hdr;
+                                    color: UiTheme.text-primary;
+                                    font-size: 14px;
+                                    font-weight: 700;
+                                }
+                                Text {
+                                    text: root.store-detail.summary;
+                                    color: UiTheme.text-muted;
+                                    font-size: 12px;
+                                    wrap: word-wrap;
+                                }
+                                Rectangle { height: 1px; background: UiTheme.card-border; }
+                                Text {
+                                    text: root.tr.store-security-hdr;
+                                    color: UiTheme.text-primary;
+                                    font-size: 14px;
+                                    font-weight: 700;
+                                }
+                                InfoRow { label: "SHA-256 Digest:"; value: root.store-detail.sha256-short; value-color: UiTheme.text-accent; }
+                                InfoRow { label: "Isolation:"; value: "Zero-Trust Bubblewrap Sandbox (Camera/Mic/Docs denied by default)"; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bottom Status Banner
+        if root.status-message != "" : Rectangle {
+            height: 30px;
+            border-radius: 6px;
+            background: root.status-is-error ? #7f1d1d : #14532d;
+            border-width: 1px;
+            border-color: root.status-is-error ? #ef4444 : #22c55e;
+
+            Text {
+                text: root.status-message;
+                color: #f8fafc;
+                font-size: 12px;
+                overflow: elide;
+                x: 10px;
+                width: parent.width - 20px;
+                vertical-alignment: center;
+            }
+        }
+    }
+}

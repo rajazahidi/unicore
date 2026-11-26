@@ -1,0 +1,397 @@
+#!/bin/sh
+# UniCore OS bare-metal GPT Hybrid (BIOS + UEFI) A/B disk installer.
+set -eu
+
+export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+ARCH="$(uname -m 2>/dev/null || echo x86_64)"
+
+usage() {
+    cat <<'EOF'
+unicore-install - UniCore OS bare-metal A/B disk installer
+
+USAGE:
+  unicore-install --list
+  unicore-install --list-tsv
+  unicore-install --disk /dev/<DISK> --yes-wipe [--encrypt-data --passphrase-file <PATH>]
+
+LAYOUT (GPT Hybrid Legacy BIOS + UEFI, >= 8 GiB):
+  1: bios_grub     (1 MiB)    - Legacy BIOS GRUB core.img area
+  2: UNICORE_EFI   (256 MiB)  - FAT32 ESP (/EFI/BOOT/BOOTX64.EFI + GRUB + kernels)
+  3: UNICORE_SYS_A (3.0 GiB)  - Active immutable SquashFS slot A
+  4: UNICORE_SYS_B (3.0 GiB)  - Standby immutable SquashFS slot B (A/B fallback)
+  5: UNICORE_DATA  (Remainder)- Persistent /data (apps, home, network, bluetooth)
+EOF
+}
+
+BOOT_MEDIA=""
+if [ -r /mnt/unicore-boot.env ]; then
+    # shellcheck disable=SC1091
+    . /mnt/unicore-boot.env
+    BOOT_MEDIA="${UNICORE_BOOT_MEDIA:-}"
+fi
+
+resolve_parent_disk_name() {
+    dev="$1"
+    [ -n "${dev}" ] || return 0
+    pk=""
+    if command -v lsblk >/dev/null 2>&1; then
+        pk="$(lsblk -ndo PKNAME "${dev}" 2>/dev/null | head -n1 || true)"
+    fi
+    if [ -n "${pk}" ]; then
+        printf '%s\n' "${pk}"
+    else
+        basename "${dev}"
+    fi
+}
+
+BOOT_PARENT_NAME="$(resolve_parent_disk_name "${BOOT_MEDIA}")"
+DATA_DEV="$(awk '$2=="/data"{print $1}' /proc/mounts 2>/dev/null | head -n1 || true)"
+DATA_PARENT_NAME="$(resolve_parent_disk_name "${DATA_DEV}")"
+
+MIN_BYTES=8589934592
+
+emit_disk_tsv() {
+    lsblk -P -b -d -n -o NAME,SIZE,MODEL,TYPE 2>/dev/null | while IFS= read -r line; do
+        NAME=""
+        SIZE="0"
+        MODEL=""
+        TYPE=""
+        eval "${line}" 2>/dev/null || continue
+        [ "${TYPE}" = "disk" ] || continue
+        case "${NAME}" in
+            loop*|ram*|zram*|sr*) continue ;;
+        esac
+        DEV="/dev/${NAME}"
+        [ -b "${DEV}" ] || continue
+
+        SIZE_GB="$(awk -v s="${SIZE}" 'BEGIN { printf "%.1f GB", s / 1073741824 }')"
+        CLEAN_MODEL="$(printf '%s' "${MODEL:-Generic Disk}" | tr '\t\r\n' '   ' | sed 's/  */ /g; s/^ //; s/ $//')"
+        [ -n "${CLEAN_MODEL}" ] || CLEAN_MODEL="Generic Disk"
+
+        ELIGIBLE="1"
+        REASON="eligible"
+        if [ -n "${BOOT_PARENT_NAME}" ] && [ "${NAME}" = "${BOOT_PARENT_NAME}" ]; then
+            ELIGIBLE="0"
+            REASON="active-boot-media"
+        elif [ -n "${DATA_PARENT_NAME}" ] && [ "${NAME}" = "${DATA_PARENT_NAME}" ]; then
+            ELIGIBLE="0"
+            REASON="active-data-disk"
+        elif [ "${SIZE}" -lt "${MIN_BYTES}" ] 2>/dev/null; then
+            ELIGIBLE="0"
+            REASON="too-small-min-8GB"
+        fi
+
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${DEV}" "${NAME}" "${SIZE_GB}" "${CLEAN_MODEL}" "${ELIGIBLE}" "${REASON}"
+    done
+}
+
+LIST_MODE=""
+TARGET_DISK=""
+CONFIRMED="0"
+ENCRYPT_DATA="0"
+PASS_FILE=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --list)
+            LIST_MODE="human"
+            shift
+            ;;
+        --list-tsv)
+            LIST_MODE="tsv"
+            shift
+            ;;
+        --disk)
+            TARGET_DISK="${2:-}"
+            [ -n "${TARGET_DISK}" ] || { echo "Error: --disk requires <DEVICE>" >&2; exit 2; }
+            shift 2
+            ;;
+        --yes-wipe)
+            CONFIRMED="1"
+            shift
+            ;;
+        --encrypt-data)
+            ENCRYPT_DATA="1"
+            shift
+            ;;
+        --passphrase-file)
+            PASS_FILE="${2:-}"
+            [ -n "${PASS_FILE}" ] || { echo "Error: --passphrase-file requires <PATH>" >&2; exit 2; }
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [ "${LIST_MODE}" = "tsv" ]; then
+    emit_disk_tsv
+    exit 0
+fi
+
+if [ "${LIST_MODE}" = "human" ] || [ -z "${TARGET_DISK}" ]; then
+    echo "Boot Mode: ${UNICORE_BOOT_MODE:-unknown} | Boot Media: ${BOOT_MEDIA:-none}"
+    echo "Available disks (DEVICE | SIZE | MODEL | ELIGIBLE | REASON):"
+    emit_disk_tsv | awk -F'\t' '{ printf "  %-12s  %-9s  %-24s  eligible=%s (%s)\n", $1, $3, $4, $5, $6 }'
+    exit 0
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: --disk installation requires root privileges." >&2
+    exit 1
+fi
+
+if [ "${CONFIRMED}" != "1" ]; then
+    echo "Error: Pass --yes-wipe to confirm erasing ${TARGET_DISK}." >&2
+    exit 2
+fi
+
+if [ "${ENCRYPT_DATA}" = "1" ]; then
+    command -v cryptsetup >/dev/null 2>&1 || { echo "Error: cryptsetup is required for --encrypt-data." >&2; exit 1; }
+    [ -n "${PASS_FILE}" ] && [ -r "${PASS_FILE}" ] && [ -s "${PASS_FILE}" ] || {
+        echo "Error: --encrypt-data requires a readable non-empty --passphrase-file <PATH>." >&2
+        exit 2
+    }
+fi
+
+case "${TARGET_DISK}" in
+    /dev/sd[a-z]|/dev/hd[a-z]|/dev/vd[a-z]|/dev/nvme[0-9]*n[0-9]*|/dev/mmcblk[0-9]*)
+        ;;
+    *)
+        echo "Error: Invalid or unsupported whole-disk path '${TARGET_DISK}'." >&2
+        exit 1
+        ;;
+esac
+
+[ -b "${TARGET_DISK}" ] || { echo "Error: Block device not found: ${TARGET_DISK}" >&2; exit 1; }
+
+TARGET_INFO="$(emit_disk_tsv | awk -F'\t' -v d="${TARGET_DISK}" '$1==d {print $0; exit}')"
+[ -n "${TARGET_INFO}" ] || { echo "Error: ${TARGET_DISK} is not a whole physical disk." >&2; exit 1; }
+
+IS_ELIGIBLE="$(printf '%s' "${TARGET_INFO}" | awk -F'\t' '{print $5}')"
+REASON="$(printf '%s' "${TARGET_INFO}" | awk -F'\t' '{print $6}')"
+if [ "${IS_ELIGIBLE}" != "1" ]; then
+    echo "Error: Refusing to overwrite ${TARGET_DISK} (${REASON})." >&2
+    exit 1
+fi
+
+MEDIA_ROOT="/mnt/unicore-media"
+VMLINUZ_SRC="${MEDIA_ROOT}/boot/vmlinuz-${ARCH}"
+INITRD_SRC="${MEDIA_ROOT}/boot/initramfs-${ARCH}.img"
+SQUASH_SRC="${MEDIA_ROOT}/unicore/unicore-rootfs-${ARCH}.squashfs"
+
+for src in "${VMLINUZ_SRC}" "${INITRD_SRC}" "${SQUASH_SRC}"; do
+    if [ ! -f "${src}" ]; then
+        echo "Error: Live OS source file missing (${src}). Boot from UniCore Live ISO/USB before installing." >&2
+        exit 1
+    fi
+done
+
+MNT="/tmp/unicore-install.$$"
+cleanup() {
+    umount "${MNT}/data" 2>/dev/null || true
+    umount "${MNT}/sys_a" 2>/dev/null || true
+    umount "${MNT}/efi" 2>/dev/null || true
+    rmdir "${MNT}/data" "${MNT}/sys_a" "${MNT}/efi" "${MNT}" 2>/dev/null || true
+    if command -v cryptsetup >/dev/null 2>&1 && [ -b /dev/mapper/unicore_data ]; then
+        cryptsetup close unicore_data 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+# Unmount any stale auto-mounted partitions or swap on target disk
+for mp in $(awk -v dev="${TARGET_DISK}" 'index($1, dev) == 1 {print $2}' /proc/mounts 2>/dev/null | sort -r); do
+    umount "${mp}" 2>/dev/null || umount -l "${mp}" 2>/dev/null || true
+done
+for sw in $(awk -v dev="${TARGET_DISK}" 'NR>1 && index($1, dev) == 1 {print $1}' /proc/swaps 2>/dev/null); do
+    swapoff "${sw}" 2>/dev/null || true
+done
+
+echo "==> Wiping and creating GPT Hybrid BIOS+UEFI A/B partition table on ${TARGET_DISK}"
+if command -v wipefs >/dev/null 2>&1; then
+    wipefs -a "${TARGET_DISK}" >/dev/null 2>&1 || true
+fi
+
+parted -s "${TARGET_DISK}" \
+    mklabel gpt \
+    mkpart bios_grub 1MiB 2MiB \
+    set 1 bios_grub on \
+    mkpart UNICORE_EFI fat32 2MiB 258MiB \
+    set 2 esp on \
+    mkpart UNICORE_SYS_A ext4 258MiB 3330MiB \
+    mkpart UNICORE_SYS_B ext4 3330MiB 6402MiB \
+    mkpart UNICORE_DATA ext4 6402MiB 100%
+
+partprobe "${TARGET_DISK}" 2>/dev/null || blockdev --rereadpt "${TARGET_DISK}" 2>/dev/null || true
+if command -v udevadm >/dev/null 2>&1; then
+    udevadm settle 2>/dev/null || true
+fi
+
+part_path() {
+    disk="$1"
+    num="$2"
+    case "${disk}" in
+        *[0-9]) printf '%sp%s\n' "${disk}" "${num}" ;;
+        *) printf '%s%s\n' "${disk}" "${num}" ;;
+    esac
+}
+
+P2="$(part_path "${TARGET_DISK}" 2)"
+P3="$(part_path "${TARGET_DISK}" 3)"
+P4="$(part_path "${TARGET_DISK}" 4)"
+P5="$(part_path "${TARGET_DISK}" 5)"
+
+for _try in $(seq 1 25); do
+    [ -b "${P2}" ] && [ -b "${P3}" ] && [ -b "${P4}" ] && [ -b "${P5}" ] && break
+    sleep 0.3
+done
+if [ ! -b "${P5}" ]; then
+    echo "Error: Kernel did not expose new GPT partitions on ${TARGET_DISK}." >&2
+    exit 1
+fi
+
+echo "==> Formatting UNICORE_EFI, UNICORE_SYS_A, UNICORE_SYS_B, and UNICORE_DATA"
+mkfs.vfat -F 32 -n UNICORE_EFI "${P2}" >/dev/null
+mkfs.ext4 -F -L UNICORE_SYS_A "${P3}" >/dev/null
+mkfs.ext4 -F -L UNICORE_SYS_B "${P4}" >/dev/null
+DATA_TARGET="${P5}"
+if [ "${ENCRYPT_DATA}" = "1" ]; then
+    echo "==> Encrypting UNICORE_DATA with LUKS2"
+    cryptsetup luksFormat \
+        --type luks2 \
+        --pbkdf pbkdf2 \
+        --pbkdf-force-iterations 100000 \
+        --label UNICORE_DATA_LUKS \
+        --batch-mode \
+        --key-file "${PASS_FILE}" \
+        "${P5}"
+    cryptsetup open --disable-locks --key-file "${PASS_FILE}" "${P5}" unicore_data
+    command -v dmsetup >/dev/null 2>&1 && dmsetup mknodes 2>/dev/null || true
+    DATA_TARGET="/dev/mapper/unicore_data"
+fi
+mkfs.ext4 -F -L UNICORE_DATA "${DATA_TARGET}" >/dev/null
+
+mkdir -p "${MNT}/efi" "${MNT}/sys_a" "${MNT}/data"
+mount -t vfat "${P2}" "${MNT}/efi"
+mount -t ext4 "${P3}" "${MNT}/sys_a"
+mount -t ext4 "${DATA_TARGET}" "${MNT}/data"
+
+echo "==> Installing immutable SquashFS to Slot A and kernels to EFI boot"
+mkdir -p "${MNT}/sys_a/unicore" "${MNT}/efi/boot/slot_a" "${MNT}/efi/boot/slot_b" "${MNT}/efi/boot/grub"
+cp "${SQUASH_SRC}" "${MNT}/sys_a/unicore/unicore-rootfs-${ARCH}.squashfs"
+cp "${VMLINUZ_SRC}" "${MNT}/efi/boot/slot_a/vmlinuz-${ARCH}"
+cp "${INITRD_SRC}" "${MNT}/efi/boot/slot_a/initramfs-${ARCH}.img"
+
+mkdir -p \
+    "${MNT}/data/uniload" \
+    "${MNT}/data/home/Documents" \
+    "${MNT}/data/home/Downloads" \
+    "${MNT}/data/home/Desktop" \
+    "${MNT}/data/home/applications" \
+    "${MNT}/data/unicore" \
+    "${MNT}/data/network" \
+    "${MNT}/data/bluetooth" \
+    "${MNT}/data/sys_overlay/slot_a/upper" \
+    "${MNT}/data/sys_overlay/slot_a/work" \
+    "${MNT}/data/sys_overlay/slot_b/upper" \
+    "${MNT}/data/sys_overlay/slot_b/work"
+chmod 0755 \
+    "${MNT}/data" \
+    "${MNT}/data/sys_overlay" \
+    "${MNT}/data/sys_overlay/slot_a" \
+    "${MNT}/data/sys_overlay/slot_a/upper" \
+    "${MNT}/data/sys_overlay/slot_a/work" \
+    "${MNT}/data/sys_overlay/slot_b" \
+    "${MNT}/data/sys_overlay/slot_b/upper" \
+    "${MNT}/data/sys_overlay/slot_b/work"
+chmod 0700 "${MNT}/data/network" "${MNT}/data/bluetooth"
+if [ -d /data/network ]; then
+    cp -a /data/network/. "${MNT}/data/network/" 2>/dev/null || true
+fi
+chown -R 1000:1000 "${MNT}/data/uniload" "${MNT}/data/home" "${MNT}/data/unicore"
+
+OS_VERSION="0.1.0"
+if [ -r /etc/os-release ]; then
+    parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || true)"
+    [ -n "${parsed_ver}" ] && OS_VERSION="${parsed_ver}"
+fi
+/usr/bin/uniload update grubenv init --file "${MNT}/efi/boot/grub/grubenv" --slot UNICORE_SYS_A --version "${OS_VERSION}" >/dev/null
+
+if [ "${ARCH}" = "aarch64" ] || [ "${ARCH}" = "arm64" ]; then
+    echo "==> Installing UEFI GRUB bootloader (arm64-efi)"
+    grub-install --target=arm64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --removable --no-nvram
+    if [ -d /sys/firmware/efi/efivars ]; then
+        grub-install --target=arm64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --bootloader-id=UniCore || true
+    fi
+else
+    echo "==> Installing Hybrid GRUB bootloader (Legacy BIOS i386-pc + UEFI x86_64-efi)"
+    grub-install --target=i386-pc --boot-directory="${MNT}/efi/boot" --recheck "${TARGET_DISK}"
+    grub-install --target=x86_64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --removable --no-nvram
+    if [ -d /sys/firmware/efi/efivars ]; then
+        grub-install --target=x86_64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --bootloader-id=UniCore || true
+    fi
+fi
+
+cat <<EOF > "${MNT}/efi/boot/grub/grub.cfg"
+set timeout=3
+set default=0
+search --no-floppy --label --set=root UNICORE_EFI
+
+set active_slot=UNICORE_SYS_A
+set pending_slot=""
+set boot_tried=0
+if [ -s /boot/grub/grubenv ]; then
+    load_env -f /boot/grub/grubenv
+fi
+
+set boot_target="\${active_slot}"
+if [ -n "\${pending_slot}" ]; then
+    if [ "\${boot_tried}" != "1" ]; then
+        set boot_tried=1
+        save_env -f /boot/grub/grubenv boot_tried
+        set boot_target="\${pending_slot}"
+    else
+        set pending_slot=""
+        set boot_tried=0
+        save_env -f /boot/grub/grubenv pending_slot boot_tried
+        set boot_target="\${active_slot}"
+    fi
+fi
+
+if [ "\${boot_target}" = "UNICORE_SYS_B" ]; then
+    set boot_dir=slot_b
+else
+    set boot_target=UNICORE_SYS_A
+    set boot_dir=slot_a
+fi
+
+menuentry "UniCore OS (Active / Trial Slot)" {
+    linux /boot/\${boot_dir}/vmlinuz-${ARCH} unicore_slot=\${boot_target} console=tty1 console=ttyS0 quiet
+    initrd /boot/\${boot_dir}/initramfs-${ARCH}.img
+}
+
+menuentry "UniCore OS (Slot A)" {
+    linux /boot/slot_a/vmlinuz-${ARCH} unicore_slot=UNICORE_SYS_A console=tty1 console=ttyS0 quiet
+    initrd /boot/slot_a/initramfs-${ARCH}.img
+}
+
+menuentry "UniCore OS (Slot B - Fallback / Standby)" {
+    linux /boot/slot_b/vmlinuz-${ARCH} unicore_slot=UNICORE_SYS_B console=tty1 console=ttyS0 quiet
+    initrd /boot/slot_b/initramfs-${ARCH}.img
+}
+
+menuentry "UniCore OS (Safe / Legacy VESA Mode)" {
+    linux /boot/\${boot_dir}/vmlinuz-${ARCH} unicore_slot=\${boot_target} console=tty1 console=ttyS0 nomodeset
+    initrd /boot/\${boot_dir}/initramfs-${ARCH}.img
+}
+EOF
+
+sync
+echo "==> UniCore OS installation complete on ${TARGET_DISK}!"

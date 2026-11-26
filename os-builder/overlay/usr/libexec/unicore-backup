@@ -1,0 +1,201 @@
+#!/bin/sh
+set -eu
+
+is_safe_abs_path() {
+    case "$1" in
+        /*)
+            case "$1" in
+                *..*) return 1 ;;
+            esac
+            ! printf '%s' "$1" | grep -Eq '[[:cntrl:]"'\''$`\\;<>|&]'
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+list_targets() {
+    printf '/data/home/Backups\tLocal Backups (/data/home/Backups)\n'
+    for base in /run/media/unicore /media /mnt; do
+        [ -d "${base}" ] || continue
+        for entry in "${base}"/*; do
+            [ -d "${entry}" ] || continue
+            case "${entry}" in
+                /mnt/unicore-media|/mnt/unicore-boot|/mnt/unicore-boot/*) continue ;;
+            esac
+            if [ -w "${entry}" ]; then
+                printf '%s\tRemovable / Mount (%s)\n' "${entry}" "${entry}"
+            fi
+        done
+    done
+}
+
+read_passphrase_file() {
+    pass_file="$1"
+    IFS= read -r pass_val || pass_val=""
+    if [ "${#pass_val}" -lt 8 ] || printf '%s' "${pass_val}" | grep -Eq '[[:cntrl:]]'; then
+        unset pass_val
+        echo "Backup passphrase must be at least 8 characters with no control characters." >&2
+        return 1
+    fi
+    (
+        umask 077
+        printf '%s\n' "${pass_val}" > "${pass_file}"
+    )
+    unset pass_val
+}
+
+cmd="${1:-}"
+case "${cmd}" in
+    list-targets)
+        [ "$#" -eq 1 ] || exit 2
+        list_targets
+        ;;
+    create)
+        [ "$#" -eq 2 ] || [ "$#" -eq 3 ] || exit 2
+        DEST_DIR="$2"
+        ENCRYPTED=0
+        if [ "$#" -eq 3 ]; then
+            [ "$3" = "encrypted" ] || { echo "Unknown backup mode: $3" >&2; exit 2; }
+            ENCRYPTED=1
+        fi
+        is_safe_abs_path "${DEST_DIR}" || { echo "Unsafe backup directory: ${DEST_DIR}" >&2; exit 1; }
+        mkdir -p "${DEST_DIR}"
+        [ -w "${DEST_DIR}" ] || { echo "Backup directory is not writable: ${DEST_DIR}" >&2; exit 1; }
+
+        PASS_TMP="/tmp/.unicore-bkpass.$$"
+        OUT_TMP=""
+        cleanup_create() {
+            rm -f "${PASS_TMP}"
+            if [ -n "${OUT_TMP}" ] && [ -e "${OUT_TMP}" ]; then
+                rm -f "${OUT_TMP}"
+            fi
+        }
+        trap cleanup_create EXIT
+
+        if [ "${ENCRYPTED}" -eq 1 ]; then
+            read_passphrase_file "${PASS_TMP}"
+        fi
+
+        mkdir -p /data/home
+        TARGETS=""
+        for d in home uniload unicore network bluetooth cups; do
+            if [ -d "/data/${d}" ]; then
+                if [ -z "${TARGETS}" ]; then
+                    TARGETS="${d}"
+                else
+                    TARGETS="${TARGETS} ${d}"
+                fi
+            fi
+        done
+        [ -n "${TARGETS}" ] || { echo "No /data directories found to back up." >&2; exit 1; }
+
+        STAMP="$(date -u +%Y%m%d-%H%M%SZ 2>/dev/null || printf 'backup')"
+        if [ "${ENCRYPTED}" -eq 1 ]; then
+            OUT_FILE="${DEST_DIR%/}/unicore-backup-${STAMP}.tar.zst.enc"
+            OUT_TMP="${OUT_FILE}.tmp.$$"
+            # shellcheck disable=SC2086
+            (
+                cd /data
+                tar --zstd -cf - \
+                    --exclude='home/Backups' \
+                    --exclude='*/.cache' \
+                    --exclude='*/shader_cache' \
+                    --exclude='*/.local/share/Trash' \
+                    ${TARGETS} | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:${PASS_TMP}" > "${OUT_TMP}"
+            )
+        else
+            OUT_FILE="${DEST_DIR%/}/unicore-backup-${STAMP}.tar.zst"
+            OUT_TMP="${OUT_FILE}.tmp.$$"
+            # shellcheck disable=SC2086
+            (
+                cd /data
+                tar --zstd -cf "${OUT_TMP}" \
+                    --exclude='home/Backups' \
+                    --exclude='*/.cache' \
+                    --exclude='*/shader_cache' \
+                    --exclude='*/.local/share/Trash' \
+                    ${TARGETS}
+            )
+        fi
+        mv -f "${OUT_TMP}" "${OUT_FILE}"
+        OUT_TMP=""
+        sha256sum "${OUT_FILE}" | awk '{print $1}' > "${OUT_FILE}.sha256"
+        printf 'BACKUP_OK:%s\n' "${OUT_FILE}"
+        ;;
+    restore)
+        [ "$#" -eq 2 ] || [ "$#" -eq 3 ] || exit 2
+        ARC="$2"
+        ENCRYPTED=0
+        if [ "$#" -eq 3 ]; then
+            [ "$3" = "encrypted" ] || { echo "Unknown restore mode: $3" >&2; exit 2; }
+            ENCRYPTED=1
+        fi
+        is_safe_abs_path "${ARC}" || { echo "Unsafe backup archive path: ${ARC}" >&2; exit 1; }
+        [ -f "${ARC}" ] || { echo "Backup archive not found: ${ARC}" >&2; exit 1; }
+
+        case "${ARC}" in
+            *.tar.zst.enc)
+                [ "${ENCRYPTED}" -eq 1 ] || { echo "Encrypted archive (.tar.zst.enc) requires passphrase." >&2; exit 1; }
+                ;;
+            *.tar.zst) ;;
+            *)
+                echo "Unsupported archive extension (expected .tar.zst or .tar.zst.enc): ${ARC}" >&2
+                exit 1
+                ;;
+        esac
+
+        if [ -r "${ARC}.sha256" ]; then
+            EXPECTED_SHA="$(awk '{print $1}' "${ARC}.sha256" | head -n1)"
+            ACTUAL_SHA="$(sha256sum "${ARC}" | awk '{print $1}')"
+            if [ -n "${EXPECTED_SHA}" ] && [ "${EXPECTED_SHA}" != "${ACTUAL_SHA}" ]; then
+                echo "Backup SHA-256 checksum mismatch!" >&2
+                exit 1
+            fi
+        fi
+
+        PASS_TMP="/tmp/.unicore-bkrestore.$$"
+        LIST_TMP="/tmp/.unicore-bklist.$$"
+        cleanup_restore() { rm -f "${PASS_TMP}" "${LIST_TMP}"; }
+        trap cleanup_restore EXIT
+
+        if [ "${ENCRYPTED}" -eq 1 ]; then
+            read_passphrase_file "${PASS_TMP}"
+            if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -pass "file:${PASS_TMP}" -in "${ARC}" | tar --zstd -tf - > "${LIST_TMP}"; then
+                echo "Failed to decrypt or verify backup archive (wrong passphrase or corrupt file)." >&2
+                exit 1
+            fi
+        else
+            tar --zstd -tf "${ARC}" > "${LIST_TMP}"
+        fi
+
+        # Tar-Slip safety guard
+        while IFS= read -r entry; do
+            case "${entry}" in
+                /*|*..*)
+                    echo "Rejected unsafe archive entry path: ${entry}" >&2
+                    exit 1
+                    ;;
+            esac
+        done < "${LIST_TMP}"
+
+        mkdir -p /data
+        if [ "${ENCRYPTED}" -eq 1 ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -pass "file:${PASS_TMP}" -in "${ARC}" | tar --zstd -xf - -C /data
+        else
+            tar --zstd -xf "${ARC}" -C /data
+        fi
+
+        chown -R unicore:unicore /data/home 2>/dev/null || true
+        if command -v nmcli >/dev/null 2>&1; then
+            nmcli connection reload >/dev/null 2>&1 || true
+        fi
+        if [ -x /usr/libexec/unicore-firewall ]; then
+            /usr/libexec/unicore-firewall apply >/dev/null 2>&1 || true
+        fi
+        printf 'RESTORE_OK:%s\n' "${ARC}"
+        ;;
+    *)
+        echo "Usage: unicore-backup <list-targets|create <dest_dir> [encrypted]|restore <archive_path> [encrypted]>" >&2
+        exit 2
+        ;;
+esac

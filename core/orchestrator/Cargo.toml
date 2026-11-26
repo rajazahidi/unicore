@@ -1,0 +1,9 @@
+[package]
+name = "uniload"
+version = "0.1.0"
+edition = "2021"
+description = "Universal OS built-in binary inspector, sandbox manager, and on-demand subsystem orchestrator."
+
+[[bin]]
+name = "uniload"
+path = "src/main.rs"

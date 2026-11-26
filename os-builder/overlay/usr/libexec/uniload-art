@@ -1,0 +1,269 @@
+#!/bin/sh
+set -eu
+
+# UniCore OS internal Android ART / Waydroid subsystem runner.
+# Invoked exclusively by `uniload`; manages on-demand container startup,
+# binderfs verification, persistent /data/waydroid storage, and multi-window mode.
+
+ANDROID_ROOT="${UNILOAD_ANDROID_ROOT:-/data/waydroid}"
+BINDER_NODE="${UNILOAD_BINDER_NODE:-/dev/binderfs/binder}"
+MULTI_WINDOW="${UNILOAD_MULTI_WINDOW:-1}"
+
+ensure_storage_and_binder() {
+    mkdir -p "${ANDROID_ROOT}/images" "${ANDROID_ROOT}/overlay/system/lib64"
+
+    if [ -d /var/lib/waydroid ] && [ ! -L /var/lib/waydroid ]; then
+        cp -a /var/lib/waydroid/. "${ANDROID_ROOT}/" 2>/dev/null || true
+        rm -rf /var/lib/waydroid
+    fi
+    if [ ! -e /var/lib/waydroid ]; then
+        mkdir -p /var/lib
+        ln -s "${ANDROID_ROOT}" /var/lib/waydroid
+    fi
+
+    if [ -d /dev/binderfs ] || grep -q binder /proc/filesystems 2>/dev/null; then
+        mkdir -p /dev/binderfs
+        if ! mountpoint -q /dev/binderfs 2>/dev/null; then
+            mount -t binder binder /dev/binderfs 2>/dev/null || true
+        fi
+    fi
+}
+
+has_arm_translator() {
+    [ -f "${ANDROID_ROOT}/overlay/system/lib64/libndk_translation.so" ] ||
+        [ -f "${ANDROID_ROOT}/overlay/system/lib64/libhoudini.so" ]
+}
+
+sync_shortcuts() {
+    if ! command -v waydroid >/dev/null 2>&1; then
+        echo "[uniload-art] Waydroid runtime not installed." >&2
+        exit 127
+    fi
+    if [ -d /data/home/applications ] || [ -d /data/home ]; then
+        apps_dir="/data/home/applications"
+    else
+        apps_dir="${HOME:-/home/unicore}/.local/share/applications"
+    fi
+    mkdir -p "${apps_dir}"
+
+    list_out="$(waydroid app list 2>/dev/null || true)"
+    keep_list=""
+    cur_name=""
+
+    emit_desktop() {
+        app_name="$1"
+        pkg="$2"
+        safe_pkg="$(printf '%s' "${pkg}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9._-' '_')"
+        [ -n "${safe_pkg}" ] || return 0
+        [ -n "${app_name}" ] || app_name="${safe_pkg}"
+        desktop_file="${apps_dir}/unicore-android-${safe_pkg}.desktop"
+        cat <<EOF > "${desktop_file}"
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=${app_name}
+Comment=Android App (${safe_pkg}) via UniCore OS
+Exec=/usr/bin/waydroid app launch ${safe_pkg}
+Icon=package-x-generic
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+EOF
+        chmod 0755 "${desktop_file}" 2>/dev/null || true
+        keep_list="${keep_list} ${desktop_file}"
+    }
+
+    while IFS= read -r line; do
+        case "${line}" in
+            "Name: "*)
+                cur_name="${line#Name: }"
+                ;;
+            "packageName: "*)
+                pkg="${line#packageName: }"
+                emit_desktop "${cur_name}" "${pkg}"
+                cur_name=""
+                ;;
+            "")
+                cur_name=""
+                ;;
+        esac
+    done <<EOF
+${list_out}
+EOF
+
+    for existing in "${apps_dir}"/unicore-android-*.desktop; do
+        [ -e "${existing}" ] || continue
+        case " ${keep_list} " in
+            *" ${existing} "*) ;;
+            *) rm -f "${existing}" ;;
+        esac
+    done
+    echo "Synced Android desktop shortcuts into ${apps_dir}"
+}
+
+ensure_container_running() {
+    if ! command -v waydroid >/dev/null 2>&1; then
+        echo "[uniload-art] Waydroid runtime not installed in rootfs." >&2
+        exit 127
+    fi
+    if [ ! -e "${BINDER_NODE}" ]; then
+        echo "[uniload-art] Binder device missing (${BINDER_NODE}). Ensure linux-edge kernel with binderfs is booted." >&2
+        exit 1
+    fi
+
+    if command -v rc-service >/dev/null 2>&1 && [ -x /etc/init.d/waydroid-container ]; then
+        rc-service waydroid-container status >/dev/null 2>&1 || rc-service waydroid-container start >/dev/null 2>&1 || true
+    fi
+    if ! pgrep -f "waydroid.*container" >/dev/null 2>&1; then
+        waydroid -w container start >/tmp/uniload-waydroid-container.log 2>&1 &
+        tries=0
+        while ! waydroid status >/dev/null 2>&1 && [ "${tries}" -lt 30 ]; do
+            sleep 0.2
+            tries=$((tries + 1))
+        done
+    fi
+}
+
+cmd="${1:-status}"
+shift || true
+
+ensure_storage_and_binder
+
+case "${cmd}" in
+    status)
+        binder_ok=false
+        [ -e "${BINDER_NODE}" ] && binder_ok=true
+        waydroid_ok=false
+        command -v waydroid >/dev/null 2>&1 && waydroid_ok=true
+        img_ok=false
+        [ -f "${ANDROID_ROOT}/images/system.img" ] && img_ok=true
+        arm_ok=false
+        has_arm_translator && arm_ok=true
+        active=false
+        pgrep -f "waydroid.*container" >/dev/null 2>&1 && active=true
+
+        cat <<EOF
+{
+  "action": "status",
+  "android_root": "${ANDROID_ROOT}",
+  "arm_translator_ready": ${arm_ok},
+  "binderfs_ready": ${binder_ok},
+  "container_active": ${active},
+  "dry_run": false,
+  "image_ready": ${img_ok},
+  "multi_window": true,
+  "waydroid_installed": ${waydroid_ok}
+}
+EOF
+        ;;
+
+    init)
+        profile="vanilla"
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                --profile)
+                    profile="${2:-vanilla}"
+                    shift 2
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
+        done
+        if ! command -v waydroid >/dev/null 2>&1; then
+            echo "[uniload-art] Waydroid runtime not installed." >&2
+            exit 127
+        fi
+
+        system_type="VANILLA"
+        [ "${profile}" = "gapps" ] && system_type="GAPPS"
+
+        echo "==> Initializing UniCore Android subsystem (profile=${profile}, system_type=${system_type}) into ${ANDROID_ROOT}"
+        waydroid init -s "${system_type}" -f
+
+        if [ -f "${ANDROID_ROOT}/waydroid.cfg" ] && ! grep -q "multi_windows" "${ANDROID_ROOT}/waydroid.cfg"; then
+            printf '\n[properties]\npersist.waydroid.multi_windows = true\n' >> "${ANDROID_ROOT}/waydroid.cfg"
+        fi
+        if [ "${profile}" = "microg" ]; then
+            echo "==> Vanilla base initialized. Add microG signature spoofing/APK overlay into ${ANDROID_ROOT}/overlay when ready."
+        fi
+        ;;
+
+    launch-apk)
+        apk_path=""
+        sandbox_id=""
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                --apk)
+                    apk_path="${2:-}"
+                    shift 2
+                    ;;
+                --sandbox)
+                    sandbox_id="${2:-}"
+                    shift 2
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
+        done
+        if [ -z "${apk_path}" ] || [ ! -f "${apk_path}" ]; then
+            echo "[uniload-art] APK file not found: ${apk_path}" >&2
+            exit 1
+        fi
+        if [ ! -f "${ANDROID_ROOT}/images/system.img" ]; then
+            echo "[uniload-art] Android system image is not initialized yet at ${ANDROID_ROOT}/images/system.img." >&2
+            echo "Run once (requires internet): uniload android init --profile vanilla" >&2
+            if command -v notify-send >/dev/null 2>&1; then
+                notify-send -u normal -a "UniCore Android" "Android Subsystem Not Initialized" "Open UniCore Center -> System & Android -> Initialize Android first." >/dev/null 2>&1 || true
+            fi
+            exit 2
+        fi
+        if [ -n "${UNILOAD_NDK_TRANSLATOR:-}" ] && ! has_arm_translator; then
+            echo "[WARN] APK uses ARM ABI (${UNILOAD_NDK_TRANSLATOR}) and no ARM translator is installed." >&2
+            echo "       Run 'uniload android setup-arm' for instructions." >&2
+        fi
+
+        ensure_container_running
+        if [ "${MULTI_WINDOW}" = "1" ]; then
+            waydroid prop set persist.waydroid.multi_windows true >/dev/null 2>&1 || true
+        fi
+        echo "==> Installing APK into UniCore Android container (sandbox=${sandbox_id}): ${apk_path}"
+        waydroid app install "${apk_path}"
+        sync_shortcuts || true
+        echo "==> APK installed. Use 'waydroid app list' or 'uniload android ui' to interact inside labwc."
+        ;;
+
+    sync-shortcuts)
+        ensure_container_running
+        sync_shortcuts
+        ;;
+
+    ui)
+        if [ ! -f "${ANDROID_ROOT}/images/system.img" ]; then
+            echo "[uniload-art] Android image not initialized. Run: uniload android init" >&2
+            if command -v notify-send >/dev/null 2>&1; then
+                notify-send -u normal -a "UniCore Android" "Android Subsystem Not Initialized" "Open UniCore Center -> System & Android -> Initialize Android first." >/dev/null 2>&1 || true
+            fi
+            exit 2
+        fi
+        ensure_container_running
+        exec waydroid show-full-ui
+        ;;
+
+    setup-arm)
+        if has_arm_translator; then
+            echo "ARM translator detected under ${ANDROID_ROOT}/overlay/system/lib64."
+            exit 0
+        fi
+        echo "ARM translation (libndk_translation / libhoudini) is not installed yet."
+        echo "Place extracted ARM translation libraries into:"
+        echo "  ${ANDROID_ROOT}/overlay/system/lib64/"
+        echo "Pure-DEX and x86_64 APKs run natively without extra libraries."
+        ;;
+
+    *)
+        echo "[uniload-art] Unknown command: ${cmd}" >&2
+        exit 1
+        ;;
+esac

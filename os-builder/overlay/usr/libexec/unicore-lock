@@ -1,0 +1,12 @@
+#!/bin/sh
+# UniCore OS Wayland screen lock helper (Super+L)
+set -eu
+
+if command -v swaylock >/dev/null 2>&1; then
+    exec swaylock -f -c 0f172a
+fi
+
+if command -v notify-send >/dev/null 2>&1; then
+    notify-send -u normal -a "UniCore OS" "Screen Lock Unavailable" "swaylock is not installed in this image." || true
+fi
+exit 1

@@ -1,0 +1,58 @@
+#!/bin/sh
+# UniCore OS Desktop App Launch Wrapper (Phase 15)
+# Emits user-friendly toast notifications and records per-app logs at /tmp/unicore-app-<id>.log
+set -eu
+
+if [ "$#" -lt 5 ]; then
+    echo "Usage: unicore-app-runner <APP_ID> <APP_NAME> <UNILOAD_BIN> <STATE_DIR> <HOST_ARCH>" >&2
+    exit 2
+fi
+
+APP_ID="$1"
+APP_NAME="$2"
+UNILOAD_BIN="$3"
+STATE_DIR="$4"
+HOST_ARCH="$5"
+
+LOG_FILE="/tmp/unicore-app-${APP_ID}.log"
+TS="$(date -Iseconds 2>/dev/null || date)"
+
+if [ -r /data/unicore/gaming.conf ]; then
+    # shellcheck disable=SC1091
+    . /data/unicore/gaming.conf
+fi
+export UNICORE_GAME_MODE="${UNICORE_GAME_MODE:-0}"
+export UNICORE_SHOW_FPS="${UNICORE_SHOW_FPS:-0}"
+if [ "${UNICORE_SHOW_FPS}" = "1" ]; then
+    export DXVK_HUD="${DXVK_HUD:-fps,frametimes,gpuload}"
+    export MANGOHUD="${MANGOHUD:-1}"
+fi
+
+{
+    printf '=== [%s] Launching %s (%s) [game_mode=%s show_fps=%s] ===\n' "${TS}" "${APP_NAME}" "${APP_ID}" "${UNICORE_GAME_MODE}" "${UNICORE_SHOW_FPS}"
+} > "${LOG_FILE}"
+
+if command -v notify-send >/dev/null 2>&1; then
+    notify-send -a "UniCore OS" "Launching ${APP_NAME}" "Starting isolated sandbox..." >/dev/null 2>&1 || true
+fi
+
+set +e
+if [ "${UNICORE_GAME_MODE}" = "1" ] && command -v nice >/dev/null 2>&1; then
+    if nice -n -5 true 2>/dev/null; then
+        nice -n -5 "${UNILOAD_BIN}" --state-dir "${STATE_DIR}" --host-arch "${HOST_ARCH}" launch "${APP_ID}" >> "${LOG_FILE}" 2>&1
+        rc=$?
+    else
+        "${UNILOAD_BIN}" --state-dir "${STATE_DIR}" --host-arch "${HOST_ARCH}" launch "${APP_ID}" >> "${LOG_FILE}" 2>&1
+        rc=$?
+    fi
+else
+    "${UNILOAD_BIN}" --state-dir "${STATE_DIR}" --host-arch "${HOST_ARCH}" launch "${APP_ID}" >> "${LOG_FILE}" 2>&1
+    rc=$?
+fi
+set -e
+
+printf '=== Exited with code %s ===\n' "${rc}" >> "${LOG_FILE}"
+if [ "${rc}" -ne 0 ] && command -v notify-send >/dev/null 2>&1; then
+    notify-send -u critical -a "UniCore OS" "${APP_NAME} exited (code ${rc})" "Open UniCore Center -> View Log for details." >/dev/null 2>&1 || true
+fi
+exit "${rc}"

@@ -1,0 +1,2363 @@
+//! Entry point and Slint UI bindings for `unicore-center`.
+
+use std::cell::RefCell;
+use std::path::Path;
+use std::rc::Rc;
+
+use slint::{ModelRc, SharedString, VecModel};
+use unicore_center::backend::{CenterBackend, InstallRequest};
+use unicore_center::cli::{help_text, parse_args, LaunchMode};
+use unicore_center::desktop::{
+    platform_display_name, supports_win_era, win_era_display_name, win_era_from_index,
+    win_era_to_index,
+};
+use unicore_center::gaming::{
+    apply_cpu_governor, default_gaming_dir, load_gaming_config, read_host_cpu_governor,
+    save_gaming_config, GamingConfig,
+};
+use unicore_center::i18n::{detect_ui_lang, persist_ui_lang, UiLabels, UiLang};
+use unicore_center::installer::{
+    list_install_disks, read_boot_state, run_disk_install, run_disk_install_encrypted,
+    validate_install_confirmation, validate_luks_passphrase, InstallDisk,
+};
+use unicore_center::oobe::{
+    apply_oobe_on_host, save_oobe_state, validate_hostname, validate_user_password,
+    OobeSettings, DEFAULT_OOBE_DIR, OOBE_LANGUAGES, OOBE_TIMEZONES,
+};
+use unicore_center::settings::{
+    add_printer, apply_and_save_display, apply_firewall_settings, bt_device_action,
+    clamp_pointer_speed, connect_wifi, delete_vpn_connection, disconnect_wifi, discover_printers,
+    forget_wifi, import_vpn_profile, launch_document_scanner, list_backup_targets,
+    list_vpn_connections, load_nightlight_config, load_personalize_config,
+    persistent_display_config_dir, print_test_page, read_audio_overview, read_bluetooth_overview,
+    read_display_overview, read_firewall_overview, read_network_overview, read_printers_overview,
+    remove_printer, run_backup_create, run_backup_restore, run_power_action,
+    save_and_apply_nightlight, save_and_apply_personalize, scan_bluetooth_brief, set_audio_mute,
+    set_audio_volume, set_bluetooth_enabled, set_brightness, set_cups_enabled, set_default_printer,
+    set_default_sink, set_mic_mute, set_wifi_radio, toggle_vpn_connection,
+    validate_backup_passphrase, validate_backup_path, AudioSink, BackupTarget, BluetoothDevice,
+    DiscoveredPrinter, DisplayOutput, PersonalizeConfig, PrinterInfo, VpnConnection, WifiNetwork,
+    KB_LAYOUTS, WALLPAPER_PRESETS,
+};
+use unicore_center::store::{
+    chunk_into_triples, install_store_app_blocking, load_store_views, sync_store_catalog_blocking,
+    StoreItemView,
+};
+use unicore_center::taskmgr::{list_user_processes, terminate_process, ProcessInfo};
+use unicore_center::updater::{
+    apply_local_update, apply_remote_update, check_remote_update, read_update_overview,
+    rollback_update,
+};
+use uniload::inspector::WinEra;
+use uniload::sandbox::{AppSandbox, PermissionProfile};
+
+slint::include_modules!();
+
+const DISPLAY_SCALES: [&str; 4] = ["1.0", "1.25", "1.5", "2.0"];
+
+#[derive(Default)]
+struct SettingsUiState {
+    wifi: Vec<WifiNetwork>,
+    bt: Vec<BluetoothDevice>,
+    sinks: Vec<AudioSink>,
+    outputs: Vec<DisplayOutput>,
+    printers: Vec<PrinterInfo>,
+    discovered_printers: Vec<DiscoveredPrinter>,
+    vpns: Vec<VpnConnection>,
+    backup_targets: Vec<BackupTarget>,
+}
+
+fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
+    let l = UiLabels::for_lang(lang);
+    ui.set_lang_badge(SharedString::from(lang.code()));
+    ui.set_oobe_lang_idx(if matches!(lang, UiLang::Ms) { 1 } else { 0 });
+    ui.set_tr(UiText {
+        title_center: l.title_center.into(),
+        title_open: l.title_open.into(),
+        title_power: l.title_power.into(),
+        title_oobe: l.title_oobe.into(),
+        title_taskmgr: l.title_taskmgr.into(),
+        tab_apps: l.tab_apps.into(),
+        tab_store: l.tab_store.into(),
+        tab_install: l.tab_install.into(),
+        tab_system: l.tab_system.into(),
+        tab_settings: l.tab_settings.into(),
+        tab_tasks: l.tab_tasks.into(),
+        tab_power: l.tab_power.into(),
+        power_prompt: l.power_prompt.into(),
+        btn_shutdown: l.btn_shutdown.into(),
+        btn_reboot: l.btn_reboot.into(),
+        btn_sleep: l.btn_sleep.into(),
+        btn_logout: l.btn_logout.into(),
+        btn_back_center: l.btn_back_center.into(),
+        btn_close: l.btn_close.into(),
+        oobe_step1: l.oobe_step1.into(),
+        oobe_step2: l.oobe_step2.into(),
+        oobe_step3: l.oobe_step3.into(),
+        oobe_lang: l.oobe_lang.into(),
+        oobe_tz: l.oobe_tz.into(),
+        oobe_hostname: l.oobe_hostname.into(),
+        oobe_pw_hint: l.oobe_pw_hint.into(),
+        oobe_pw: l.oobe_pw.into(),
+        oobe_pw_confirm: l.oobe_pw_confirm.into(),
+        oobe_ready_hint: l.oobe_ready_hint.into(),
+        btn_back: l.btn_back.into(),
+        btn_skip: l.btn_skip.into(),
+        btn_next: l.btn_next.into(),
+        btn_finish_install: l.btn_finish_install.into(),
+        btn_finish: l.btn_finish.into(),
+        open_app_name: l.open_app_name.into(),
+        open_app_type: l.open_app_type.into(),
+        open_simple_hint: l.open_simple_hint.into(),
+        open_show_adv: l.open_show_adv.into(),
+        open_hide_adv: l.open_hide_adv.into(),
+        btn_run_now: l.btn_run_now.into(),
+        btn_install_run: l.btn_install_run.into(),
+        btn_install_only: l.btn_install_only.into(),
+        btn_open_center: l.btn_open_center.into(),
+        btn_cancel: l.btn_cancel.into(),
+        chk_create_shortcut: l.chk_create_shortcut.into(),
+        taskmgr_heading: l.taskmgr_heading.into(),
+        taskmgr_empty: l.taskmgr_empty.into(),
+        btn_end_task: l.btn_end_task.into(),
+        btn_force_kill: l.btn_force_kill.into(),
+        btn_refresh: l.btn_refresh.into(),
+        hdr_registered_apps: l.hdr_registered_apps.into(),
+        btn_add: l.btn_add.into(),
+        btn_launch_app: l.btn_launch_app.into(),
+        btn_create_shortcut: l.btn_create_shortcut.into(),
+        btn_view_log: l.btn_view_log.into(),
+        btn_hide_log: l.btn_hide_log.into(),
+        btn_uninstall: l.btn_uninstall.into(),
+        subtab_wifi: l.subtab_wifi.into(),
+        subtab_bt: l.subtab_bt.into(),
+        subtab_audio: l.subtab_audio.into(),
+        subtab_display: l.subtab_display.into(),
+        subtab_printers: l.subtab_printers.into(),
+        subtab_security: l.subtab_security.into(),
+        chk_night_light: l.chk_night_light.into(),
+        lbl_night_temp: l.lbl_night_temp.into(),
+        hdr_printers: l.hdr_printers.into(),
+        chk_cups_service: l.chk_cups_service.into(),
+        btn_scan_printers: l.btn_scan_printers.into(),
+        btn_open_scanner: l.btn_open_scanner.into(),
+        btn_add_printer: l.btn_add_printer.into(),
+        btn_set_default: l.btn_set_default.into(),
+        btn_test_page: l.btn_test_page.into(),
+        btn_remove_printer: l.btn_remove_printer.into(),
+        hdr_firewall: l.hdr_firewall.into(),
+        chk_firewall: l.chk_firewall.into(),
+        chk_fw_ssh: l.chk_fw_ssh.into(),
+        hdr_vpn: l.hdr_vpn.into(),
+        btn_import_vpn: l.btn_import_vpn.into(),
+        hdr_backup: l.hdr_backup.into(),
+        chk_backup_enc: l.chk_backup_enc.into(),
+        btn_create_backup: l.btn_create_backup.into(),
+        btn_restore_backup: l.btn_restore_backup.into(),
+        hdr_gaming_perf: l.hdr_gaming_perf.into(),
+        lbl_cpu_governor: l.lbl_cpu_governor.into(),
+        chk_game_mode: l.chk_game_mode.into(),
+        chk_show_fps: l.chk_show_fps.into(),
+        gaming_hint: l.gaming_hint.into(),
+        btn_classic_runtimes: l.btn_classic_runtimes.into(),
+        hdr_store: l.hdr_store.into(),
+        store_search_hint: l.store_search_hint.into(),
+        btn_store_install: l.btn_store_install.into(),
+        btn_store_launch: l.btn_store_launch.into(),
+        btn_store_sync: l.btn_store_sync.into(),
+        store_cat_all: l.store_cat_all.into(),
+        store_cat_util: l.store_cat_util.into(),
+        store_cat_office: l.store_cat_office.into(),
+        store_cat_android: l.store_cat_android.into(),
+        store_nav_discover: l.store_nav_discover.into(),
+        store_featured_tag: l.store_featured_tag.into(),
+        store_section_apps: l.store_section_apps.into(),
+        store_btn_get: l.store_btn_get.into(),
+        store_btn_open: l.store_btn_open.into(),
+        store_btn_back: l.store_btn_back.into(),
+        store_about_hdr: l.store_about_hdr.into(),
+        store_security_hdr: l.store_security_hdr.into(),
+        store_feed_toggle: l.store_feed_toggle.into(),
+        store_cat_retro: l.store_cat_retro.into(),
+        store_retro_banner_title: l.store_retro_banner_title.into(),
+        store_retro_banner_hint: l.store_retro_banner_hint.into(),
+        hdr_personalize: l.hdr_personalize.into(),
+        lbl_theme: l.lbl_theme.into(),
+        lbl_wallpaper: l.lbl_wallpaper.into(),
+        lbl_kb_layout: l.lbl_kb_layout.into(),
+        chk_natural_scroll: l.chk_natural_scroll.into(),
+        chk_tap_click: l.chk_tap_click.into(),
+        lbl_pointer_speed: l.lbl_pointer_speed.into(),
+        btn_apply_personalize: l.btn_apply_personalize.into(),
+    });
+}
+
+fn refresh_tasks(ui: &MainWindow, tasks_cache: &Rc<RefCell<Vec<ProcessInfo>>>) {
+    let procs = list_user_processes();
+    let entries: Vec<TaskEntry> = procs
+        .iter()
+        .map(|p| TaskEntry {
+            pid: p.pid as i32,
+            name: SharedString::from(p.name.as_str()),
+            ram_label: SharedString::from(format!("{} MB", p.ram_mb)),
+            detail: SharedString::from(p.cmdline.as_str()),
+        })
+        .collect();
+    ui.set_task_list(ModelRc::new(VecModel::from(entries)));
+    if procs.is_empty() {
+        ui.set_selected_task_idx(-1);
+        ui.set_selected_task_pid(0);
+    } else {
+        ui.set_selected_task_idx(0);
+        ui.set_selected_task_pid(procs[0].pid as i32);
+    }
+    *tasks_cache.borrow_mut() = procs;
+}
+
+fn refresh_boot_and_disks(ui: &MainWindow, disks_cell: &Rc<RefCell<Vec<InstallDisk>>>) {
+    let boot = read_boot_state();
+    ui.set_sys_boot_mode(SharedString::from(boot.display_summary()));
+    let is_live = boot.is_live();
+    ui.set_sys_is_live(is_live);
+
+    if !is_live {
+        disks_cell.borrow_mut().clear();
+        ui.set_inst_disk_labels(ModelRc::new(VecModel::from(vec![SharedString::from(
+            "Only available when booted from Live ISO/USB",
+        )])));
+        ui.set_inst_disk_idx(0);
+        ui.set_inst_has_disk(false);
+        return;
+    }
+
+    let eligible: Vec<InstallDisk> = list_install_disks()
+        .into_iter()
+        .filter(|d| d.eligible)
+        .collect();
+    if eligible.is_empty() {
+        disks_cell.borrow_mut().clear();
+        ui.set_inst_disk_labels(ModelRc::new(VecModel::from(vec![SharedString::from(
+            "No eligible disk (>= 8 GB) found",
+        )])));
+        ui.set_inst_disk_idx(0);
+        ui.set_inst_has_disk(false);
+    } else {
+        let labels: Vec<SharedString> = eligible
+            .iter()
+            .map(|d| SharedString::from(format!("{} ({}) - {}", d.device, d.size_gb, d.model)))
+            .collect();
+        *disks_cell.borrow_mut() = eligible;
+        ui.set_inst_disk_labels(ModelRc::new(VecModel::from(labels)));
+        ui.set_inst_disk_idx(0);
+        ui.set_inst_has_disk(true);
+    }
+}
+
+fn refresh_update_status(ui: &MainWindow) {
+    let upd = read_update_overview();
+    ui.set_upd_current_version(SharedString::from(upd.current_version.as_str()));
+    ui.set_upd_active_slot(SharedString::from(upd.active_slot.as_str()));
+    ui.set_upd_standby_slot(SharedString::from(upd.standby_slot.as_str()));
+    ui.set_upd_pending_summary(SharedString::from(upd.pending_summary()));
+    if ui.get_upd_url_input().is_empty() && !upd.update_url.is_empty() {
+        ui.set_upd_url_input(SharedString::from(upd.update_url.as_str()));
+    }
+    ui.set_upd_can_update(upd.can_update);
+    ui.set_upd_can_rollback(upd.can_rollback);
+}
+
+fn set_disp_modes_for_output(ui: &MainWindow, output: Option<&DisplayOutput>) {
+    let Some(out) = output else {
+        ui.set_set_disp_modes(ModelRc::new(VecModel::from(vec![SharedString::from("Auto")])));
+        ui.set_set_disp_mode_idx(0);
+        ui.set_set_disp_scale_idx(0);
+        return;
+    };
+
+    let modes: Vec<SharedString> = if out.modes.is_empty() {
+        vec![SharedString::from("Auto")]
+    } else {
+        out.modes.iter().map(|m| SharedString::from(m.as_str())).collect()
+    };
+    let active_mode_idx = out
+        .modes
+        .iter()
+        .position(|m| m == &out.current_mode)
+        .unwrap_or(0) as i32;
+    let scale_idx = DISPLAY_SCALES
+        .iter()
+        .position(|&s| s == out.scale)
+        .unwrap_or(0) as i32;
+
+    ui.set_set_disp_modes(ModelRc::new(VecModel::from(modes)));
+    ui.set_set_disp_mode_idx(active_mode_idx);
+    ui.set_set_disp_scale_idx(scale_idx);
+}
+
+fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
+    let net = read_network_overview();
+    ui.set_set_net_available(net.nm_available);
+    ui.set_set_wifi_enabled(net.wifi_enabled);
+    ui.set_set_net_summary(SharedString::from(net.summary.as_str()));
+    let wifi_entries: Vec<WifiEntry> = net
+        .networks
+        .iter()
+        .map(|w| WifiEntry {
+            in_use: w.in_use,
+            ssid: SharedString::from(w.ssid.as_str()),
+            signal: w.signal,
+            security: SharedString::from(w.security.as_str()),
+        })
+        .collect();
+    ui.set_set_wifi_list(ModelRc::new(VecModel::from(wifi_entries)));
+    ui.set_set_selected_wifi_idx(-1);
+    state.wifi = net.networks;
+
+    let bt = read_bluetooth_overview();
+    ui.set_set_bt_powered(bt.powered);
+    ui.set_set_bt_summary(SharedString::from(bt.summary.as_str()));
+    let bt_entries: Vec<BtEntry> = bt
+        .devices
+        .iter()
+        .map(|d| BtEntry {
+            mac: SharedString::from(d.mac.as_str()),
+            name: SharedString::from(d.name.as_str()),
+            paired: d.paired,
+            connected: d.connected,
+        })
+        .collect();
+    ui.set_set_bt_list(ModelRc::new(VecModel::from(bt_entries)));
+    ui.set_set_selected_bt_idx(-1);
+    ui.set_set_selected_bt_mac(SharedString::new());
+    state.bt = bt.devices;
+
+    let audio = read_audio_overview();
+    ui.set_set_audio_available(audio.available);
+    ui.set_set_audio_volume(audio.volume_pct as f32);
+    ui.set_set_audio_muted(audio.muted);
+    ui.set_set_mic_muted(audio.mic_muted);
+    let sink_labels: Vec<SharedString> = if audio.sinks.is_empty() {
+        vec![SharedString::from("Default Audio Output")]
+    } else {
+        audio
+            .sinks
+            .iter()
+            .map(|s| SharedString::from(s.label.as_str()))
+            .collect()
+    };
+    let active_sink_idx = audio
+        .sinks
+        .iter()
+        .position(|s| s.is_default)
+        .unwrap_or(0) as i32;
+    ui.set_set_audio_sinks(ModelRc::new(VecModel::from(sink_labels)));
+    ui.set_set_audio_sink_idx(active_sink_idx);
+    state.sinks = audio.sinks;
+
+    let disp = read_display_overview();
+    ui.set_set_backlight_available(disp.backlight_available);
+    ui.set_set_brightness_pct(disp.brightness_pct as f32);
+    let output_names: Vec<SharedString> = if disp.outputs.is_empty() {
+        vec![SharedString::from("Default")]
+    } else {
+        disp.outputs
+            .iter()
+            .map(|o| SharedString::from(o.name.as_str()))
+            .collect()
+    };
+    ui.set_set_disp_outputs(ModelRc::new(VecModel::from(output_names)));
+    ui.set_set_disp_output_idx(0);
+    set_disp_modes_for_output(ui, disp.outputs.first());
+    state.outputs = disp.outputs;
+
+    let night = load_nightlight_config(&persistent_display_config_dir());
+    ui.set_set_nightlight_enabled(night.enabled);
+    ui.set_set_nightlight_temp(night.temp_k as f32);
+
+    let pers = load_personalize_config(&persistent_display_config_dir());
+    ui.invoke_set_theme(pers.theme == "light");
+    ui.set_set_theme_idx(if pers.theme == "light" { 1 } else { 0 });
+    let wp_idx = WALLPAPER_PRESETS
+        .iter()
+        .position(|(_, path)| *path == pers.wallpaper)
+        .unwrap_or(WALLPAPER_PRESETS.len()) as i32;
+    ui.set_set_wallpaper_idx(wp_idx);
+    ui.set_set_wallpaper_custom(SharedString::from(pers.wallpaper.as_str()));
+    let kb_idx = KB_LAYOUTS
+        .iter()
+        .position(|(code, _)| *code == pers.kb_layout)
+        .unwrap_or(0) as i32;
+    ui.set_set_kb_layout_idx(kb_idx);
+    ui.set_set_natural_scroll(pers.natural_scroll);
+    ui.set_set_tap_to_click(pers.tap_to_click);
+    ui.set_set_pointer_speed_tenths((pers.pointer_speed * 10.0).round());
+
+    let pr = read_printers_overview();
+    ui.set_set_cups_active(pr.service_active);
+    ui.set_set_cups_summary(SharedString::from(pr.summary.as_str()));
+    let printer_entries: Vec<PrinterEntry> = pr
+        .printers
+        .iter()
+        .map(|p| PrinterEntry {
+            name: SharedString::from(p.name.as_str()),
+            status: SharedString::from(p.status.as_str()),
+            is_default: p.is_default,
+        })
+        .collect();
+    ui.set_set_printer_list(ModelRc::new(VecModel::from(printer_entries)));
+    if let Some(first) = pr.printers.first() {
+        ui.set_set_selected_printer_idx(0);
+        ui.set_set_selected_printer_name(SharedString::from(first.name.as_str()));
+    } else {
+        ui.set_set_selected_printer_idx(-1);
+        ui.set_set_selected_printer_name(SharedString::new());
+    }
+    state.printers = pr.printers;
+
+    let fw = read_firewall_overview();
+    ui.set_set_fw_enabled(fw.enabled);
+    ui.set_set_fw_profile_idx(if fw.profile == "public" { 1 } else { 0 });
+    ui.set_set_fw_ssh(fw.allow_ssh);
+    ui.set_set_fw_summary(SharedString::from(fw.summary.as_str()));
+
+    let vpns = list_vpn_connections();
+    let vpn_entries: Vec<VpnEntry> = vpns
+        .iter()
+        .map(|v| VpnEntry {
+            name: SharedString::from(v.name.as_str()),
+            vpn_type: SharedString::from(v.vpn_type.as_str()),
+            active: v.active,
+        })
+        .collect();
+    ui.set_set_vpn_list(ModelRc::new(VecModel::from(vpn_entries)));
+    if let Some(first) = vpns.first() {
+        ui.set_set_selected_vpn_idx(0);
+        ui.set_set_selected_vpn_name(SharedString::from(first.name.as_str()));
+    } else {
+        ui.set_set_selected_vpn_idx(-1);
+        ui.set_set_selected_vpn_name(SharedString::new());
+    }
+    state.vpns = vpns;
+
+    let targets = list_backup_targets();
+    let target_labels: Vec<SharedString> = targets
+        .iter()
+        .map(|t| SharedString::from(t.label.as_str()))
+        .collect();
+    ui.set_set_backup_targets(ModelRc::new(VecModel::from(target_labels)));
+    ui.set_set_backup_target_idx(0);
+    state.backup_targets = targets;
+}
+
+fn set_status(ui: &MainWindow, msg: impl Into<String>, is_error: bool) {
+    ui.set_status_message(SharedString::from(msg.into()));
+    ui.set_status_is_error(is_error);
+}
+
+fn report_result(ui: &MainWindow, res: Result<(), String>, ok_msg: impl Into<String>) {
+    match res {
+        Ok(()) => set_status(ui, ok_msg, false),
+        Err(err) => set_status(ui, err, true),
+    }
+}
+
+fn app_to_entry(app: &AppSandbox) -> AppEntry {
+    AppEntry {
+        name: SharedString::from(app.name.as_str()),
+        platform_label: SharedString::from(platform_display_name(app.platform)),
+    }
+}
+
+fn apply_selected_app(ui: &MainWindow, app: Option<&AppSandbox>, idx: i32) {
+    ui.set_selected_app_idx(idx);
+    ui.set_sel_log_visible(false);
+    ui.set_sel_log_text(SharedString::new());
+    match app {
+        Some(a) => {
+            ui.set_has_selected_app(true);
+            ui.set_sel_name(SharedString::from(a.name.as_str()));
+            ui.set_sel_app_id(SharedString::from(a.app_id.as_str()));
+            ui.set_sel_platform(SharedString::from(platform_display_name(a.platform)));
+            ui.set_sel_arch(SharedString::from(a.arch.as_str()));
+            ui.set_sel_source_path(SharedString::from(a.source_path.as_str()));
+            ui.set_sel_sandbox_dir(SharedString::from(a.sandbox_dir.as_str()));
+            ui.set_sel_supports_era(supports_win_era(a.platform));
+            ui.set_sel_win_era_idx(win_era_to_index(a.win_era));
+            ui.set_sel_perm_network(a.permissions.network);
+            ui.set_sel_perm_gpu(a.permissions.gpu_acceleration);
+            ui.set_sel_perm_documents(a.permissions.shared_documents);
+            ui.set_sel_perm_camera(a.permissions.camera);
+            ui.set_sel_perm_microphone(a.permissions.microphone);
+        }
+        None => {
+            ui.set_has_selected_app(false);
+            ui.set_sel_name(SharedString::from("No application selected"));
+            ui.set_sel_app_id(SharedString::from(""));
+            ui.set_sel_platform(SharedString::from("-"));
+            ui.set_sel_arch(SharedString::from("-"));
+            ui.set_sel_source_path(SharedString::from("-"));
+            ui.set_sel_sandbox_dir(SharedString::from("-"));
+            ui.set_sel_supports_era(false);
+        }
+    }
+}
+
+fn refresh_apps_and_browse(
+    ui: &MainWindow,
+    backend: &CenterBackend,
+    apps_cache: &Rc<RefCell<Vec<AppSandbox>>>,
+    prefer_app_id: Option<&str>,
+) {
+    match backend.list_apps() {
+        Ok(apps) => {
+            let entries: Vec<AppEntry> = apps.iter().map(app_to_entry).collect();
+            let model = Rc::new(VecModel::from(entries));
+            ui.set_installed_apps(ModelRc::from(model));
+
+            if apps.is_empty() {
+                apply_selected_app(ui, None, -1);
+            } else {
+                let target_idx = prefer_app_id
+                    .and_then(|id| apps.iter().position(|a| a.app_id == id))
+                    .unwrap_or(0);
+                apply_selected_app(ui, Some(&apps[target_idx]), target_idx as i32);
+            }
+            *apps_cache.borrow_mut() = apps;
+        }
+        Err(err) => {
+            set_status(ui, err, true);
+        }
+    }
+
+    let browse: Vec<BrowseFileEntry> = backend
+        .browse_candidates()
+        .into_iter()
+        .map(|item| BrowseFileEntry {
+            name: SharedString::from(item.name),
+            path: SharedString::from(item.path.display().to_string()),
+            kind: SharedString::from(item.kind),
+        })
+        .collect();
+    ui.set_browse_files(ModelRc::from(Rc::new(VecModel::from(browse))));
+}
+
+fn store_item_to_entry(item: StoreItemView) -> StoreEntry {
+    let (r, g, b) = item.accent_rgb;
+    StoreEntry {
+        id: SharedString::from(item.id),
+        name: SharedString::from(item.name),
+        version: SharedString::from(item.version),
+        size_label: SharedString::from(item.size_label),
+        platform_label: SharedString::from(item.platform_label),
+        platform_short: SharedString::from(item.platform_short),
+        summary: SharedString::from(item.summary),
+        badge: SharedString::from(if item.is_offline {
+            "Built-in Offline"
+        } else {
+            "SHA-256 Verified"
+        }),
+        sha256_short: SharedString::from(item.sha256_short),
+        category: SharedString::from(item.category),
+        icon_text: SharedString::from(item.icon_text),
+        accent_color: slint::Color::from_rgb_u8(r, g, b),
+        is_installed: item.is_installed,
+        installed_app_id: SharedString::from(item.installed_app_id),
+    }
+}
+
+fn refresh_store_list(
+    ui: &MainWindow,
+    backend: &CenterBackend,
+    apps: &[AppSandbox],
+    lang: UiLang,
+) {
+    let cat = ui.get_store_category().to_string();
+    let query = ui.get_store_search_query().to_string();
+    let is_ms = matches!(lang, UiLang::Ms);
+    if let Ok(items) = load_store_views(apps, &backend.config.state_dir, &cat, &query, is_ms, None) {
+        let entries: Vec<StoreEntry> = items.into_iter().map(store_item_to_entry).collect();
+        let rows: Vec<StoreRow> = chunk_into_triples(&entries)
+            .into_iter()
+            .map(|(a, b, c)| StoreRow {
+                has_a: a.is_some(),
+                a: a.unwrap_or_default(),
+                has_b: b.is_some(),
+                b: b.unwrap_or_default(),
+                has_c: c.is_some(),
+                c: c.unwrap_or_default(),
+            })
+            .collect();
+
+        if let Some(featured) = entries
+            .iter()
+            .find(|e| e.id == "antigravity")
+            .or_else(|| entries.iter().find(|e| e.id == "notepadpp"))
+            .or_else(|| entries.first())
+            .cloned()
+        {
+            ui.set_store_has_featured(true);
+            ui.set_store_featured(featured);
+        } else {
+            ui.set_store_has_featured(false);
+        }
+
+        if ui.get_store_detail_open() {
+            let current_detail_id = ui.get_store_detail().id;
+            if let Some(updated) = entries.iter().find(|e| e.id == current_detail_id).cloned() {
+                ui.set_store_detail(updated);
+            }
+        }
+
+        ui.set_store_rows(ModelRc::new(VecModel::from(rows)));
+        ui.set_store_entries(ModelRc::new(VecModel::from(entries)));
+    }
+}
+
+fn refresh_system_info(ui: &MainWindow, backend: &CenterBackend) {
+    let sys = backend.system_overview();
+    let hw = &sys.hw;
+    let specs = &hw.specs;
+    let tier = hw.tier.as_str();
+    ui.set_hw_summary(SharedString::from(format!(
+        "Tier: {tier} | {} MB RAM | Display: {} | Win32: {}",
+        specs.ram_mb, hw.wlr_renderer, hw.win32_backend_mode
+    )));
+    ui.set_sys_hw_tier(SharedString::from(format!(
+        "{tier} (lightweight_shell={}, idle_hibernate={}s)",
+        hw.lightweight_shell, hw.idle_hibernate_sec
+    )));
+    ui.set_sys_hw_cpu(SharedString::from(format!(
+        "{} ({} core{})",
+        specs.cpu_model,
+        specs.cpu_cores,
+        if specs.cpu_cores == 1 { "" } else { "s" }
+    )));
+    ui.set_sys_hw_ram(SharedString::from(format!(
+        "{} MB RAM | {} MB zram (swappiness={})",
+        specs.ram_mb, hw.zram_mb, hw.swappiness
+    )));
+    ui.set_sys_hw_caps(SharedString::from(format!(
+        "SSE4.2={} | AVX={} | DRM3D={} | Vulkan={} | FW={}",
+        specs.has_sse42, specs.has_avx, specs.has_drm_3d, specs.has_vulkan, specs.firmware
+    )));
+    ui.set_sys_hw_renderers(SharedString::from(format!(
+        "Wayland={} | Win32={} | Android={}",
+        hw.wlr_renderer, hw.win32_backend_mode, hw.android_graphics
+    )));
+
+    let a = &sys.android;
+    ui.set_sys_android_binder(SharedString::from(if a.binderfs_ready {
+        "Ready (/dev/binderfs mounted)"
+    } else {
+        "Not mounted"
+    }));
+    ui.set_sys_android_engine(SharedString::from(if a.waydroid_installed {
+        "Waydroid Installed (/usr/bin/waydroid)"
+    } else {
+        "Missing"
+    }));
+    ui.set_sys_android_image(SharedString::from(if a.image_ready {
+        "Initialized (/data/waydroid/images/system.img)"
+    } else {
+        "Not initialized yet (click Initialize Android)"
+    }));
+    ui.set_sys_android_arm(SharedString::from(if a.arm_translator_ready {
+        "Installed (libndk_translation / libhoudini)"
+    } else {
+        "Not installed (x86_64 native APKs ready; ARM requires libndk/houdini)"
+    }));
+    ui.set_sys_android_container(SharedString::from(if a.container_active {
+        "Active"
+    } else {
+        "Idle / Cold (0 MB RAM used)"
+    }));
+
+    let w = &sys.win32_assets;
+    ui.set_sys_win32_wine(SharedString::from(if w.wine_installed {
+        "Installed (/usr/bin/wine)"
+    } else {
+        "Not installed (non-x86 or stripped image)"
+    }));
+    ui.set_sys_win32_dxvk(SharedString::from(if w.dxvk_installed {
+        "Provisioned (Vulkan D3D8/9/10/11 active)"
+    } else {
+        "Optional (click Install DXVK for DirectX 8-11)"
+    }));
+    ui.set_sys_win32_vkd3d(SharedString::from(if w.vkd3d_installed {
+        "Provisioned (Vulkan D3D12 active)"
+    } else {
+        "Optional (click Install VKD3D for DirectX 12)"
+    }));
+    ui.set_sys_win32_otvdm(SharedString::from(if w.otvdm_installed {
+        "Provisioned (Win16 NE runtime ready)"
+    } else {
+        "Optional (click Install OTVDM for Win16 NE)"
+    }));
+    ui.set_sys_win32_cnc_ddraw(SharedString::from(if w.cnc_ddraw_installed {
+        "Provisioned (Win98/XP DirectDraw wrapper ready)"
+    } else {
+        "Optional (click Install cnc-ddraw for Win98 2D games)"
+    }));
+    ui.set_sys_win32_winetricks(SharedString::from(if w.winetricks_installed {
+        "Installed (/usr/bin/winetricks DX9/VC++ helper)"
+    } else {
+        "Not installed"
+    }));
+    ui.set_sys_dos_subsystem(SharedString::from(if w.dos_subsystem_ready {
+        "Built-in (/usr/libexec/uniload-dos - direct .exe/.com/.bat)"
+    } else {
+        "Not installed"
+    }));
+}
+
+fn load_file_into_open_form(ui: &MainWindow, backend: &CenterBackend, path: &Path) -> bool {
+    ui.set_install_path_input(SharedString::from(path.display().to_string()));
+    match backend.inspect_file(path) {
+        Ok(info) => {
+            ui.set_open_has_file(true);
+            ui.set_open_name(SharedString::from(info.name));
+            ui.set_open_path(SharedString::from(info.canonical_path.display().to_string()));
+            ui.set_open_platform(SharedString::from(info.platform_label));
+            ui.set_open_arch(SharedString::from(info.arch));
+            ui.set_open_sub_abis(SharedString::from(info.sub_abis_label));
+            ui.set_open_supports_era(info.supports_era);
+            ui.set_open_win_era_idx(win_era_to_index(info.win_era));
+            ui.set_open_already_installed(info.already_installed_id.is_some());
+            ui.set_open_perm_network(info.permissions.network);
+            ui.set_open_perm_gpu(info.permissions.gpu_acceleration);
+            ui.set_open_perm_documents(info.permissions.shared_documents);
+            ui.set_open_perm_camera(info.permissions.camera);
+            ui.set_open_perm_microphone(info.permissions.microphone);
+            ui.set_open_create_shortcut(true);
+            let hint = if info.already_installed_id.is_some() {
+                "Already registered in sandbox; review settings or click Save & Launch."
+            } else {
+                "Inspected cleanly. Configure compatibility and permissions below."
+            };
+            set_status(ui, hint, false);
+            true
+        }
+        Err(err) => {
+            ui.set_open_has_file(false);
+            ui.set_open_path(SharedString::from(path.display().to_string()));
+            set_status(ui, err, true);
+            false
+        }
+    }
+}
+
+fn collect_open_install_request(ui: &MainWindow) -> InstallRequest {
+    let era: Option<WinEra> = if ui.get_open_supports_era() {
+        Some(win_era_from_index(ui.get_open_win_era_idx()))
+    } else {
+        None
+    };
+    InstallRequest {
+        app_name: Some(ui.get_open_name().to_string()),
+        win_era: era,
+        permissions: PermissionProfile {
+            network: ui.get_open_perm_network(),
+            gpu_acceleration: ui.get_open_perm_gpu(),
+            shared_documents: ui.get_open_perm_documents(),
+            camera: ui.get_open_perm_camera(),
+            microphone: ui.get_open_perm_microphone(),
+        },
+        create_shortcut: ui.get_open_create_shortcut(),
+    }
+}
+
+fn run_headless_check(backend: &CenterBackend, file: Option<&Path>) -> Result<(), String> {
+    let sys = backend.system_overview();
+    let apps = backend.list_apps()?;
+    println!(
+        "unicore-center check OK: hw_tier={} ram_mb={} registered_apps={}",
+        sys.hw.tier.as_str(),
+        sys.hw.specs.ram_mb,
+        apps.len()
+    );
+    if let Some(target) = file {
+        let info = backend.inspect_file(target)?;
+        println!(
+            "inspected: name={} platform={} arch={} era={}",
+            info.name,
+            info.platform.as_str(),
+            info.arch,
+            info.win_era.map(|e| e.as_str()).unwrap_or("none")
+        );
+    }
+    Ok(())
+}
+
+fn main() {
+    let raw_args: Vec<String> = std::env::args().skip(1).collect();
+    let parsed = match parse_args(&raw_args) {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            println!("{}", help_text());
+            return;
+        }
+        Err(err) => {
+            eprintln!("Error: {err}");
+            std::process::exit(2);
+        }
+    };
+
+    let backend = Rc::new(RefCell::new(CenterBackend::new(parsed.config)));
+
+    if let LaunchMode::CheckOnly(file) = parsed.mode {
+        if let Err(err) = run_headless_check(&backend.borrow(), file.as_deref()) {
+            eprintln!("Check failed: {err}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    let ui = match MainWindow::new() {
+        Ok(win) => win,
+        Err(err) => {
+            eprintln!("Failed to initialize UniCore App Center GUI: {err}");
+            std::process::exit(1);
+        }
+    };
+
+    let settings_state = Rc::new(RefCell::new(SettingsUiState::default()));
+    let install_disks: Rc<RefCell<Vec<InstallDisk>>> = Rc::new(RefCell::new(Vec::new()));
+    let apps_cache: Rc<RefCell<Vec<AppSandbox>>> = Rc::new(RefCell::new(Vec::new()));
+    let tasks_cache: Rc<RefCell<Vec<ProcessInfo>>> = Rc::new(RefCell::new(Vec::new()));
+    let env_lang = std::env::var("LANG").ok();
+    let initial_lang = detect_ui_lang(
+        &Path::new(DEFAULT_OOBE_DIR).join("oobe.conf"),
+        env_lang.as_deref(),
+    );
+    let current_lang = Rc::new(RefCell::new(initial_lang));
+
+    let gaming_cfg = load_gaming_config(default_gaming_dir());
+    ui.set_gaming_mode_enabled(gaming_cfg.game_mode);
+    ui.set_gaming_fps_enabled(gaming_cfg.show_fps);
+    ui.set_sys_cpu_governor(SharedString::from(read_host_cpu_governor()));
+
+    let pers_cfg = load_personalize_config(&persistent_display_config_dir());
+    ui.invoke_set_theme(pers_cfg.theme == "light");
+
+    {
+        let b = backend.borrow();
+        apply_ui_language(&ui, initial_lang);
+        ui.set_store_category(SharedString::from(parsed.initial_store_category.as_str()));
+        refresh_system_info(&ui, &b);
+        refresh_apps_and_browse(&ui, &b, &apps_cache, None);
+        refresh_store_list(&ui, &b, &apps_cache.borrow(), initial_lang);
+        refresh_boot_and_disks(&ui, &install_disks);
+        refresh_update_status(&ui);
+        ui.set_active_tab(parsed.initial_tab);
+        ui.set_settings_subtab(parsed.initial_settings_subtab);
+        match &parsed.mode {
+            LaunchMode::OpenDialog(path) => {
+                ui.set_open_dialog_only(true);
+                ui.set_open_show_advanced(false);
+                load_file_into_open_form(&ui, &b, path);
+            }
+            LaunchMode::PowerDialog => {
+                ui.set_power_dialog_only(true);
+            }
+            LaunchMode::OobeWizard => {
+                ui.set_oobe_dialog_only(true);
+                ui.set_oobe_step(0);
+            }
+            LaunchMode::TaskManager => {
+                ui.set_taskmgr_dialog_only(true);
+                refresh_tasks(&ui, &tasks_cache);
+            }
+            LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
+                if parsed.initial_tab == 3 {
+                    refresh_settings(&ui, &mut settings_state.borrow_mut());
+                }
+            }
+        }
+    }
+
+    // Select app in Installed Apps list
+    {
+        let ui_weak = ui.as_weak();
+        let cache = Rc::clone(&apps_cache);
+        ui.on_select_app(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            if let Some(app) = cache.borrow().get(idx as usize) {
+                apply_selected_app(&ui, Some(app), idx);
+            }
+        });
+    }
+
+    // Change Windows compatibility era for selected app
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        ui.on_selected_era_changed(move |era_idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            let era = win_era_from_index(era_idx);
+            match b.borrow().update_win_era(&app_id, era) {
+                Ok(updated) => {
+                    refresh_apps_and_browse(&ui, &b.borrow(), &cache, Some(&updated.app_id));
+                    let _ = b.borrow().create_shortcuts_for_app(&updated);
+                    set_status(
+                        &ui,
+                        format!("Saved {} compatibility for {}", win_era_display_name(era), updated.name),
+                        false,
+                    );
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    // Toggle sandbox permission for selected app
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        ui.on_selected_permission_toggled(move |perm, allowed| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            match b.borrow().update_permission(&app_id, &perm, allowed) {
+                Ok(updated) => {
+                    refresh_apps_and_browse(&ui, &b.borrow(), &cache, Some(&updated.app_id));
+                    set_status(
+                        &ui,
+                        format!(
+                            "Permission '{}' set to {} for {}",
+                            perm,
+                            if allowed { "ALLOW" } else { "DENY" },
+                            updated.name
+                        ),
+                        false,
+                    );
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    // Launch selected app
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_launch_selected(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            let app_name = ui.get_sel_name().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            report_result(
+                &ui,
+                b.borrow().spawn_app_detached(&app_id),
+                format!("Launched {app_name} in isolated sandbox"),
+            );
+        });
+    }
+
+    // Toggle runtime log viewer for selected app
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_view_log_selected(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            if ui.get_sel_log_visible() {
+                ui.set_sel_log_visible(false);
+                return;
+            }
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            let log_text = b.borrow().read_app_log(&app_id);
+            ui.set_sel_log_text(SharedString::from(log_text));
+            ui.set_sel_log_visible(true);
+        });
+    }
+
+    // Export hardware & boot diagnostics to Desktop
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_export_diagnostics(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match b.borrow().export_diagnostics() {
+                Ok(path) => set_status(&ui, format!("Exported diagnostics to {path}"), false),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    // Regenerate .desktop shortcuts for selected app
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_create_shortcut_selected(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            let backend_ref = b.borrow();
+            match backend_ref.get_app(&app_id) {
+                Ok(app) => match backend_ref.create_shortcuts_for_app(&app) {
+                    Ok(paths) => set_status(
+                        &ui,
+                        format!("Created {} desktop shortcut(s) for {}", paths.len(), app.name),
+                        false,
+                    ),
+                    Err(err) => set_status(&ui, err, true),
+                },
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    // Uninstall selected app & remove desktop shortcuts
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        let lang_cell = Rc::clone(&current_lang);
+        ui.on_uninstall_selected(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            let backend_ref = b.borrow();
+            match backend_ref.uninstall_app(&app_id) {
+                Ok((removed, shortcuts)) => {
+                    refresh_apps_and_browse(&ui, &backend_ref, &cache, None);
+                    refresh_store_list(&ui, &backend_ref, &cache.borrow(), *lang_cell.borrow());
+                    set_status(
+                        &ui,
+                        format!(
+                            "Uninstalled '{}' and removed {} shortcut(s)",
+                            removed.name, shortcuts
+                        ),
+                        false,
+                    );
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    // Reclaim idle subsystem RAM (wineserver / waydroid container)
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_reclaim_ram(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let backend_ref = b.borrow();
+            match backend_ref.reclaim_subsystems() {
+                Ok(_) => {
+                    refresh_system_info(&ui, &backend_ref);
+                    set_status(&ui, "Reclaimed idle Win32/Android subsystem workers", false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    // Refresh all state
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let disks = Rc::clone(&install_disks);
+        let cache = Rc::clone(&apps_cache);
+        let lang_cell = Rc::clone(&current_lang);
+        ui.on_refresh_all(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let current_id = ui.get_sel_app_id().to_string();
+            let prefer = if current_id.is_empty() {
+                None
+            } else {
+                Some(current_id.as_str())
+            };
+            let backend_ref = b.borrow();
+            refresh_system_info(&ui, &backend_ref);
+            refresh_apps_and_browse(&ui, &backend_ref, &cache, prefer);
+            refresh_store_list(&ui, &backend_ref, &cache.borrow(), *lang_cell.borrow());
+            refresh_boot_and_disks(&ui, &disks);
+            refresh_update_status(&ui);
+            ui.set_sys_cpu_governor(SharedString::from(read_host_cpu_governor()));
+        });
+    }
+
+    // Inspect path inside Install File tab
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_inspect_path(move |raw_path| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let trimmed = raw_path.trim().to_string();
+            if trimmed.is_empty() {
+                set_status(&ui, "Enter a .exe, .com, .bat, .msi, or .apk path to inspect.", true);
+                return;
+            }
+            load_file_into_open_form(&ui, &b.borrow(), Path::new(&trimmed));
+        });
+    }
+
+    // Install & Launch or Install Only
+    let handle_install = |launch_after: bool| {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let path_str = ui.get_open_path().to_string();
+            if path_str.is_empty() {
+                set_status(&ui, "No application file inspected.", true);
+                return;
+            }
+            let req = collect_open_install_request(&ui);
+            let backend_ref = b.borrow();
+            match backend_ref.install_file(Path::new(&path_str), &req) {
+                Ok(app) => {
+                    if launch_after {
+                        if let Err(err) = backend_ref.spawn_app_detached(&app.app_id) {
+                            refresh_apps_and_browse(&ui, &backend_ref, &cache, Some(&app.app_id));
+                            set_status(&ui, err, true);
+                            return;
+                        }
+                    }
+                    if ui.get_open_dialog_only() {
+                        let _ = slint::quit_event_loop();
+                    } else {
+                        refresh_apps_and_browse(&ui, &backend_ref, &cache, Some(&app.app_id));
+                        ui.set_active_tab(0);
+                        let verb = if launch_after {
+                            "Installed & launched"
+                        } else {
+                            "Installed"
+                        };
+                        set_status(&ui, format!("{verb} '{}'", app.name), false);
+                    }
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        }
+    };
+
+    ui.on_install_and_launch_open(handle_install(true));
+    ui.on_install_only_open(handle_install(false));
+
+    ui.on_cancel_open(move || {
+        let _ = slint::quit_event_loop();
+    });
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_switch_to_full_center(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                ui.set_open_dialog_only(false);
+                ui.set_active_tab(0);
+            }
+        });
+    }
+
+    // Android subsystem buttons
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_android_action(move |action| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let profile = match ui.get_android_profile_idx() {
+                1 => "microg",
+                2 => "gapps",
+                _ => "vanilla",
+            };
+            report_result(
+                &ui,
+                b.borrow().spawn_android_action(&action, profile),
+                format!("Started Android action '{action}'"),
+            );
+        });
+    }
+
+    // Win32 / Win16 runtime assets buttons
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_win32_asset_action(move |action| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                b.borrow().spawn_win32_asset_action(&action),
+                format!("Started Win32 runtime asset setup '{action}'"),
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_install_runtimes_selected(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            report_result(
+                &ui,
+                b.borrow().spawn_install_legacy_runtimes(&app_id),
+                format!("Started classic DX9/VC++ runtime installation for '{app_id}'"),
+            );
+        });
+    }
+
+    // Global Gaming & Performance switches
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_toggle_game_mode(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let cfg = GamingConfig {
+                game_mode: enabled,
+                show_fps: ui.get_gaming_fps_enabled(),
+            };
+            if let Err(err) = save_gaming_config(default_gaming_dir(), &cfg) {
+                set_status(&ui, err, true);
+                return;
+            }
+            match apply_cpu_governor(enabled) {
+                Ok(msg) => {
+                    ui.set_sys_cpu_governor(SharedString::from(read_host_cpu_governor()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_toggle_show_fps(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let cfg = GamingConfig {
+                game_mode: ui.get_gaming_mode_enabled(),
+                show_fps: enabled,
+            };
+            report_result(
+                &ui,
+                save_gaming_config(default_gaming_dir(), &cfg),
+                if enabled {
+                    "FPS overlay (MangoHud / DXVK HUD) enabled for launched games"
+                } else {
+                    "FPS overlay disabled"
+                },
+            );
+        });
+    }
+
+    // First-Boot Setup Wizard (OOBE) callbacks
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_complete_oobe(move |open_installer| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let host = match validate_hostname(&ui.get_oobe_hostname()) {
+                Ok(h) => h,
+                Err(err) => {
+                    ui.set_oobe_step(0);
+                    set_status(&ui, err, true);
+                    return;
+                }
+            };
+            let pass_raw = ui.get_oobe_pass().to_string();
+            let pass_confirm = ui.get_oobe_pass_confirm().to_string();
+            let validated_pw = match validate_user_password(&pass_raw, &pass_confirm) {
+                Ok(p) => p,
+                Err(err) => {
+                    ui.set_oobe_step(1);
+                    set_status(&ui, err, true);
+                    return;
+                }
+            };
+            let lang = OOBE_LANGUAGES
+                .get(ui.get_oobe_lang_idx() as usize)
+                .copied()
+                .unwrap_or("en_US.UTF-8")
+                .to_string();
+            let tz = OOBE_TIMEZONES
+                .get(ui.get_oobe_tz_idx() as usize)
+                .copied()
+                .unwrap_or("UTC")
+                .to_string();
+            let cfg = OobeSettings {
+                language: lang,
+                timezone: tz,
+                hostname: host,
+            };
+            if let Err(err) = apply_oobe_on_host(&cfg, validated_pw.as_deref()) {
+                set_status(&ui, err, true);
+                return;
+            }
+            ui.set_oobe_pass(SharedString::new());
+            ui.set_oobe_pass_confirm(SharedString::new());
+            ui.set_oobe_dialog_only(false);
+            ui.set_active_tab(if open_installer { 2 } else { 0 });
+            set_status(&ui, "Initial setup complete. Welcome to UniCore OS!", false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_skip_oobe(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let _ = save_oobe_state(Path::new(DEFAULT_OOBE_DIR), &OobeSettings::default());
+            ui.set_oobe_dialog_only(false);
+            ui.set_active_tab(0);
+            set_status(&ui, "Setup skipped using default settings", false);
+        });
+    }
+
+    // Language toggle & live OOBE language preview
+    {
+        let ui_weak = ui.as_weak();
+        let lang_cell = Rc::clone(&current_lang);
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        ui.on_toggle_language(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let next = lang_cell.borrow().toggle();
+            *lang_cell.borrow_mut() = next;
+            apply_ui_language(&ui, next);
+            refresh_store_list(&ui, &b.borrow(), &cache.borrow(), next);
+            if cfg!(target_os = "linux") {
+                let _ = persist_ui_lang(Path::new(DEFAULT_OOBE_DIR), next);
+            }
+            let msg = match next {
+                UiLang::En => "Display language switched to English (EN)",
+                UiLang::Ms => "Bahasa paparan ditukar kepada Bahasa Melayu (BM)",
+            };
+            set_status(&ui, msg, false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_cell = Rc::clone(&current_lang);
+        ui.on_oobe_lang_selected(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let next = if idx == 1 { UiLang::Ms } else { UiLang::En };
+            *lang_cell.borrow_mut() = next;
+            apply_ui_language(&ui, next);
+            ui.set_oobe_lang_idx(idx);
+        });
+    }
+
+    // Task Manager callbacks
+    {
+        let ui_weak = ui.as_weak();
+        let tasks = Rc::clone(&tasks_cache);
+        ui.on_refresh_tasks(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_tasks(&ui, &tasks);
+            set_status(&ui, "Task list refreshed", false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let tasks = Rc::clone(&tasks_cache);
+        ui.on_select_task(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            if let Some(proc_info) = tasks.borrow().get(idx as usize) {
+                ui.set_selected_task_idx(idx);
+                ui.set_selected_task_pid(proc_info.pid as i32);
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let tasks = Rc::clone(&tasks_cache);
+        ui.on_end_task(move |pid, force| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            if pid <= 1 {
+                set_status(&ui, "Select a valid user process first", true);
+                return;
+            }
+            report_result(
+                &ui,
+                terminate_process(pid as u32, force),
+                if force {
+                    format!("Force-killed PID {pid}")
+                } else {
+                    format!("Ended task PID {pid}")
+                },
+            );
+            refresh_tasks(&ui, &tasks);
+        });
+    }
+
+    // Settings & Power callbacks
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_refresh_settings(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_settings(&ui, &mut st.borrow_mut());
+            set_status(&ui, "Settings refreshed", false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_toggle_wifi_radio(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                set_wifi_radio(enabled),
+                if enabled { "Wi-Fi enabled" } else { "Wi-Fi disabled" },
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_select_wifi(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let guard = st.borrow();
+            if let Some(net) = guard.wifi.get(idx as usize) {
+                ui.set_set_selected_wifi_idx(idx);
+                ui.set_set_wifi_ssid(SharedString::from(net.ssid.as_str()));
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_connect_wifi(move |ssid, password| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let res = connect_wifi(&ssid, &password);
+            if res.is_ok() {
+                ui.set_set_wifi_password(SharedString::new());
+            }
+            report_result(&ui, res, format!("Connected to '{}'", ssid.trim()));
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_disconnect_wifi(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(&ui, disconnect_wifi(), "Disconnected Wi-Fi");
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_forget_wifi(move |ssid| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                forget_wifi(&ssid),
+                format!("Forgot saved Wi-Fi '{}'", ssid.trim()),
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_toggle_bluetooth(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                set_bluetooth_enabled(enabled),
+                if enabled { "Bluetooth powered on" } else { "Bluetooth stopped" },
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_scan_bluetooth(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(&ui, scan_bluetooth_brief(), "Bluetooth scan complete");
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_select_bt_device(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let guard = st.borrow();
+            if let Some(dev) = guard.bt.get(idx as usize) {
+                ui.set_set_selected_bt_idx(idx);
+                ui.set_set_selected_bt_mac(SharedString::from(dev.mac.as_str()));
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_bt_action(move |action, mac| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                bt_device_action(&action, &mac),
+                format!("Bluetooth '{action}' completed for {mac}"),
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_audio_volume_changed(move |pct| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(&ui, set_audio_volume(pct), format!("Audio volume set to {pct}%"));
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_audio_mute_toggled(move |muted| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                set_audio_mute(muted),
+                if muted { "Audio muted" } else { "Audio unmuted" },
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_mic_mute_toggled(move |muted| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                set_mic_mute(muted),
+                if muted { "Microphone muted" } else { "Microphone active" },
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_audio_sink_selected(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let sink_info = st.borrow().sinks.get(idx as usize).cloned();
+            if let Some(sink) = sink_info {
+                report_result(
+                    &ui,
+                    set_default_sink(&sink.name),
+                    format!("Audio output: {}", sink.label),
+                );
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_display_output_selected(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let guard = st.borrow();
+            set_disp_modes_for_output(&ui, guard.outputs.get(idx as usize));
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_apply_display(move |out_idx, mode_idx, scale_idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let selected = {
+                let guard = st.borrow();
+                guard.outputs.get(out_idx as usize).map(|o| {
+                    let mode = o
+                        .modes
+                        .get(mode_idx as usize)
+                        .cloned()
+                        .unwrap_or_else(|| o.current_mode.clone());
+                    (o.name.clone(), mode)
+                })
+            };
+            let Some((output, mode)) = selected else {
+                set_status(&ui, "No display output available to apply", true);
+                return;
+            };
+            if mode.is_empty() || mode == "Auto" {
+                set_status(&ui, "Select a valid resolution/mode first", true);
+                return;
+            }
+            let scale = DISPLAY_SCALES.get(scale_idx as usize).copied().unwrap_or("1.0");
+            match apply_and_save_display(&output, &mode, scale) {
+                Ok(saved) => set_status(
+                    &ui,
+                    format!("Applied {output} {mode} @ {scale}x (saved to {})", saved.display()),
+                    false,
+                ),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_brightness_changed(move |pct| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(&ui, set_brightness(pct), format!("Brightness set to {pct}%"));
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_nightlight_changed(move |enabled, temp_k| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let cfg_dir = persistent_display_config_dir();
+            match save_and_apply_nightlight(&cfg_dir, enabled, temp_k) {
+                Ok(cfg) => {
+                    ui.set_set_nightlight_enabled(cfg.enabled);
+                    ui.set_set_nightlight_temp(cfg.temp_k as f32);
+                    set_status(
+                        &ui,
+                        if cfg.enabled {
+                            format!("Night Light ON ({}K)", cfg.temp_k)
+                        } else {
+                            "Night Light OFF".to_string()
+                        },
+                        false,
+                    );
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_apply_personalize(
+            move |theme_idx, wp_idx, wp_custom, kb_idx, natural_scroll, tap_to_click, speed_tenths| {
+                let Some(ui) = ui_weak.upgrade() else { return };
+                let theme = if theme_idx == 1 { "light" } else { "dark" }.to_string();
+                let wallpaper = WALLPAPER_PRESETS
+                    .get(wp_idx as usize)
+                    .map(|(_, path)| (*path).to_string())
+                    .unwrap_or_else(|| wp_custom.trim().to_string());
+                let kb_layout = KB_LAYOUTS
+                    .get(kb_idx as usize)
+                    .map(|(code, _)| (*code).to_string())
+                    .unwrap_or_else(|| "us".to_string());
+                let req = PersonalizeConfig {
+                    theme,
+                    wallpaper,
+                    kb_layout,
+                    natural_scroll,
+                    tap_to_click,
+                    pointer_speed: clamp_pointer_speed((speed_tenths as f32) / 10.0),
+                };
+                let cfg_dir = persistent_display_config_dir();
+                match save_and_apply_personalize(&cfg_dir, &req) {
+                    Ok(saved) => {
+                        ui.invoke_set_theme(saved.theme == "light");
+                        ui.set_set_wallpaper_custom(SharedString::from(saved.wallpaper.as_str()));
+                        let msg = format!(
+                            "Applied theme={} | kb={} | scroll={} | tap={}",
+                            saved.theme,
+                            saved.kb_layout,
+                            if saved.natural_scroll { "natural" } else { "standard" },
+                            if saved.tap_to_click { "on" } else { "off" }
+                        );
+                        ui.set_set_personalize_status(SharedString::from(msg.as_str()));
+                        set_status(&ui, msg, false);
+                    }
+                    Err(err) => {
+                        ui.set_set_personalize_status(SharedString::from(err.as_str()));
+                        set_status(&ui, err, true);
+                    }
+                }
+            },
+        );
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_toggle_cups(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                set_cups_enabled(enabled),
+                if enabled {
+                    "CUPS printer service started"
+                } else {
+                    "CUPS printer service stopped (0 MB idle RAM)"
+                },
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_open_document_scanner(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                launch_document_scanner(),
+                "Launched Document Scanner (simple-scan)",
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_scan_printers(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match discover_printers() {
+                Ok(found) => {
+                    if found.is_empty() {
+                        ui.set_set_discovered_printers(ModelRc::new(VecModel::from(vec![
+                            SharedString::from("No USB/Wi-Fi printers detected (enter IPP URI manually below)"),
+                        ])));
+                        st.borrow_mut().discovered_printers.clear();
+                        set_status(
+                            &ui,
+                            "Scan finished: no auto-discovered printers (manual IPP URI supported)",
+                            false,
+                        );
+                    } else {
+                        let labels: Vec<SharedString> = found
+                            .iter()
+                            .map(|p| SharedString::from(p.label.as_str()))
+                            .collect();
+                        ui.set_set_printer_name_input(SharedString::from(
+                            found[0].suggested_name.as_str(),
+                        ));
+                        ui.set_set_printer_uri_input(SharedString::from(found[0].uri.as_str()));
+                        ui.set_set_discovered_printers(ModelRc::new(VecModel::from(labels)));
+                        ui.set_set_discovered_idx(0);
+                        let count = found.len();
+                        st.borrow_mut().discovered_printers = found;
+                        set_status(&ui, format!("Found {count} printer endpoint(s)"), false);
+                    }
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_select_printer(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let guard = st.borrow();
+            if let Some(p) = guard.printers.get(idx as usize) {
+                ui.set_set_selected_printer_idx(idx);
+                ui.set_set_selected_printer_name(SharedString::from(p.name.as_str()));
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_select_discovered_printer(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let guard = st.borrow();
+            if let Some(p) = guard.discovered_printers.get(idx as usize) {
+                ui.set_set_printer_name_input(SharedString::from(p.suggested_name.as_str()));
+                ui.set_set_printer_uri_input(SharedString::from(p.uri.as_str()));
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_add_printer(move |name, uri| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let res = add_printer(&name, &uri);
+            report_result(&ui, res, format!("Added printer '{}'", name.trim()));
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_printer_action(move |action, name| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let res = match action.as_str() {
+                "default" => set_default_printer(&name),
+                "test" => print_test_page(&name),
+                "remove" => remove_printer(&name),
+                other => Err(format!("Unsupported printer action: {other}")),
+            };
+            report_result(
+                &ui,
+                res,
+                format!("Printer '{action}' completed for '{}'", name.trim()),
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_toggle_firewall(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let prof = if ui.get_set_fw_profile_idx() == 1 { "public" } else { "home" };
+            let ssh = ui.get_set_fw_ssh();
+            report_result(
+                &ui,
+                apply_firewall_settings(enabled, prof, ssh),
+                if enabled { "Firewall enabled" } else { "Firewall disabled" },
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_firewall_profile_changed(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let prof = if idx == 1 { "public" } else { "home" };
+            let enabled = ui.get_set_fw_enabled();
+            let ssh = ui.get_set_fw_ssh();
+            report_result(
+                &ui,
+                apply_firewall_settings(enabled, prof, ssh),
+                format!("Firewall profile set to {prof}"),
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_firewall_ssh_toggled(move |ssh| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let enabled = ui.get_set_fw_enabled();
+            let prof = if ui.get_set_fw_profile_idx() == 1 { "public" } else { "home" };
+            report_result(
+                &ui,
+                apply_firewall_settings(enabled, prof, ssh),
+                if ssh { "Incoming SSH allowed" } else { "Incoming SSH blocked" },
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_select_vpn(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let guard = st.borrow();
+            if let Some(vpn) = guard.vpns.get(idx as usize) {
+                ui.set_set_selected_vpn_idx(idx);
+                ui.set_set_selected_vpn_name(SharedString::from(vpn.name.as_str()));
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_import_vpn(move |path| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let res = import_vpn_profile(&path);
+            if res.is_ok() {
+                ui.set_set_vpn_import_path(SharedString::new());
+            }
+            report_result(&ui, res, "VPN profile imported");
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_vpn_action(move |action, name| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let res = match action.as_str() {
+                "connect" => toggle_vpn_connection(&name, true),
+                "disconnect" => toggle_vpn_connection(&name, false),
+                "delete" => delete_vpn_connection(&name),
+                other => Err(format!("Unsupported VPN action: {other}")),
+            };
+            report_result(
+                &ui,
+                res,
+                format!("VPN '{action}' completed for '{}'", name.trim()),
+            );
+            refresh_settings(&ui, &mut st.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_refresh_backup_targets(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_settings(&ui, &mut st.borrow_mut());
+            set_status(&ui, "Backup destinations refreshed", false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_create_backup(move |target_idx, encrypted, pass| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let dest_dir = st
+                .borrow()
+                .backup_targets
+                .get(target_idx as usize)
+                .map(|t| t.path.clone())
+                .unwrap_or_else(|| "/data/home/Backups".to_string());
+            let pass_opt = if encrypted {
+                let p = pass.to_string();
+                if let Err(err) = validate_backup_passphrase(&p) {
+                    ui.set_set_backup_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                    return;
+                }
+                Some(p)
+            } else {
+                None
+            };
+
+            ui.set_set_backup_busy(true);
+            let prog = format!("Creating backup in {dest_dir}...");
+            ui.set_set_backup_status(SharedString::from(prog.as_str()));
+            set_status(&ui, prog, false);
+
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = run_backup_create(&dest_dir, pass_opt.as_deref());
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_set_backup_busy(false);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_set_backup_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_set_backup_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_restore_backup(move |archive_path, pass| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let safe_arc = match validate_backup_path(&archive_path) {
+                Ok(p) => p,
+                Err(err) => {
+                    ui.set_set_backup_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                    return;
+                }
+            };
+            let pass_opt = if safe_arc.ends_with(".tar.zst.enc") || !pass.is_empty() {
+                let p = pass.to_string();
+                if let Err(err) = validate_backup_passphrase(&p) {
+                    ui.set_set_backup_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                    return;
+                }
+                Some(p)
+            } else {
+                None
+            };
+
+            ui.set_set_backup_busy(true);
+            let prog = format!("Restoring /data from {safe_arc}...");
+            ui.set_set_backup_status(SharedString::from(prog.as_str()));
+            set_status(&ui, prog, false);
+
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = run_backup_restore(&safe_arc, pass_opt.as_deref());
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_set_backup_busy(false);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_set_backup_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                                ui.invoke_refresh_settings();
+                            }
+                            Err(err) => {
+                                ui.set_set_backup_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_power_action(move |action| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                run_power_action(&action),
+                format!("Executing power action '{action}'..."),
+            );
+        });
+    }
+
+    // Bare-metal A/B disk installer callbacks
+    {
+        let ui_weak = ui.as_weak();
+        let disks = Rc::clone(&install_disks);
+        ui.on_refresh_install_disks(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_boot_and_disks(&ui, &disks);
+            set_status(&ui, "Disk list refreshed", false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let disks = Rc::clone(&install_disks);
+        ui.on_start_disk_install(move |idx, typed, encrypt_data, luks_pass, luks_confirm| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let Some(disk) = disks.borrow().get(idx as usize).cloned() else {
+                set_status(&ui, "No eligible target disk selected", true);
+                return;
+            };
+            if let Err(err) = validate_install_confirmation(&disk.name, &typed) {
+                set_status(&ui, err, true);
+                return;
+            }
+            let luks_pass_str = luks_pass.to_string();
+            if encrypt_data {
+                if let Err(err) = validate_luks_passphrase(&luks_pass_str, &luks_confirm) {
+                    set_status(&ui, err, true);
+                    return;
+                }
+            }
+
+            ui.set_inst_busy(true);
+            let progress_msg = if encrypt_data {
+                format!(
+                    "Installing UniCore OS to {} (GPT A/B + LUKS2 Encrypted /data)...",
+                    disk.device
+                )
+            } else {
+                format!(
+                    "Installing UniCore OS to {} (GPT Hybrid A/B + GRUB BIOS/UEFI)...",
+                    disk.device
+                )
+            };
+            ui.set_inst_status(SharedString::from(progress_msg.as_str()));
+            set_status(&ui, progress_msg, false);
+
+            let thread_ui = ui.as_weak();
+            let dev = disk.device.clone();
+            std::thread::spawn(move || {
+                let res = if encrypt_data {
+                    run_disk_install_encrypted(&dev, &luks_pass_str)
+                } else {
+                    run_disk_install(&dev)
+                };
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_inst_busy(false);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_inst_confirm_input(SharedString::new());
+                                ui.set_inst_luks_pass(SharedString::new());
+                                ui.set_inst_luks_confirm(SharedString::new());
+                                ui.set_inst_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_inst_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    // A/B OS Updater & Rollback callbacks
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_refresh_update_status(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_update_status(&ui);
+            set_status(&ui, "A/B update status refreshed", false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_check_ota_update(move |url| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_upd_busy(true);
+            ui.set_upd_status(SharedString::from("Checking update manifest..."));
+            let thread_ui = ui.as_weak();
+            let url_str = url.to_string();
+            std::thread::spawn(move || {
+                let res = check_remote_update(&url_str);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_upd_busy(false);
+                        match res {
+                            Ok(info) => {
+                                let msg = if info.update_available {
+                                    format!(
+                                        "Update available: {} -> {} (channel: {}, sig: {})",
+                                        info.current_version,
+                                        info.latest_version,
+                                        info.channel,
+                                        info.signature_status
+                                    )
+                                } else {
+                                    format!(
+                                        "System is up to date ({} >= {}, sig: {})",
+                                        info.current_version,
+                                        info.latest_version,
+                                        info.signature_status
+                                    )
+                                };
+                                ui.set_upd_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_upd_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    let spawn_update_op = |ui: &MainWindow,
+                           progress_msg: &str,
+                           needs_reboot_on_ok: bool,
+                           op: Box<dyn FnOnce() -> Result<String, String> + Send>| {
+        ui.set_upd_busy(true);
+        ui.set_upd_status(SharedString::from(progress_msg));
+        set_status(ui, progress_msg, false);
+        let thread_ui = ui.as_weak();
+        std::thread::spawn(move || {
+            let res = op();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = thread_ui.upgrade() {
+                    ui.set_upd_busy(false);
+                    match res {
+                        Ok(msg) => {
+                            if needs_reboot_on_ok {
+                                ui.set_upd_needs_reboot(true);
+                            }
+                            refresh_update_status(&ui);
+                            ui.set_upd_status(SharedString::from(msg.as_str()));
+                            set_status(&ui, msg, false);
+                        }
+                        Err(err) => {
+                            ui.set_upd_status(SharedString::from(err.as_str()));
+                            set_status(&ui, err, true);
+                        }
+                    }
+                }
+            });
+        });
+    };
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_apply_ota_update(move |url| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let url_str = url.to_string();
+            spawn_update_op(
+                &ui,
+                "Downloading, verifying SHA-256, and flashing standby A/B slot...",
+                true,
+                Box::new(move || apply_remote_update(&url_str)),
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_apply_local_update(move |path, allow_unsigned| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let path_str = path.to_string();
+            spawn_update_op(
+                &ui,
+                "Verifying and flashing local update into standby A/B slot...",
+                true,
+                Box::new(move || apply_local_update(&path_str, allow_unsigned)),
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_rollback_os_slot(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            spawn_update_op(
+                &ui,
+                "Switching GRUB active boot target to standby A/B slot...",
+                true,
+                Box::new(rollback_update),
+            );
+        });
+    }
+
+    // Built-in 1-Click App Store / Catalog callbacks
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        let lang_cell = Rc::clone(&current_lang);
+        ui.on_store_filter_changed(move |cat, query| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_store_category(cat);
+            ui.set_store_search_query(query);
+            refresh_store_list(&ui, &b.borrow(), &cache.borrow(), *lang_cell.borrow());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_store_install_app(move |catalog_id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let id_str = catalog_id.to_string();
+            let cfg = b.borrow().config.clone();
+            ui.set_store_busy(true);
+            let msg = format!("Downloading, verifying SHA-256, and installing '{id_str}'...");
+            ui.set_store_status(SharedString::from(msg.as_str()));
+            set_status(&ui, msg, false);
+
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = install_store_app_blocking(&cfg, &id_str);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_store_busy(false);
+                        match res {
+                            Ok(sandbox) => {
+                                ui.set_sel_app_id(SharedString::from(sandbox.app_id.as_str()));
+                                ui.invoke_refresh_all();
+                                let ok_msg = format!(
+                                    "Installed '{}' into isolated sandbox ({})",
+                                    sandbox.name, sandbox.app_id
+                                );
+                                ui.set_store_status(SharedString::from(ok_msg.as_str()));
+                                set_status(&ui, ok_msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_store_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_store_launch_app(move |app_id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let id_str = app_id.to_string();
+            if id_str.is_empty() {
+                return;
+            }
+            report_result(
+                &ui,
+                b.borrow().spawn_app_detached(&id_str),
+                format!("Launched '{id_str}' from App Store"),
+            );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_store_sync_catalog(move |url| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let url_str = url.trim().to_string();
+            if url_str.is_empty() {
+                return;
+            }
+            ui.set_store_busy(true);
+            ui.set_store_status(SharedString::from("Syncing catalog over HTTPS..."));
+
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = sync_store_catalog_blocking(&url_str);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_store_busy(false);
+                        match res {
+                            Ok(count) => {
+                                ui.invoke_refresh_all();
+                                let ok_msg = format!("Synced catalog ({count} verified apps)");
+                                ui.set_store_status(SharedString::from(ok_msg.as_str()));
+                                set_status(&ui, ok_msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_store_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    if let Err(err) = ui.run() {
+        eprintln!("UniCore App Center exited with error: {err}");
+        std::process::exit(1);
+    }
+}

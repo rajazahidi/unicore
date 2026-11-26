@@ -1,0 +1,93 @@
+#!/bin/sh
+set -eu
+
+# Auto-start the UniCore Wayland desktop session on tty1 once seatd is ready.
+tries=0
+while [ ! -S /run/seatd.sock ] && [ "${tries}" -lt 50 ]; do
+    sleep 0.1
+    tries=$((tries + 1))
+done
+
+if [ -f /run/unicore/hw.env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . /run/unicore/hw.env
+    set +a
+fi
+
+mkdir -p /data/uniload /data/home/Documents /data/home/Downloads /data/home/Desktop /data/home/Pictures /data/home/applications /data/unicore
+chown -R unicore:unicore /data/uniload /data/home /data/unicore
+
+link_persistent_dir() {
+    local_dir="$1"
+    data_dir="$2"
+    mkdir -p "$(dirname "${local_dir}")" "${data_dir}"
+    if [ -d "${local_dir}" ] && [ ! -L "${local_dir}" ]; then
+        cp -a "${local_dir}/." "${data_dir}/" 2>/dev/null || true
+        rm -rf "${local_dir}"
+    fi
+    if [ ! -e "${local_dir}" ]; then
+        ln -s "${data_dir}" "${local_dir}"
+    fi
+}
+
+link_persistent_dir /home/unicore/Documents /data/home/Documents
+link_persistent_dir /home/unicore/Downloads /data/home/Downloads
+link_persistent_dir /home/unicore/Desktop /data/home/Desktop
+link_persistent_dir /home/unicore/Pictures /data/home/Pictures
+link_persistent_dir /home/unicore/.local/share/applications /data/home/applications
+
+mkdir -p /home/unicore/.config/gtk-3.0
+if [ ! -f /home/unicore/.config/user-dirs.dirs ]; then
+    cat <<'EOF' > /home/unicore/.config/user-dirs.dirs
+XDG_DESKTOP_DIR="$HOME/Desktop"
+XDG_DOWNLOAD_DIR="$HOME/Downloads"
+XDG_DOCUMENTS_DIR="$HOME/Documents"
+XDG_PICTURES_DIR="$HOME/Pictures"
+EOF
+fi
+if [ ! -f /home/unicore/.config/gtk-3.0/bookmarks ]; then
+    cat <<'EOF' > /home/unicore/.config/gtk-3.0/bookmarks
+file:///home/unicore/Desktop Desktop
+file:///home/unicore/Documents Documents
+file:///home/unicore/Downloads Downloads
+file:///home/unicore/Pictures Pictures
+trash:/// Trash
+EOF
+fi
+
+export HOME=/home/unicore
+export USER=unicore
+export XDG_RUNTIME_DIR=/run/user/1000
+export XDG_CURRENT_DESKTOP=labwc
+export WLR_RENDERER_ALLOW_SOFTWARE=1
+export UNILOAD_STATE_DIR=/data/uniload
+
+if [ -r /data/unicore/oobe.conf ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . /data/unicore/oobe.conf
+    set +a
+    [ -n "${UNICORE_LANG:-}" ] && export LANG="${UNICORE_LANG}"
+fi
+
+if [ -n "${WLR_RENDERER:-}" ] && [ "${WLR_RENDERER}" != "auto" ]; then
+    export WLR_RENDERER
+else
+    unset WLR_RENDERER || true
+fi
+
+mkdir -p "${XDG_RUNTIME_DIR}"
+chown -R unicore:unicore "${XDG_RUNTIME_DIR}" /home/unicore
+chmod 700 "${XDG_RUNTIME_DIR}"
+
+if [ -x /usr/libexec/unicore-personalize ]; then
+    su -s /bin/sh unicore -c "HOME=/home/unicore /usr/libexec/unicore-personalize apply --no-reload" >/dev/null 2>&1 || true
+fi
+
+ENV_PASS="HOME=/home/unicore XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} XDG_CURRENT_DESKTOP=labwc WLR_RENDERER_ALLOW_SOFTWARE=1 UNILOAD_STATE_DIR=/data/uniload"
+[ -n "${LANG:-}" ] && ENV_PASS="${ENV_PASS} LANG=${LANG}"
+[ -n "${WLR_RENDERER:-}" ] && ENV_PASS="${ENV_PASS} WLR_RENDERER=${WLR_RENDERER}"
+[ -n "${UNICORE_HW_TIER:-}" ] && ENV_PASS="${ENV_PASS} UNICORE_HW_TIER=${UNICORE_HW_TIER} UNICORE_RAM_MB=${UNICORE_RAM_MB:-0} UNICORE_ZRAM_MB=${UNICORE_ZRAM_MB:-0} UNICORE_LIGHTWEIGHT_SHELL=${UNICORE_LIGHTWEIGHT_SHELL:-0} UNILOAD_HW_WIN32_MODE=${UNILOAD_HW_WIN32_MODE:-} UNILOAD_HW_ANDROID_GRAPHICS=${UNILOAD_HW_ANDROID_GRAPHICS:-} UNILOAD_IDLE_TIMEOUT=${UNILOAD_IDLE_TIMEOUT:-30}"
+
+exec su -s /bin/sh unicore -c "export ${ENV_PASS}; DBUS_PID=''; if command -v dbus-daemon >/dev/null 2>&1; then rm -f '${XDG_RUNTIME_DIR}/bus'; dbus-daemon --session --address='unix:path=${XDG_RUNTIME_DIR}/bus' --nofork --nopidfile >/tmp/unicore-dbus.log 2>&1 & DBUS_PID=\$!; for i in \$(seq 1 20); do [ -S '${XDG_RUNTIME_DIR}/bus' ] && break; sleep 0.1; done; export DBUS_SESSION_BUS_ADDRESS='unix:path=${XDG_RUNTIME_DIR}/bus'; fi; labwc; rc=\$?; [ -n \"\${DBUS_PID}\" ] && kill \"\${DBUS_PID}\" 2>/dev/null || true; exit \${rc}"

@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+# UniCore OS native ELF sandbox runner (invoked by uniload).
+# Enforces Documents mount exposure, software GPU fallback, mic mute, and network namespace isolation.
+
+if [ "$#" -lt 1 ]; then
+    echo "[uniload-native] Missing target ELF binary" >&2
+    exit 1
+fi
+
+SANDBOX_HOME="${HOME:-/data/home}"
+mkdir -p "${SANDBOX_HOME}"
+
+DOCS_LINK="${SANDBOX_HOME}/Documents"
+if [ "${UNILOAD_ALLOW_DOCS:-0}" = "1" ] && [ -d /data/home/Documents ]; then
+    if [ ! -e "${DOCS_LINK}" ]; then
+        ln -s /data/home/Documents "${DOCS_LINK}" || true
+    fi
+elif [ -L "${DOCS_LINK}" ]; then
+    rm -f "${DOCS_LINK}"
+fi
+
+exec /usr/libexec/uniload-sandbox-exec "$@"

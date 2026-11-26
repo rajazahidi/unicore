@@ -1,0 +1,108 @@
+#!/bin/sh
+set -eu
+
+default_conf_path() {
+    if [ -n "${UNICORE_NIGHTLIGHT_CONF:-}" ]; then
+        printf '%s\n' "${UNICORE_NIGHTLIGHT_CONF}"
+    elif [ -d /data/home ]; then
+        printf '/data/home/.config/unicore/nightlight.conf\n'
+    else
+        printf '%s/.config/unicore/nightlight.conf\n' "${HOME:-/home/unicore}"
+    fi
+}
+
+CONF_PATH="$(default_conf_path)"
+NIGHTLIGHT_ENABLED=0
+NIGHTLIGHT_TEMP=4000
+
+clamp_temp() {
+    val="$1"
+    [ "${val}" -lt 2700 ] && val=2700
+    [ "${val}" -gt 5500 ] && val=5500
+    printf '%s\n' "${val}"
+}
+
+load_conf() {
+    NIGHTLIGHT_ENABLED=0
+    NIGHTLIGHT_TEMP=4000
+    if [ -r "${CONF_PATH}" ]; then
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                NIGHTLIGHT_ENABLED)
+                    case "${v}" in
+                        1|true|yes|on) NIGHTLIGHT_ENABLED=1 ;;
+                        *) NIGHTLIGHT_ENABLED=0 ;;
+                    esac
+                    ;;
+                NIGHTLIGHT_TEMP)
+                    if printf '%s' "${v}" | grep -Eq '^[0-9]+$'; then
+                        NIGHTLIGHT_TEMP="${v}"
+                    fi
+                    ;;
+            esac
+        done < "${CONF_PATH}"
+    fi
+    NIGHTLIGHT_TEMP="$(clamp_temp "${NIGHTLIGHT_TEMP}")"
+    return 0
+}
+
+stop_wlsunset() {
+    pkill -x wlsunset >/dev/null 2>&1 || true
+}
+
+apply_nightlight() {
+    load_conf
+    stop_wlsunset
+    if [ "${NIGHTLIGHT_ENABLED}" -eq 1 ]; then
+        if ! command -v wlsunset >/dev/null 2>&1; then
+            echo "wlsunset is not installed" >&2
+            return 1
+        fi
+        HIGH_TEMP=$((NIGHTLIGHT_TEMP + 1))
+        wlsunset -t "${NIGHTLIGHT_TEMP}" -T "${HIGH_TEMP}" </dev/null >/dev/null 2>&1 &
+    fi
+}
+
+cmd="${1:-apply}"
+case "${cmd}" in
+    apply)
+        apply_nightlight
+        ;;
+    stop)
+        stop_wlsunset
+        ;;
+    set)
+        mode="${2:-off}"
+        case "${mode}" in
+            on|1|true) want_enabled=1 ;;
+            off|0|false) want_enabled=0 ;;
+            *) echo "Usage: unicore-nightlight set <on|off> [temp_k]" >&2; exit 2 ;;
+        esac
+        load_conf
+        NIGHTLIGHT_ENABLED="${want_enabled}"
+        if [ "$#" -ge 3 ]; then
+            if ! printf '%s' "$3" | grep -Eq '^[0-9]+$'; then
+                echo "Invalid color temperature: $3" >&2
+                exit 2
+            fi
+            NIGHTLIGHT_TEMP="$(clamp_temp "$3")"
+        fi
+        mkdir -p "$(dirname "${CONF_PATH}")"
+        printf 'NIGHTLIGHT_ENABLED=%s\nNIGHTLIGHT_TEMP=%s\n' "${NIGHTLIGHT_ENABLED}" "${NIGHTLIGHT_TEMP}" > "${CONF_PATH}"
+        if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+            apply_nightlight
+        else
+            stop_wlsunset
+        fi
+        ;;
+    status)
+        load_conf
+        RUNNING=0
+        pgrep -x wlsunset >/dev/null 2>&1 && RUNNING=1 || true
+        printf 'enabled=%s\ntemp=%s\nrunning=%s\n' "${NIGHTLIGHT_ENABLED}" "${NIGHTLIGHT_TEMP}" "${RUNNING}"
+        ;;
+    *)
+        echo "Usage: unicore-nightlight <apply|stop|set <on|off> [temp_k]|status>" >&2
+        exit 2
+        ;;
+esac

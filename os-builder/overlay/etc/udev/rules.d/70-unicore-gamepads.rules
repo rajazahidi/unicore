@@ -1,0 +1,23 @@
+# UniCore OS Gamepad & Controller udev rules (Xbox, PlayStation, Nintendo Switch, Valve, 8BitDo, Logitech)
+SUBSYSTEM=="input", ENV{ID_INPUT_JOYSTICK}=="1", MODE="0660", GROUP="input", TAG+="uaccess"
+KERNEL=="js[0-9]*", SUBSYSTEM=="input", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# PlayStation DualShock 4 & DualSense (USB & Bluetooth)
+KERNEL=="hidraw*", ATTRS{idVendor}=="054c", MODE="0660", GROUP="input", TAG+="uaccess"
+KERNEL=="hidraw*", KERNELS=="*054C:*", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# Microsoft Xbox Controllers (USB & Bluetooth)
+KERNEL=="hidraw*", ATTRS{idVendor}=="045e", MODE="0660", GROUP="input", TAG+="uaccess"
+KERNEL=="hidraw*", KERNELS=="*045E:*", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# Nintendo Switch Pro / Joy-Con Controllers (USB & Bluetooth)
+KERNEL=="hidraw*", ATTRS{idVendor}=="057e", MODE="0660", GROUP="input", TAG+="uaccess"
+KERNEL=="hidraw*", KERNELS=="*057E:*", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# Valve Steam Deck / Steam Controller
+KERNEL=="hidraw*", ATTRS{idVendor}=="28de", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# 8BitDo & Logitech Controllers
+KERNEL=="hidraw*", ATTRS{idVendor}=="2dc8", MODE="0660", GROUP="input", TAG+="uaccess"
+KERNEL=="hidraw*", KERNELS=="*2DC8:*", MODE="0660", GROUP="input", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="046d", MODE="0660", GROUP="input", TAG+="uaccess"

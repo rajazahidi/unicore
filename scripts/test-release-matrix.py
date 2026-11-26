@@ -1,0 +1,418 @@
+#!/usr/bin/env python3
+"""UniCore OS Phase 20D & Phase 21 Automated Release QA Matrix.
+
+Verifies the built hybrid ISO across:
+  1. Legacy BIOS ISO boot + Phase 20D Personalization/Theme/Input + Wayland Light screenshot + Ed25519 signing E2E
+  2. UEFI firmware ISO boot (EDK2 OVMF)
+  3. Simulated 2005 Legacy PC (512 MB RAM, 1 vCPU, no SSE4.2/AVX, zram + lightweight shell + unicore-center --check)
+  4. Host ISO SHA-256, manifest validity, and Windows USB helper dry-check
+"""
+
+import base64
+import glob
+import gzip
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+OUT_DIR = os.path.join(REPO_ROOT, "os-builder", "out")
+ISO_PATH = os.path.join(OUT_DIR, "unicore-os-x86_64.iso")
+SHA_PATH = ISO_PATH + ".sha256"
+MANIFEST_PATH = os.path.join(OUT_DIR, "unicore-manifest.json")
+OVMF_BIOS = r"C:\Program Files\qemu\share\edk2-x86_64-code.fd"
+QEMU_BIN = r"C:\Program Files\qemu\qemu-system-x86_64.exe"
+SCREENSHOT_DEST = (
+    r"C:\Users\WIN11\.gemini\antigravity\brain\1cb0b065-c5bb-4947-a4e4-38afcff688cd\desktop_phase20d.png"
+)
+
+
+class SerialHarness:
+    def __init__(self, qemu_args, label):
+        self.label = label
+        self.proc = subprocess.Popen(
+            [QEMU_BIN] + qemu_args,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+        )
+        self.buf = ""
+        self.lock = threading.Lock()
+        self.reader = threading.Thread(target=self._read_loop, daemon=True)
+        self.reader.start()
+
+    def _read_loop(self):
+        while True:
+            chunk = self.proc.stdout.read(1)
+            if not chunk:
+                break
+            txt = chunk.decode("utf-8", errors="replace")
+            with self.lock:
+                self.buf += txt
+
+    def get_buf(self):
+        with self.lock:
+            return self.buf
+
+    def wait_for(self, marker, timeout_sec):
+        deadline = time.time() + timeout_sec
+        while time.time() < deadline:
+            cur = self.get_buf()
+            if marker in cur:
+                return cur
+            if self.proc.poll() is not None:
+                raise RuntimeError(f"[{self.label}] QEMU exited early while waiting for {marker!r}:\n{cur[-1500:]}")
+            time.sleep(0.25)
+        tail = self.get_buf()[-2000:]
+        raise TimeoutError(f"[{self.label}] Timed out after {timeout_sec}s waiting for {marker!r}. Tail:\n{tail}")
+
+    def send_raw(self, cmd_str):
+        data = cmd_str.encode("utf-8")
+        for i in range(0, len(data), 4):
+            self.proc.stdin.write(data[i : i + 4])
+            self.proc.stdin.flush()
+            time.sleep(0.015)
+
+    def send_script_b64(self, sh_script, remote_path="/tmp/qa_gate.sh"):
+        compressed = gzip.compress(sh_script.encode("utf-8"))
+        b64 = base64.b64encode(compressed).decode("ascii")
+        lines = [
+            f"cat <<'EOF_B64' | base64 -d | gunzip > {remote_path}",
+        ]
+        for i in range(0, len(b64), 72):
+            lines.append(b64[i : i + 72])
+        lines.append("EOF_B64")
+        lines.append(f"chmod +x {remote_path} && sh {remote_path}")
+        for line in lines:
+            self.send_raw(line + "\n")
+            time.sleep(0.04)
+
+    def close(self):
+        try:
+            self.send_raw("\npoweroff -f || true\n")
+            time.sleep(0.5)
+        except Exception:
+            pass
+        if self.proc.poll() is None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait()
+
+
+def boot_prompt_markers():
+    # Alpine / BusyBox root getty prompt
+    return ["unicore:~#", "~ # "]
+
+
+def wait_for_shell(harness, timeout_sec):
+    deadline = time.time() + timeout_sec
+    last_len = 0
+    sent_enter = False
+    while time.time() < deadline:
+        cur = harness.get_buf()
+        if any(m in cur for m in boot_prompt_markers()):
+            # Send a newline and confirm fresh prompt
+            harness.send_raw("\necho ===SHELL_READY===\n")
+            harness.wait_for("\n===SHELL_READY===", 20)
+            return
+        if not sent_enter and "localhost login:" in cur:
+            harness.send_raw("root\n")
+            sent_enter = True
+        if harness.proc.poll() is not None:
+            raise RuntimeError(f"[{harness.label}] QEMU exited before shell:\n{cur[-1500:]}")
+        if len(cur) != last_len:
+            last_len = len(cur)
+        time.sleep(0.4)
+    raise TimeoutError(f"[{harness.label}] Timed out waiting for Linux shell prompt:\n{harness.get_buf()[-2000:]}")
+
+
+def gate1_bios_phase20d_and_ed25519():
+    print("\n=== GATE 1: Legacy BIOS ISO + Phase 20D Personalization + Light Wayland UI + Ed25519 E2E ===")
+    h = SerialHarness(
+        [
+            "-name", "UniCore-QA-BIOS-20D",
+            "-m", "3072",
+            "-smp", "2",
+            "-cpu", "qemu64,+sse4.2,+avx",
+            "-accel", "tcg",
+            "-vga", "std",
+            "-cdrom", ISO_PATH,
+            "-boot", "d",
+            "-display", "none",
+            "-serial", "stdio",
+            "-monitor", "none",
+            "-no-reboot",
+        ],
+        "Gate1-BIOS-20D",
+    )
+    try:
+        wait_for_shell(h, 240)
+        script = r"""#!/bin/sh
+set -eu
+
+echo "[1/5] Checking boot mode, wallpapers, and Light theme assets..."
+. /mnt/unicore-boot.env
+[ "${UNICORE_BOOT_MODE}" = "live" ] || { echo "Expected live boot mode, got ${UNICORE_BOOT_MODE}"; exit 1; }
+uname -r
+test -f /usr/share/unicore/wallpaper.png
+test -f /usr/share/unicore/wallpaper-aurora.png
+test -f /usr/share/unicore/wallpaper-light.png
+test -f /usr/share/themes/UniCore-Light/openbox-3/themerc
+test -f /usr/share/unicore/themes/waybar-light.css
+test -f /usr/share/unicore/themes/fuzzel-light.ini
+test -x /usr/libexec/unicore-personalize
+
+echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
+mkdir -p /data/unicore
+touch /data/unicore/oobe.done
+tries=0
+while [ ! -S /run/user/1000/wayland-0 ] && [ "${tries}" -lt 80 ]; do
+    sleep 0.5
+    tries=$((tries + 1))
+done
+test -S /run/user/1000/wayland-0
+pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+sleep 0.5
+
+echo "[3/5] Applying Phase 20D Light Theme, Daylight Wallpaper, Malay Keyboard & Input settings..."
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    /usr/libexec/unicore-personalize set \
+        --theme light \
+        --wallpaper /usr/share/unicore/wallpaper-light.png \
+        --kb-layout my \
+        --natural-scroll no \
+        --tap yes \
+        --pointer-speed 0.3
+'
+grep -q '^UNICORE_THEME=light$' /data/home/.config/unicore/personalize.conf
+grep -q '^UNICORE_KB_LAYOUT=my$' /data/home/.config/unicore/personalize.conf
+grep -q '^UNICORE_NATURAL_SCROLL=no$' /data/home/.config/unicore/personalize.conf
+grep -q 'gtk-application-prefer-dark-theme=0' /home/unicore/.config/gtk-3.0/settings.ini
+grep -q '<name>UniCore-Light</name>' /home/unicore/.config/labwc/rc.xml
+grep -q '<naturalScroll>no</naturalScroll>' /home/unicore/.config/labwc/rc.xml
+grep -q '<pointerSpeed>0.3</pointerSpeed>' /home/unicore/.config/labwc/rc.xml
+grep -q '^XKB_DEFAULT_LAYOUT=my$' /home/unicore/.config/labwc/environment
+grep -q '#f1f5f9' /home/unicore/.config/waybar/style.css
+
+echo "[4/5] Capturing live Wayland Light-Mode screenshot of Settings -> Display & Style..."
+pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+sleep 1.2
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    /usr/bin/unicore-center --tab settings:appearance >/tmp/center20d.log 2>&1 &
+    for i in $(seq 1 30); do
+        if wlrctl toplevel list 2>/dev/null | grep -qi "UniCore"; then
+            break
+        fi
+        sleep 0.5
+    done
+    sleep 4
+    grim /tmp/phase20d.png
+'
+test -s /tmp/phase20d.png
+
+echo "===PNG_B64_START==="
+base64 /tmp/phase20d.png
+echo "===PNG_B64_END==="
+
+# Restore default dark theme to test bidirectional switch cleanly
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    /usr/libexec/unicore-personalize set --theme dark --wallpaper /usr/share/unicore/wallpaper.png --kb-layout us --natural-scroll yes --tap yes --pointer-speed 0.0
+'
+grep -q '<name>UniCore-Dark</name>' /home/unicore/.config/labwc/rc.xml
+
+echo "[5/5] Testing Ed25519 Release Manifest Signing & Tamper Rejection..."
+mkdir -p /tmp/ed25519_qa
+uniload update keygen --private /tmp/ed25519_qa/release.key --public /tmp/ed25519_qa/update.pub
+H0="0000000000000000000000000000000000000000000000000000000000000000"
+cat <<EOF_MAN > /tmp/ed25519_qa/test-manifest.json
+{
+  "arch": "x86_64",
+  "artifacts": {
+    "initramfs": {"filename": "initramfs-x86_64.img", "sha256": "${H0}", "size": 1024, "url": "initramfs-x86_64.img"},
+    "squashfs": {"filename": "unicore-rootfs-x86_64.squashfs", "sha256": "${H0}", "size": 1024, "url": "unicore-rootfs-x86_64.squashfs"},
+    "vmlinuz": {"filename": "vmlinuz-x86_64", "sha256": "${H0}", "size": 1024, "url": "vmlinuz-x86_64"}
+  },
+  "channel": "stable",
+  "notes": "QA",
+  "published_at": "unix:1795670630",
+  "schema_version": 1,
+  "version": "0.1.0"
+}
+EOF_MAN
+uniload update sign-manifest /tmp/ed25519_qa/test-manifest.json --key /tmp/ed25519_qa/release.key --output /tmp/ed25519_qa/test-manifest.json.sig
+uniload update verify-manifest /tmp/ed25519_qa/test-manifest.json --pubkey /tmp/ed25519_qa/update.pub --sig /tmp/ed25519_qa/test-manifest.json.sig --require-signature | grep -q '"signature_status": "verified"'
+
+sed 's/"version": "0.1.0"/"version": "0.9.9"/' /tmp/ed25519_qa/test-manifest.json > /tmp/ed25519_qa/tampered.json
+if uniload update verify-manifest /tmp/ed25519_qa/tampered.json --pubkey /tmp/ed25519_qa/update.pub --sig /tmp/ed25519_qa/test-manifest.json.sig --require-signature >/dev/null 2>&1; then
+    echo "ERROR: tampered manifest unexpectedly passed signature check"
+    exit 1
+fi
+rm -rf /tmp/ed25519_qa
+
+printf '\n===GATE1_OK===\n'
+"""
+        h.send_script_b64(script)
+        out = h.wait_for("\n===GATE1_OK===", 300)
+        m = re.search(r"===PNG_B64_START===\s*(.*?)\s*===PNG_B64_END===", out, re.DOTALL)
+        if not m:
+            raise RuntimeError("Missing screenshot base64 payload in Gate 1 output")
+        b64_clean = re.sub(r"\s+", "", m.group(1))
+        png_bytes = base64.b64decode(b64_clean)
+        os.makedirs(os.path.dirname(SCREENSHOT_DEST), exist_ok=True)
+        with open(SCREENSHOT_DEST, "wb") as f:
+            f.write(png_bytes)
+        print(f"    [PASS] Gate 1 passed! Screenshot saved ({len(png_bytes)} bytes): {SCREENSHOT_DEST}")
+    finally:
+        h.close()
+
+
+def gate2_uefi_boot():
+    print("\n=== GATE 2: UEFI Firmware ISO Boot (EDK2 OVMF) ===")
+    if not os.path.isfile(OVMF_BIOS):
+        raise FileNotFoundError(f"EDK2 UEFI firmware not found: {OVMF_BIOS}")
+    h = SerialHarness(
+        [
+            "-name", "UniCore-QA-UEFI",
+            "-drive", f"if=pflash,format=raw,readonly=on,file={OVMF_BIOS}",
+            "-m", "2048",
+            "-smp", "2",
+            "-accel", "tcg",
+            "-vga", "std",
+            "-cdrom", ISO_PATH,
+            "-boot", "d",
+            "-display", "none",
+            "-serial", "stdio",
+            "-monitor", "none",
+            "-no-reboot",
+        ],
+        "Gate2-UEFI",
+    )
+    try:
+        wait_for_shell(h, 240)
+        script = r"""#!/bin/sh
+set -eu
+test -d /sys/firmware/efi
+. /mnt/unicore-boot.env
+[ "${UNICORE_BOOT_MODE}" = "live" ]
+uname -r
+printf '\n===GATE2_OK===\n'
+"""
+        h.send_script_b64(script, "/tmp/qa_uefi.sh")
+        h.wait_for("\n===GATE2_OK===", 90)
+        print("    [PASS] Gate 2 passed! UEFI EDK2 boot verified (/sys/firmware/efi active).")
+    finally:
+        h.close()
+
+
+def gate3_legacy_2005():
+    print("\n=== GATE 3: 2005 Legacy PC Simulation (512 MB RAM, 1 vCPU, no SSE4.2/AVX) ===")
+    h = SerialHarness(
+        [
+            "-name", "UniCore-QA-2005",
+            "-m", "512",
+            "-smp", "1",
+            "-cpu", "qemu64,-sse4.2,-avx,-avx2",
+            "-accel", "tcg",
+            "-vga", "std",
+            "-cdrom", ISO_PATH,
+            "-boot", "d",
+            "-display", "none",
+            "-serial", "stdio",
+            "-monitor", "none",
+            "-no-reboot",
+        ],
+        "Gate3-2005",
+    )
+    try:
+        wait_for_shell(h, 240)
+        script = r"""#!/bin/sh
+set -eu
+uniload hw-profile --env
+uniload hw-profile --env | grep -q '^UNICORE_HW_TIER=legacy_ultra$'
+uniload hw-profile --env | grep -q '^UNICORE_LIGHTWEIGHT_SHELL=1$'
+grep -q 'zram0' /proc/swaps
+/usr/bin/unicore-center --check
+printf '\n===GATE3_OK===\n'
+"""
+        h.send_script_b64(script, "/tmp/qa_2005.sh")
+        h.wait_for("\n===GATE3_OK===", 90)
+        print("    [PASS] Gate 3 passed! 2005 512 MB RAM legacy_ultra profile + zram0 + unicore-center --check OK.")
+    finally:
+        h.close()
+
+
+def gate4_host_artifacts():
+    print("\n=== GATE 4: Host ISO SHA-256, Manifest Validity & USB Flasher Helper ===")
+    ps_res = subprocess.run(
+        [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            os.path.join(REPO_ROOT, "scripts", "write-usb-windows.ps1"),
+            "-VerifyOnly",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if ps_res.returncode != 0:
+        raise RuntimeError(f"write-usb-windows.ps1 failed:\n{ps_res.stdout}\n{ps_res.stderr}")
+    print(ps_res.stdout.strip())
+
+    # Verify manifest JSON schema via cargo-dev run uniload
+    man_res = subprocess.run(
+        [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            os.path.join(REPO_ROOT, "scripts", "cargo-dev.ps1"),
+            "run",
+            "-q",
+            "-p",
+            "uniload",
+            "--",
+            "update",
+            "verify-manifest",
+            MANIFEST_PATH,
+            "--allow-unsigned",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if man_res.returncode != 0 or '"valid": true' not in man_res.stdout:
+        raise RuntimeError(f"Manifest check failed:\n{man_res.stdout}\n{man_res.stderr}")
+    print("    [PASS] Gate 4 passed! ISO SHA-256 & manifest valid.")
+
+
+def main():
+    if not os.path.isfile(ISO_PATH):
+        raise FileNotFoundError(f"Missing ISO: {ISO_PATH}")
+    requested = set(sys.argv[1:]) if len(sys.argv) > 1 else {"1", "2", "3", "4"}
+    if "4" in requested:
+        gate4_host_artifacts()
+    if "1" in requested:
+        gate1_bios_phase20d_and_ed25519()
+    if "2" in requested:
+        gate2_uefi_boot()
+    if "3" in requested:
+        gate3_legacy_2005()
+    print("\n============================================================")
+    print("ALL REQUESTED RELEASE QA MATRIX GATES PASSED SUCCESSFULLY!")
+    print("============================================================")
+
+
+if __name__ == "__main__":
+    main()

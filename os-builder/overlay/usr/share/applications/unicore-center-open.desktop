@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Run with UniCore Sandbox
+Comment=Inspect compatibility era, configure permissions, and run application
+Exec=/usr/bin/unicore-center --open %f
+Icon=application-x-executable
+Terminal=false
+NoDisplay=true
+MimeType=application/vnd.microsoft.portable-executable;application/x-ms-dos-executable;application/x-dosexec;application/x-bat;application/x-msi;application/vnd.android.package-archive;

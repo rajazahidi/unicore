@@ -1,0 +1,141 @@
+#!/bin/sh
+set -eu
+
+default_conf_path() {
+    if [ -n "${UNICORE_FW_CONF:-}" ]; then
+        printf '%s\n' "${UNICORE_FW_CONF}"
+    elif [ -d /data/unicore ]; then
+        printf '/data/unicore/firewall.conf\n'
+    else
+        printf '/etc/unicore/firewall.conf\n'
+    fi
+}
+
+CONF_PATH="$(default_conf_path)"
+FW_ENABLED=1
+FW_PROFILE=home
+FW_ALLOW_SSH=0
+
+load_conf() {
+    FW_ENABLED=1
+    FW_PROFILE=home
+    FW_ALLOW_SSH=0
+    if [ -r "${CONF_PATH}" ]; then
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                FW_ENABLED)
+                    case "${v}" in
+                        0|false|no|off) FW_ENABLED=0 ;;
+                        *) FW_ENABLED=1 ;;
+                    esac
+                    ;;
+                FW_PROFILE)
+                    case "${v}" in
+                        public) FW_PROFILE=public ;;
+                        *) FW_PROFILE=home ;;
+                    esac
+                    ;;
+                FW_ALLOW_SSH)
+                    case "${v}" in
+                        1|true|yes|on) FW_ALLOW_SSH=1 ;;
+                        *) FW_ALLOW_SSH=0 ;;
+                    esac
+                    ;;
+            esac
+        done < "${CONF_PATH}"
+    fi
+}
+
+save_conf() {
+    mkdir -p "$(dirname "${CONF_PATH}")"
+    printf 'FW_ENABLED=%s\nFW_PROFILE=%s\nFW_ALLOW_SSH=%s\n' \
+        "${FW_ENABLED}" "${FW_PROFILE}" "${FW_ALLOW_SSH}" > "${CONF_PATH}"
+}
+
+apply_rules() {
+    load_conf
+    if ! command -v nft >/dev/null 2>&1; then
+        echo "nft binary not found" >&2
+        return 1
+    fi
+    # Only touch UniCore's dedicated table so Waydroid NAT/forwarding remains intact
+    nft delete table inet unicore_fw 2>/dev/null || true
+    [ "${FW_ENABLED}" -eq 1 ] || return 0
+
+    TMP_NFT="$(mktemp)"
+    trap 'rm -f "${TMP_NFT}"' EXIT
+    cat <<'EOF' > "${TMP_NFT}"
+table inet unicore_fw {
+    chain input {
+        type filter hook input priority 0; policy drop;
+        iifname "lo" accept
+        ct state established,related accept
+        ct state invalid drop
+        ip protocol icmp accept
+        ip6 nexthdr ipv6-icmp accept
+        udp dport 68 accept
+        udp dport 546 accept
+EOF
+    if [ "${FW_PROFILE}" = "home" ]; then
+        printf '        udp dport 5353 accept\n' >> "${TMP_NFT}"
+    fi
+    if [ "${FW_ALLOW_SSH}" -eq 1 ]; then
+        printf '        tcp dport 22 accept\n' >> "${TMP_NFT}"
+    fi
+    cat <<'EOF' >> "${TMP_NFT}"
+    }
+}
+EOF
+    nft -f "${TMP_NFT}"
+    rm -f "${TMP_NFT}"
+    trap - EXIT
+}
+
+cmd="${1:-status}"
+case "${cmd}" in
+    apply)
+        apply_rules
+        ;;
+    status)
+        load_conf
+        ACTIVE=0
+        RULES_COUNT=0
+        if command -v nft >/dev/null 2>&1 && nft list table inet unicore_fw >/dev/null 2>&1; then
+            ACTIVE=1
+            RULES_COUNT="$(nft list table inet unicore_fw 2>/dev/null | grep -cE 'accept|drop|reject' || true)"
+        fi
+        printf 'enabled=%s\nactive=%s\nprofile=%s\nallow_ssh=%s\nrules_count=%s\n' \
+            "${FW_ENABLED}" "${ACTIVE}" "${FW_PROFILE}" "${FW_ALLOW_SSH}" "${RULES_COUNT}"
+        ;;
+    set)
+        [ "$#" -ge 2 ] && [ "$#" -le 4 ] || {
+            echo "Usage: unicore-firewall set <on|off> [home|public] [0|1]" >&2
+            exit 2
+        }
+        load_conf
+        case "$2" in
+            on|1|true) FW_ENABLED=1 ;;
+            off|0|false) FW_ENABLED=0 ;;
+            *) echo "Invalid firewall enabled flag: $2" >&2; exit 2 ;;
+        esac
+        if [ "$#" -ge 3 ]; then
+            case "$3" in
+                home|public) FW_PROFILE="$3" ;;
+                *) echo "Invalid firewall profile: $3" >&2; exit 2 ;;
+            esac
+        fi
+        if [ "$#" -ge 4 ]; then
+            case "$4" in
+                0|false|off) FW_ALLOW_SSH=0 ;;
+                1|true|on) FW_ALLOW_SSH=1 ;;
+                *) echo "Invalid allow_ssh flag: $4" >&2; exit 2 ;;
+            esac
+        fi
+        save_conf
+        apply_rules
+        ;;
+    *)
+        echo "Usage: unicore-firewall <apply|status|set <on|off> [home|public] [0|1]>" >&2
+        exit 2
+        ;;
+esac

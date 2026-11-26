@@ -1,0 +1,228 @@
+#!/bin/sh
+set -eu
+
+# UniCore OS Stage-1 universal boot script (2005 BIOS IDE/SATA/USB to modern UEFI NVMe/QEMU):
+# Supports:
+#   0) Installed A/B slot via kernel parameter `unicore_slot=UNICORE_SYS_A|B`
+#   1) Direct QEMU raw SquashFS drive on /dev/vda
+#   2) Live Hybrid ISO/USB media (never auto-formatting host hard drives)
+
+export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+ARCH="$(uname -m 2>/dev/null || echo x86_64)"
+
+mkdir -p /proc /sys /dev /mnt/ro /mnt/media /mnt/data /mnt/sys_overlay /newroot /run/cryptsetup /tmp
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+
+# Load broad 2005-2026 storage, USB, CD, filesystem, and compression modules.
+for mod in \
+    virtio_pci virtio_blk \
+    ata_piix ata_generic pata_acpi libahci ahci sd_mod sr_mod \
+    nvme_core nvme \
+    usb_common usbcore uhci_hcd ohci_hcd ehci_hcd ehci_pci xhci_hcd xhci_pci usb_storage uas \
+    loop isofs iso9660 fat vfat nls_cp437 nls_utf8 \
+    dm_mod trusted encrypted_keys dm_crypt aesni_intel aes_generic xts cbc sha256_generic algif_skcipher algif_hash \
+    squashfs overlay ext4 binfmt_misc; do
+    modprobe "${mod}" 2>/dev/null || true
+done
+
+# Give legacy IDE/USB/VirtIO buses a brief moment to settle.
+tries=0
+while [ ! -b /dev/vda ] && [ ! -b /dev/sda ] && [ ! -b /dev/sr0 ] && [ ! -b /dev/hda ] && [ ! -b /dev/nvme0n1 ] && [ "${tries}" -lt 50 ]; do
+    sleep 0.1
+    tries=$((tries + 1))
+done
+
+UNICORE_SLOT=""
+for arg in $(cat /proc/cmdline 2>/dev/null || true); do
+    case "${arg}" in
+        unicore_slot=*)
+            UNICORE_SLOT="${arg#unicore_slot=}"
+            ;;
+    esac
+done
+
+BOOT_MODE="live"
+BOOT_MEDIA_DEV=""
+BOOT_SLOT=""
+MEDIA_MOUNTED=0
+
+mount_rootfs_ro() {
+    resolve_squashfs() {
+        base="$1"
+        if [ -f "${base}/unicore/unicore-rootfs-${ARCH}.squashfs" ]; then
+            printf '%s\n' "${base}/unicore/unicore-rootfs-${ARCH}.squashfs"
+            return 0
+        fi
+        for cand in "${base}"/unicore/unicore-rootfs-*.squashfs; do
+            if [ -f "${cand}" ]; then
+                printf '%s\n' "${cand}"
+                return 0
+            fi
+        done
+        return 1
+    }
+
+    # 0. Explicit bare-metal A/B slot passed by GRUB (`unicore_slot=UNICORE_SYS_A|B`)
+    if [ -n "${UNICORE_SLOT}" ]; then
+        for wait_pass in 1 2 3 4 5 6 7 8 9 10; do
+            slot_dev="$(blkid -t "LABEL=${UNICORE_SLOT}" -o device 2>/dev/null | head -n1 || true)"
+            if [ -n "${slot_dev}" ] && mount -t ext4 -o ro "${slot_dev}" /mnt/media 2>/dev/null; then
+                if sq_img="$(resolve_squashfs /mnt/media)"; then
+                    if mount -t squashfs -o loop,ro "${sq_img}" /mnt/ro 2>/dev/null; then
+                        BOOT_MODE="installed"
+                        BOOT_MEDIA_DEV="${slot_dev}"
+                        BOOT_SLOT="${UNICORE_SLOT}"
+                        MEDIA_MOUNTED=1
+                        return 0
+                    fi
+                fi
+                umount /mnt/media 2>/dev/null || true
+            fi
+            sleep 0.5
+        done
+    fi
+
+    # 1. Direct QEMU raw SquashFS drive on /dev/vda
+    if [ -b /dev/vda ] && mount -t squashfs -o ro /dev/vda /mnt/ro 2>/dev/null; then
+        BOOT_MODE="qemu-direct"
+        BOOT_MEDIA_DEV="/dev/vda"
+        MEDIA_MOUNTED=0
+        return 0
+    fi
+
+    # 2. Scan ISO/USB/SATA/IDE/NVMe/MMC media containing /unicore/unicore-rootfs-${ARCH}.squashfs
+    for wait_pass in 1 2 3 4 5; do
+        for dev in /dev/sr* /dev/sd* /dev/hd* /dev/nvme* /dev/vd* /dev/mmcblk*; do
+            [ -b "${dev}" ] || continue
+            for fstype in iso9660 vfat ext4; do
+                if mount -t "${fstype}" -o ro "${dev}" /mnt/media 2>/dev/null; then
+                    if sq_img="$(resolve_squashfs /mnt/media)"; then
+                        if mount -t squashfs -o loop,ro "${sq_img}" /mnt/ro 2>/dev/null; then
+                            BOOT_MEDIA_DEV="${dev}"
+                            MEDIA_MOUNTED=1
+                            lbl="$(blkid -s LABEL -o value "${dev}" 2>/dev/null || true)"
+                            case "${lbl}" in
+                                UNICORE_SYS_A|UNICORE_SYS_B)
+                                    BOOT_MODE="installed"
+                                    BOOT_SLOT="${lbl}"
+                                    ;;
+                                *)
+                                    BOOT_MODE="live"
+                                    ;;
+                            esac
+                            return 0
+                        fi
+                    fi
+                    umount /mnt/media 2>/dev/null || true
+                fi
+            done
+        done
+        sleep 0.5
+    done
+    return 1
+}
+
+if ! mount_rootfs_ro; then
+    echo "[PANIC] Immutable UniCore RootFS not found on Slot A/B, VirtIO, ISO, USB, IDE, SATA, or NVMe!"
+    exec /bin/sh
+fi
+
+DATA_DEV=""
+DATA_ENCRYPTED=0
+for dev in $(blkid -t LABEL=UNICORE_DATA -o device 2>/dev/null || true); do
+    DATA_DEV="${dev}"
+    break
+done
+
+# Support LUKS2-encrypted UNICORE_DATA partitions created by unicore-install --encrypt-data
+if [ -z "${DATA_DEV}" ] && command -v cryptsetup >/dev/null 2>&1; then
+    LUKS_CAND=""
+    for dev in $(blkid -t LABEL=UNICORE_DATA_LUKS -o device 2>/dev/null || true); do
+        LUKS_CAND="${dev}"
+        break
+    done
+    if [ -z "${LUKS_CAND}" ]; then
+        for dev in $(blkid -t TYPE=crypto_LUKS -o device 2>/dev/null || true); do
+            LUKS_CAND="${dev}"
+            break
+        done
+    fi
+    if [ -n "${LUKS_CAND}" ]; then
+        echo ""
+        echo "==> Encrypted UniCore Data partition detected (${LUKS_CAND})."
+        export DM_DISABLE_UDEV=1
+        unlock_attempt=1
+        while [ "${unlock_attempt}" -le 3 ]; do
+            printf 'Enter LUKS passphrase for %s (attempt %s/3, empty to boot Live RAM): ' "${LUKS_CAND}" "${unlock_attempt}"
+            IFS= read -r luks_pass || luks_pass=""
+            luks_pass="${luks_pass%$(printf '\r')}"
+            echo ""
+            if [ -z "${luks_pass}" ]; then
+                echo "==> Skipping encrypted /data unlock; continuing in Live RAM mode."
+                break
+            fi
+            if printf '%s' "${luks_pass}" | cryptsetup open --disable-locks --key-file=- "${LUKS_CAND}" unicore_data; then
+                command -v dmsetup >/dev/null 2>&1 && dmsetup mknodes 2>/dev/null || true
+                if [ -b /dev/mapper/unicore_data ]; then
+                    DATA_DEV="/dev/mapper/unicore_data"
+                    DATA_ENCRYPTED=1
+                fi
+                unset luks_pass
+                break
+            fi
+            unset luks_pass
+            echo "Incorrect LUKS passphrase."
+            unlock_attempt=$((unlock_attempt + 1))
+        done
+    fi
+fi
+
+# Auto-format blank /dev/vdb ONLY in direct QEMU development mode; never touch host drives in Live mode.
+if [ -z "${DATA_DEV}" ] && [ "${DATA_ENCRYPTED}" = "0" ] && [ "${BOOT_MODE}" = "qemu-direct" ] && [ -b /dev/vdb ] && ! blkid /dev/vdb >/dev/null 2>&1; then
+    echo "==> Formatting persistent /data disk (/dev/vdb) as ext4 (UNICORE_DATA)..."
+    mkfs.ext4 -F -L UNICORE_DATA /dev/vdb >/dev/null 2>&1 || true
+    DATA_DEV="/dev/vdb"
+fi
+
+if [ -n "${DATA_DEV}" ] && mount -t ext4 "${DATA_DEV}" /mnt/data 2>/dev/null; then
+    case "${BOOT_SLOT}" in
+        UNICORE_SYS_A) OVERLAY_ROOT="/mnt/data/sys_overlay/slot_a" ;;
+        UNICORE_SYS_B) OVERLAY_ROOT="/mnt/data/sys_overlay/slot_b" ;;
+        *) OVERLAY_ROOT="/mnt/data/sys_overlay" ;;
+    esac
+    mkdir -p "${OVERLAY_ROOT}/upper" "${OVERLAY_ROOT}/work" /mnt/data/uniload /mnt/data/home /mnt/data/unicore
+    chmod 0755 /mnt/data "${OVERLAY_ROOT}" "${OVERLAY_ROOT}/upper" 2>/dev/null || true
+    mount -t overlay overlay \
+        -o lowerdir=/mnt/ro,upperdir="${OVERLAY_ROOT}/upper",workdir="${OVERLAY_ROOT}/work" \
+        /newroot
+    mkdir -p /newroot/data
+    mount --move /mnt/data /newroot/data
+else
+    echo "==> Live RAM mode (no persistent UNICORE_DATA partition found; host drives untouched)."
+    mount -t tmpfs tmpfs /mnt/sys_overlay
+    mkdir -p /mnt/sys_overlay/upper /mnt/sys_overlay/work
+    mount -t overlay overlay \
+        -o lowerdir=/mnt/ro,upperdir=/mnt/sys_overlay/upper,workdir=/mnt/sys_overlay/work \
+        /newroot
+fi
+
+mkdir -p /newroot/mnt/unicore-media
+if [ "${MEDIA_MOUNTED}" = "1" ]; then
+    mount --move /mnt/media /newroot/mnt/unicore-media
+fi
+
+cat <<EOF > /newroot/mnt/unicore-boot.env
+UNICORE_BOOT_MODE=${BOOT_MODE}
+UNICORE_BOOT_MEDIA=${BOOT_MEDIA_DEV}
+UNICORE_BOOT_SLOT=${BOOT_SLOT}
+UNICORE_DATA_ENCRYPTED=${DATA_ENCRYPTED}
+EOF
+
+mkdir -p /newroot/proc /newroot/sys /newroot/dev /newroot/run
+mount --move /proc /newroot/proc
+mount --move /sys /newroot/sys
+mount --move /dev /newroot/dev
+
+exec switch_root /newroot /sbin/init

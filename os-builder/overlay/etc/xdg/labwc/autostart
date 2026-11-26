@@ -1,0 +1,65 @@
+#!/bin/sh
+# UniCore OS Wayland Desktop Autostart
+
+mkdir -p /home/unicore/.local/share/applications /home/unicore/Desktop
+if [ ! -f /home/unicore/Desktop/unicore-center.desktop ] && [ -f /usr/share/applications/unicore-center.desktop ]; then
+    cp /usr/share/applications/unicore-center.desktop /home/unicore/Desktop/unicore-center.desktop
+    chmod +x /home/unicore/Desktop/unicore-center.desktop
+fi
+
+if command -v pipewire >/dev/null 2>&1; then
+    pipewire >/dev/null 2>&1 &
+fi
+if command -v wireplumber >/dev/null 2>&1; then
+    wireplumber >/dev/null 2>&1 &
+fi
+if command -v pipewire-pulse >/dev/null 2>&1; then
+    pipewire-pulse >/dev/null 2>&1 &
+fi
+
+# Re-apply persisted display layout (wlr-randr output/mode/scale) and Night Light
+if [ -x /data/home/.config/unicore/display.sh ]; then
+    /data/home/.config/unicore/display.sh >/dev/null 2>&1 || true
+fi
+if [ -x /usr/libexec/unicore-nightlight ]; then
+    /usr/libexec/unicore-nightlight apply >/dev/null 2>&1 || true
+fi
+
+# Skip heavy shell panels, wallpaper, clipboard watcher & toast daemon on 2005-2008 legacy_ultra machines (<=1.5GB RAM) to preserve memory for apps.
+if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ]; then
+    WALLPAPER_PATH="/usr/share/unicore/wallpaper.png"
+    if [ -x /usr/libexec/unicore-personalize ]; then
+        SAVED_WP="$(/usr/libexec/unicore-personalize status 2>/dev/null | sed -n 's/^wallpaper=//p' | head -n1 || true)"
+        if [ -n "${SAVED_WP}" ] && [ -f "${SAVED_WP}" ]; then
+            WALLPAPER_PATH="${SAVED_WP}"
+        fi
+    fi
+    if [ -f "${WALLPAPER_PATH}" ] && command -v swaybg >/dev/null 2>&1; then
+        swaybg -i "${WALLPAPER_PATH}" -m fill >/dev/null 2>&1 &
+    fi
+    if command -v mako >/dev/null 2>&1; then
+        mako >/dev/null 2>&1 &
+    fi
+    if command -v waybar >/dev/null 2>&1; then
+        waybar >/dev/null 2>&1 &
+    fi
+    if command -v wl-paste >/dev/null 2>&1 && [ -x /usr/libexec/unicore-clip-store ]; then
+        wl-paste --type text --watch /usr/libexec/unicore-clip-store >/dev/null 2>&1 &
+    fi
+fi
+
+# Launch First-Boot OOBE Wizard on initial boot, or UniCore App & Security Center once configured
+if [ -x /usr/bin/unicore-center ]; then
+    if [ ! -f /data/unicore/oobe.done ]; then
+        /usr/bin/unicore-center --oobe >/tmp/unicore-center.log 2>&1 &
+    else
+        /usr/bin/unicore-center >/tmp/unicore-center.log 2>&1 &
+    fi
+elif command -v foot >/dev/null 2>&1; then
+    foot &
+fi
+
+# Confirm healthy A/B boot once Wayland compositor session starts in installed mode
+if [ -r /mnt/unicore-boot.env ] && grep -q '^UNICORE_BOOT_MODE=installed$' /mnt/unicore-boot.env 2>/dev/null; then
+    doas /usr/libexec/unicore-sys-helper confirm-boot >/tmp/unicore-boot-confirm.log 2>&1 &
+fi

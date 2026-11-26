@@ -1,0 +1,16 @@
+# UniCore OS mako notification daemon theme (Phase 15)
+font=DejaVu Sans 11
+background-color=#0f172aee
+text-color=#f8fafc
+border-color=#38bdf8
+border-size=2
+border-radius=8
+padding=12
+margin=12
+default-timeout=5000
+max-visible=4
+anchor=top-right
+
+[urgency=high]
+border-color=#ef4444
+default-timeout=8000

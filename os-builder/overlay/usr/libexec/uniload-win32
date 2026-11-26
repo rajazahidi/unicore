@@ -1,0 +1,233 @@
+#!/bin/sh
+set -eu
+
+# UniCore OS internal Win32/Win16 subsystem runner (invoked exclusively by uniload).
+# Supports Windows 98, Windows XP, and modern Windows 10/11 apps & games via
+# automatic PE era profiling (UNILOAD_WIN_ERA=win98|winxp|win10) and enforces
+# sandbox permissions (Documents, GPU, Microphone, Network).
+
+if [ "$#" -lt 1 ]; then
+    echo "[uniload-win32] Missing target binary" >&2
+    exit 1
+fi
+
+export WINEPREFIX="${WINEPREFIX:-/data/uniload/default_win32}"
+export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-winemenubuilder.exe=d}"
+export WINEDEBUG="${WINEDEBUG:--all}"
+export WINEESYNC=1
+export WINEFSYNC=1
+ulimit -n 524288 2>/dev/null || ulimit -n 65536 2>/dev/null || true
+
+# Persistent Vulkan/Mesa/DXVK shader caches reduce game stutter across launches.
+SHADER_CACHE_ROOT="${UNILOAD_STATE_DIR:-/data/uniload}/shader_cache"
+mkdir -p "${SHADER_CACHE_ROOT}/dxvk" "${SHADER_CACHE_ROOT}/mesa" "${SHADER_CACHE_ROOT}/nv" 2>/dev/null || true
+export DXVK_STATE_CACHE_PATH="${DXVK_STATE_CACHE_PATH:-${SHADER_CACHE_ROOT}/dxvk}"
+export MESA_SHADER_CACHE_DIR="${MESA_SHADER_CACHE_DIR:-${SHADER_CACHE_ROOT}/mesa}"
+export __GL_SHADER_DISK_CACHE=1
+export __GL_SHADER_DISK_CACHE_PATH="${__GL_SHADER_DISK_CACHE_PATH:-${SHADER_CACHE_ROOT}/nv}"
+
+if [ -r /data/unicore/gaming.conf ]; then
+    # shellcheck disable=SC1091
+    . /data/unicore/gaming.conf
+fi
+if [ "${UNICORE_SHOW_FPS:-0}" = "1" ]; then
+    export DXVK_HUD="${DXVK_HUD:-fps,frametimes,gpuload}"
+    export MANGOHUD="${MANGOHUD:-1}"
+fi
+
+ERA="${UNILOAD_WIN_ERA:-win10}"
+VDESK="${UNILOAD_VIRTUAL_DESKTOP:-off}"
+VK_BACKEND="${UNILOAD_VK_BACKEND:-dxvk+vkd3d}"
+ALLOW_GPU="${UNILOAD_ALLOW_GPU:-1}"
+
+if [ "${ALLOW_GPU}" = "0" ] || [ "${VK_BACKEND}" = "software" ]; then
+    export LIBGL_ALWAYS_SOFTWARE=1
+    export GALLIUM_DRIVER=llvmpipe
+fi
+
+mkdir -p "${WINEPREFIX}/drive_c/users"
+
+# Enforce sandbox permission on host Documents folder exposure.
+DOCS_LINK="${WINEPREFIX}/drive_c/users/Public/Documents"
+if [ "${UNILOAD_ALLOW_DOCS:-0}" = "1" ] && [ -d /data/home/Documents ]; then
+    mkdir -p "$(dirname "${DOCS_LINK}")"
+    if [ ! -e "${DOCS_LINK}" ]; then
+        ln -s /data/home/Documents "${DOCS_LINK}" || true
+    fi
+elif [ -L "${DOCS_LINK}" ]; then
+    rm -f "${DOCS_LINK}"
+fi
+
+if ! command -v wine >/dev/null 2>&1; then
+    echo "[uniload-win32] Win32 core runtime not installed in rootfs." >&2
+    exit 127
+fi
+
+# Configure Wine compatibility version and DirectDraw/D3D registry once per era or GPU backend change.
+ERA_MARKER="${WINEPREFIX}/.unicore_era"
+ERA_SIG="${ERA}:${VK_BACKEND}:${ALLOW_GPU}"
+PREV_ERA=""
+[ -f "${ERA_MARKER}" ] && PREV_ERA="$(cat "${ERA_MARKER}" 2>/dev/null || true)"
+
+if [ "${PREV_ERA}" != "${ERA_SIG}" ]; then
+    DDRAW_RENDERER="opengl"
+    USE_GLSL="enabled"
+    if [ "${ERA}" = "win98" ] || [ "${VK_BACKEND}" = "gdi-legacy" ] || [ "${ALLOW_GPU}" = "0" ] || [ "${VK_BACKEND}" = "software" ]; then
+        DDRAW_RENDERER="gdi"
+        USE_GLSL="disabled"
+    fi
+    case "${ERA}" in
+        win98)
+            wine reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "win98" /f >/dev/null 2>&1 || true
+            ;;
+        winxp)
+            wine reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "winxp" /f >/dev/null 2>&1 || true
+            ;;
+        win7)
+            wine reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
+            ;;
+        *)
+            wine reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "win10" /f >/dev/null 2>&1 || true
+            ;;
+    esac
+    wine reg add "HKCU\\Software\\Wine\\Direct3D" /v DirectDrawRenderer /t REG_SZ /d "${DDRAW_RENDERER}" /f >/dev/null 2>&1 || true
+    wine reg add "HKCU\\Software\\Wine\\Direct3D" /v UseGLSL /t REG_SZ /d "${USE_GLSL}" /f >/dev/null 2>&1 || true
+    printf '%s' "${ERA_SIG}" > "${ERA_MARKER}"
+fi
+
+provision_dxvk_vkd3d() {
+    [ "${ALLOW_GPU}" = "1" ] || return 0
+    case "${VK_BACKEND}" in
+        dxvk+vkd3d|dxvk-d3d8-d3d11|dxvk-d3d8-d3d9) ;;
+        *) return 0 ;;
+    esac
+
+    sys32="${WINEPREFIX}/drive_c/windows/system32"
+    syswow="${WINEPREFIX}/drive_c/windows/syswow64"
+    mkdir -p "${sys32}"
+
+    dxvk_root=""
+    for cand in /data/uniload/dxvk /usr/share/dxvk /usr/lib/dxvk; do
+        if [ -d "${cand}" ]; then
+            dxvk_root="${cand}"
+            break
+        fi
+    done
+
+    if [ "${VK_BACKEND}" = "dxvk-d3d8-d3d9" ]; then
+        dxvk_dlls="d3d8.dll d3d9.dll dxgi.dll"
+    else
+        dxvk_dlls="d3d8.dll d3d9.dll d3d10core.dll d3d11.dll dxgi.dll"
+    fi
+
+    overrides=""
+    if [ -n "${dxvk_root}" ]; then
+        for dll in ${dxvk_dlls}; do
+            src64=""
+            for p in "${dxvk_root}/x64/${dll}" "${dxvk_root}/x86_64/${dll}" "${dxvk_root}/${dll}"; do
+                [ -f "${p}" ] && { src64="${p}"; break; }
+            done
+            [ -n "${src64}" ] && cp -f "${src64}" "${sys32}/${dll}"
+
+            src32=""
+            for p in "${dxvk_root}/x32/${dll}" "${dxvk_root}/x86/${dll}"; do
+                [ -f "${p}" ] && { src32="${p}"; break; }
+            done
+            if [ -n "${src32}" ]; then
+                mkdir -p "${syswow}"
+                cp -f "${src32}" "${syswow}/${dll}"
+            fi
+
+            if [ -n "${src64}" ] || [ -n "${src32}" ]; then
+                name="${dll%.dll}"
+                overrides="${overrides:+${overrides};}${name}=n,b"
+            fi
+        done
+    fi
+
+    if [ "${VK_BACKEND}" = "dxvk+vkd3d" ]; then
+        vkd3d_root=""
+        for cand in /data/uniload/vkd3d /usr/share/vkd3d-proton; do
+            if [ -d "${cand}" ]; then
+                vkd3d_root="${cand}"
+                break
+            fi
+        done
+        if [ -n "${vkd3d_root}" ]; then
+            for dll in d3d12.dll d3d12core.dll; do
+                src64=""
+                for p in "${vkd3d_root}/x64/${dll}" "${vkd3d_root}/x86_64/${dll}" "${vkd3d_root}/${dll}"; do
+                    [ -f "${p}" ] && { src64="${p}"; break; }
+                done
+                [ -n "${src64}" ] && cp -f "${src64}" "${sys32}/${dll}"
+                src32=""
+                for p in "${vkd3d_root}/x86/${dll}" "${vkd3d_root}/x32/${dll}"; do
+                    [ -f "${p}" ] && { src32="${p}"; break; }
+                done
+                if [ -n "${src32}" ]; then
+                    mkdir -p "${syswow}"
+                    cp -f "${src32}" "${syswow}/${dll}"
+                fi
+                if [ -n "${src64}" ] || [ -n "${src32}" ]; then
+                    name="${dll%.dll}"
+                    overrides="${overrides:+${overrides};}${name}=n,b"
+                fi
+            done
+        fi
+    fi
+
+    if [ -n "${overrides}" ]; then
+        export WINEDLLOVERRIDES="${WINEDLLOVERRIDES};${overrides}"
+    fi
+}
+
+provision_cnc_ddraw() {
+    [ "${ALLOW_GPU}" = "1" ] || return 0
+    [ "${VK_BACKEND}" = "ddraw-compat+wined3d" ] || return 0
+
+    ddraw_root=""
+    for cand in /data/uniload/cnc-ddraw /usr/share/cnc-ddraw; do
+        if [ -f "${cand}/ddraw.dll" ]; then
+            ddraw_root="${cand}"
+            break
+        fi
+    done
+    [ -n "${ddraw_root}" ] || return 0
+
+    syswow="${WINEPREFIX}/drive_c/windows/syswow64"
+    mkdir -p "${syswow}"
+    cp -f "${ddraw_root}/ddraw.dll" "${syswow}/ddraw.dll"
+    if [ -f "${ddraw_root}/ddraw.ini" ] && [ ! -f "${syswow}/ddraw.ini" ]; then
+        cp -f "${ddraw_root}/ddraw.ini" "${syswow}/ddraw.ini"
+    fi
+    export WINEDLLOVERRIDES="${WINEDLLOVERRIDES};ddraw=n,b"
+}
+
+provision_dxvk_vkd3d
+provision_cnc_ddraw
+
+if [ -n "${UNILOAD_APP_WORKDIR:-}" ] && [ -d "${UNILOAD_APP_WORKDIR}" ]; then
+    cd "${UNILOAD_APP_WORKDIR}" || true
+fi
+
+if [ "$1" = "msiexec" ]; then
+    shift
+    exec /usr/libexec/uniload-sandbox-exec wine msiexec "$@"
+fi
+
+# Win16 NE applications route through otvdm.exe when installed.
+if [ "${UNILOAD_WIN16_MODE:-0}" = "1" ]; then
+    for otvdm_bin in /data/uniload/otvdm/otvdm.exe /usr/share/unicore/otvdm/otvdm.exe; do
+        if [ -f "${otvdm_bin}" ]; then
+            exec /usr/libexec/uniload-sandbox-exec wine "${otvdm_bin}" "$@"
+        fi
+    done
+fi
+
+# Classic Win98/XP 640x480 or 800x600 games run inside an isolated virtual desktop
+# so fullscreen mode switches cannot break the Wayland compositor.
+if [ "${VDESK}" != "off" ] && [ -n "${DISPLAY:-}" ]; then
+    exec /usr/libexec/uniload-sandbox-exec wine explorer "/desktop=UniCore-${ERA},${VDESK}" "$@"
+fi
+
+exec /usr/libexec/uniload-sandbox-exec wine "$@"

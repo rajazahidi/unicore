@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+# Prepare binderfs and persistent /data/waydroid symlink at boot without
+# starting the Android container (preserves 0 MB idle memory until an APK runs).
+if grep -q binder /proc/filesystems 2>/dev/null; then
+    mkdir -p /dev/binderfs
+    if ! mountpoint -q /dev/binderfs 2>/dev/null; then
+        mount -t binder binder /dev/binderfs || true
+    fi
+fi
+
+mkdir -p /data/waydroid/images /data/waydroid/overlay/system/lib64
+if [ -d /var/lib/waydroid ] && [ ! -L /var/lib/waydroid ]; then
+    cp -a /var/lib/waydroid/. /data/waydroid/ 2>/dev/null || true
+    rm -rf /var/lib/waydroid
+fi
+if [ ! -e /var/lib/waydroid ]; then
+    mkdir -p /var/lib
+    ln -s /data/waydroid /var/lib/waydroid
+fi

@@ -1,0 +1,317 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -lt 1 ] || [ "$#" -gt 4 ]; then
+    echo "Usage: unicore-sys-helper <poweroff|reboot|suspend|bt-start|bt-stop|cups-start|cups-stop|printer-discover|printer-add <name> <uri> [driver]|printer-remove <name>|printer-default <name>|fw-status|fw-set <on|off> [home|public] [0|1]|backup-targets|backup-create <dir> [encrypted]|backup-restore <file> [encrypted]|set-cpu-governor <mode>|install-disk <dev>|install-disk-encrypted <dev>|apply-oobe <tz> <host>|set-user-password|update-status|update-check [url]|update-apply-url <url>|update-apply-local <path> [allow-unsigned]|update-rollback|confirm-boot>" >&2
+    exit 2
+fi
+
+is_safe_https_url() {
+    printf '%s' "$1" | grep -Eq '^https://[^[:space:]"'\''$`\\;<>|&]+$'
+}
+
+is_safe_printer_name() {
+    printf '%s' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$'
+}
+
+is_safe_printer_uri() {
+    printf '%s' "$1" | grep -Eq '^(ipp|ipps|usb|socket|lpd|http|https|dnssd)://[^[:space:]"'\''$`\\;<>|&]+$'
+}
+
+is_safe_abs_path() {
+    case "$1" in
+        /*)
+            case "$1" in
+                *..*) return 1 ;;
+            esac
+            ! printf '%s' "$1" | grep -Eq '[[:cntrl:]"'\''$`\\;<>|&]'
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+case "$1" in
+    poweroff)
+        [ "$#" -eq 1 ] || exit 2
+        exec /sbin/poweroff
+        ;;
+    reboot)
+        [ "$#" -eq 1 ] || exit 2
+        exec /sbin/reboot
+        ;;
+    suspend)
+        [ "$#" -eq 1 ] || exit 2
+        if [ -w /sys/power/state ]; then
+            printf 'mem' > /sys/power/state
+        else
+            echo "Suspend is not supported by this hardware or VM firmware" >&2
+            exit 1
+        fi
+        ;;
+    bt-start)
+        [ "$#" -eq 1 ] || exit 2
+        HAS_BT=0
+        for dev in /sys/class/bluetooth/hci*; do
+            if [ -e "${dev}" ]; then
+                HAS_BT=1
+                break
+            fi
+        done
+        if [ "${HAS_BT}" -ne 1 ]; then
+            echo "No Bluetooth adapter detected in /sys/class/bluetooth" >&2
+            exit 1
+        fi
+        exec /etc/init.d/bluetooth start
+        ;;
+    bt-stop)
+        [ "$#" -eq 1 ] || exit 2
+        if [ -x /etc/init.d/bluetooth ]; then
+            exec /etc/init.d/bluetooth stop
+        fi
+        exit 0
+        ;;
+    cups-start)
+        [ "$#" -eq 1 ] || exit 2
+        mkdir -p /data/cups /var/spool/cups /var/cache/cups /run/cups
+        chmod 0755 /data/cups
+        if [ ! -f /data/cups/cupsd.conf ] && [ -d /usr/share/unicore/cups-defaults ]; then
+            cp -a /usr/share/unicore/cups-defaults/. /data/cups/ 2>/dev/null || true
+        fi
+        if [ ! -L /etc/cups ]; then
+            rm -rf /etc/cups
+            ln -s /data/cups /etc/cups
+        fi
+        if [ -x /etc/init.d/cupsd ]; then
+            exec /etc/init.d/cupsd start
+        elif [ -x /etc/init.d/cups ]; then
+            exec /etc/init.d/cups start
+        else
+            echo "CUPS service script not found" >&2
+            exit 1
+        fi
+        ;;
+    cups-stop)
+        [ "$#" -eq 1 ] || exit 2
+        if [ -x /etc/init.d/cupsd ]; then
+            exec /etc/init.d/cupsd stop
+        elif [ -x /etc/init.d/cups ]; then
+            exec /etc/init.d/cups stop
+        fi
+        exit 0
+        ;;
+    printer-discover)
+        [ "$#" -eq 1 ] || exit 2
+        if [ -x /usr/sbin/lpinfo ]; then
+            exec /usr/sbin/lpinfo -v
+        fi
+        exec lpinfo -v
+        ;;
+    printer-add)
+        [ "$#" -eq 3 ] || [ "$#" -eq 4 ] || exit 2
+        is_safe_printer_name "$2" || { echo "Denied invalid printer name: $2" >&2; exit 1; }
+        is_safe_printer_uri "$3" || { echo "Denied invalid printer URI: $3" >&2; exit 1; }
+        drv="${4:-everywhere}"
+        case "${drv}" in
+            everywhere)
+                exec lpadmin -p "$2" -E -v "$3" -m everywhere
+                ;;
+            raw)
+                exec lpadmin -p "$2" -E -v "$3"
+                ;;
+            *)
+                echo "Denied unsupported printer driver mode: ${drv}" >&2
+                exit 2
+                ;;
+        esac
+        ;;
+    printer-remove)
+        [ "$#" -eq 2 ] || exit 2
+        is_safe_printer_name "$2" || { echo "Denied invalid printer name: $2" >&2; exit 1; }
+        exec lpadmin -x "$2"
+        ;;
+    printer-default)
+        [ "$#" -eq 2 ] || exit 2
+        is_safe_printer_name "$2" || { echo "Denied invalid printer name: $2" >&2; exit 1; }
+        exec lpadmin -d "$2"
+        ;;
+    fw-status)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/unicore-firewall status
+        ;;
+    fw-set)
+        [ "$#" -ge 2 ] && [ "$#" -le 4 ] || exit 2
+        case "$2" in
+            on|off|1|0) ;;
+            *) echo "Denied invalid firewall flag: $2" >&2; exit 2 ;;
+        esac
+        if [ "$#" -ge 3 ]; then
+            case "$3" in
+                home|public) ;;
+                *) echo "Denied invalid firewall profile: $3" >&2; exit 2 ;;
+            esac
+        fi
+        if [ "$#" -ge 4 ]; then
+            case "$4" in
+                0|1) ;;
+                *) echo "Denied invalid firewall ssh flag: $4" >&2; exit 2 ;;
+            esac
+        fi
+        shift
+        exec /usr/libexec/unicore-firewall set "$@"
+        ;;
+    backup-targets)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/unicore-backup list-targets
+        ;;
+    backup-create)
+        [ "$#" -eq 2 ] || [ "$#" -eq 3 ] || exit 2
+        is_safe_abs_path "$2" || { echo "Denied unsafe backup target dir: $2" >&2; exit 1; }
+        if [ "$#" -eq 3 ]; then
+            [ "$3" = "encrypted" ] || { echo "Denied unknown backup mode: $3" >&2; exit 2; }
+            exec /usr/libexec/unicore-backup create "$2" encrypted
+        fi
+        exec /usr/libexec/unicore-backup create "$2"
+        ;;
+    backup-restore)
+        [ "$#" -eq 2 ] || [ "$#" -eq 3 ] || exit 2
+        is_safe_abs_path "$2" || { echo "Denied unsafe backup archive path: $2" >&2; exit 1; }
+        if [ "$#" -eq 3 ]; then
+            [ "$3" = "encrypted" ] || { echo "Denied unknown restore mode: $3" >&2; exit 2; }
+            exec /usr/libexec/unicore-backup restore "$2" encrypted
+        fi
+        exec /usr/libexec/unicore-backup restore "$2"
+        ;;
+    install-disk)
+        [ "$#" -eq 2 ] || exit 2
+        if ! printf '%s' "$2" | grep -Eq '^/dev/(sd[a-z]|hd[a-z]|vd[a-z]|nvme[0-9]+n[0-9]+|mmcblk[0-9]+)$'; then
+            echo "Denied invalid install disk path: $2" >&2
+            exit 1
+        fi
+        exec /usr/sbin/unicore-install --disk "$2" --yes-wipe
+        ;;
+    install-disk-encrypted)
+        [ "$#" -eq 2 ] || exit 2
+        if ! printf '%s' "$2" | grep -Eq '^/dev/(sd[a-z]|hd[a-z]|vd[a-z]|nvme[0-9]+n[0-9]+|mmcblk[0-9]+)$'; then
+            echo "Denied invalid install disk path: $2" >&2
+            exit 1
+        fi
+        PASS_TMP="/tmp/.unicore-luks.$$"
+        cleanup_pass() { rm -f "${PASS_TMP}"; }
+        trap cleanup_pass EXIT
+        IFS= read -r pass_val || pass_val=""
+        if [ "${#pass_val}" -lt 8 ]; then
+            echo "Denied LUKS passphrase: minimum 8 characters required." >&2
+            exit 1
+        fi
+        (
+            umask 077
+            printf '%s' "${pass_val}" > "${PASS_TMP}"
+        )
+        unset pass_val
+        /usr/sbin/unicore-install --disk "$2" --yes-wipe --encrypt-data --passphrase-file "${PASS_TMP}"
+        ;;
+    apply-oobe)
+        [ "$#" -eq 3 ] || exit 2
+        tz="$2"
+        host="$3"
+        case "${tz}" in
+            *..*) echo "Denied invalid timezone: ${tz}" >&2; exit 1 ;;
+        esac
+        if ! printf '%s' "${tz}" | grep -Eq '^[A-Za-z0-9_/+.-]+$'; then
+            echo "Denied invalid timezone: ${tz}" >&2
+            exit 1
+        fi
+        if ! printf '%s' "${host}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9-]{0,31}$'; then
+            echo "Denied invalid hostname: ${host}" >&2
+            exit 1
+        fi
+        printf '%s\n' "${host}" > /etc/hostname
+        hostname "${host}" 2>/dev/null || true
+        printf '%s\n' "${tz}" > /etc/timezone
+        if [ -f "/usr/share/zoneinfo/${tz}" ]; then
+            ln -snf "/usr/share/zoneinfo/${tz}" /etc/localtime
+        fi
+        ;;
+    set-user-password)
+        [ "$#" -eq 1 ] || exit 2
+        IFS= read -r user_pass || user_pass=""
+        if [ "${#user_pass}" -lt 4 ] || printf '%s' "${user_pass}" | grep -Eq '[[:cntrl:]:]'; then
+            echo "Invalid password (min 4 chars, no colons or control chars)." >&2
+            exit 1
+        fi
+        printf 'unicore:%s\n' "${user_pass}" | chpasswd
+        unset user_pass
+        ;;
+    update-status)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/sbin/unicore-update --status
+        ;;
+    update-check)
+        [ "$#" -le 2 ] || exit 2
+        if [ "$#" -eq 2 ]; then
+            is_safe_https_url "$2" || { echo "Denied invalid update URL: $2" >&2; exit 1; }
+            exec /usr/sbin/unicore-update --check --url "$2"
+        fi
+        exec /usr/sbin/unicore-update --check
+        ;;
+    update-apply-url)
+        [ "$#" -eq 2 ] || exit 2
+        is_safe_https_url "$2" || { echo "Denied invalid update URL: $2" >&2; exit 1; }
+        exec /usr/sbin/unicore-update --apply-url "$2"
+        ;;
+    update-apply-local)
+        [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
+        is_safe_abs_path "$2" || { echo "Denied unsafe local update path: $2" >&2; exit 1; }
+        if [ "$#" -eq 3 ]; then
+            [ "$3" = "allow-unsigned" ] || { echo "Denied unknown flag: $3" >&2; exit 2; }
+            exec /usr/sbin/unicore-update --apply-local "$2" --allow-unsigned
+        fi
+        exec /usr/sbin/unicore-update --apply-local "$2"
+        ;;
+    update-rollback)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/sbin/unicore-update --rollback
+        ;;
+    confirm-boot)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/sbin/unicore-update --confirm-boot
+        ;;
+    set-cpu-governor)
+        [ "$#" -eq 2 ] || exit 2
+        target_gov="$2"
+        case "${target_gov}" in
+            performance|schedutil|powersave) ;;
+            *)
+                echo "Denied invalid CPU governor: ${target_gov}" >&2
+                exit 2
+                ;;
+        esac
+        updated=0
+        for gov_file in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+            [ -w "${gov_file}" ] || continue
+            avail_file="$(dirname "${gov_file}")/scaling_available_governors"
+            chosen="${target_gov}"
+            if [ "${chosen}" = "schedutil" ] && [ -r "${avail_file}" ]; then
+                if ! grep -qw 'schedutil' "${avail_file}" 2>/dev/null; then
+                    if grep -qw 'ondemand' "${avail_file}" 2>/dev/null; then
+                        chosen="ondemand"
+                    elif grep -qw 'powersave' "${avail_file}" 2>/dev/null; then
+                        chosen="powersave"
+                    fi
+                fi
+            fi
+            if printf '%s' "${chosen}" > "${gov_file}" 2>/dev/null; then
+                updated=$((updated + 1))
+            fi
+        done
+        if [ "${updated}" -eq 0 ]; then
+            echo "cpufreq scaling not exposed on this VM/CPU; Game Mode flag saved."
+        else
+            echo "Applied CPU governor '${target_gov}' to ${updated} core(s)."
+        fi
+        ;;
+    *)
+        echo "Denied power/hardware action: $1" >&2
+        exit 1
+        ;;
+esac

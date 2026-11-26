@@ -1,0 +1,106 @@
+#!/bin/sh
+set -eu
+
+# Helper to inspect disks and initialize a persistent ext4 UNICORE_DATA partition
+# on physical PCs booting from the UniCore OS Live ISO/USB.
+
+usage() {
+    cat <<'EOF'
+unicore-setup-data - Persistent /data partition helper for UniCore OS
+
+USAGE:
+  unicore-setup-data [--list]
+  unicore-setup-data --format <DEVICE> --yes-format
+
+EXAMPLES:
+  unicore-setup-data --list
+  unicore-setup-data --format /dev/sda3 --yes-format
+
+SAFETY:
+  --format refuses to touch mounted partitions, loop/CD devices, or root media.
+  Always pick an empty partition or dedicated USB/SSD target and reboot afterwards.
+EOF
+}
+
+show_status() {
+    echo "=== Current UniCore Storage Status ==="
+    if mountpoint -q /data 2>/dev/null; then
+        echo "/data is MOUNTED (Persistent UNICORE_DATA active):"
+        df -h /data | tail -n1
+    else
+        echo "/data is NOT mounted (running in Live RAM mode)."
+    fi
+    echo ""
+    echo "=== Available Block Devices ==="
+    if command -v lsblk >/dev/null 2>&1; then
+        lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINT
+    else
+        blkid || true
+    fi
+}
+
+format_dev=""
+confirmed="0"
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --list)
+            show_status
+            exit 0
+            ;;
+        --format)
+            format_dev="${2:-}"
+            [ -n "${format_dev}" ] || { echo "Error: --format requires <DEVICE>" >&2; exit 2; }
+            shift 2
+            ;;
+        --yes-format)
+            confirmed="1"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [ -z "${format_dev}" ]; then
+    show_status
+    exit 0
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: --format requires root privileges." >&2
+    exit 1
+fi
+
+if [ "${confirmed}" != "1" ]; then
+    echo "Error: Add --yes-format to confirm formatting ${format_dev} as UNICORE_DATA (EXT4)." >&2
+    exit 2
+fi
+
+if [ ! -b "${format_dev}" ]; then
+    echo "Error: Not a valid block device: ${format_dev}" >&2
+    exit 1
+fi
+
+case "${format_dev}" in
+    /dev/loop*|/dev/sr*|/dev/ram*|/dev/zram*)
+        echo "Error: Refusing to format read-only or virtual media device: ${format_dev}" >&2
+        exit 1
+        ;;
+esac
+
+if grep -q "^${format_dev} " /proc/mounts 2>/dev/null; then
+    echo "Error: ${format_dev} is currently mounted. Unmount it first." >&2
+    exit 1
+fi
+
+echo "==> Formatting ${format_dev} as ext4 with label UNICORE_DATA..."
+mkfs.ext4 -F -L UNICORE_DATA "${format_dev}"
+echo "==> Done! Reboot UniCore OS and it will automatically mount ${format_dev} at /data."

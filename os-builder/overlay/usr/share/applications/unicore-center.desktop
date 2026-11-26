@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=UniCore App Center
+GenericName=App & Security Center
+Comment=Run Windows, Android & Native apps and manage compatibility and permissions
+Exec=/usr/bin/unicore-center
+Icon=preferences-system
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true

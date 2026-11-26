@@ -1,0 +1,70 @@
+#!/bin/sh
+set -eu
+
+# UniCore OS Embedded MS-DOS Subsystem Runner (invoked exclusively by uniload).
+# Runs 16-bit MS-DOS .exe/.com/.bat binaries directly in an isolated sandbox
+# without exposing any third-party launcher UI.
+
+if [ "$#" -lt 1 ]; then
+    echo "[uniload-dos] Missing MS-DOS executable path" >&2
+    exit 1
+fi
+
+TARGET_BIN="$1"
+shift || true
+
+DOS_ENGINE=""
+if [ -x /usr/bin/dosbox ]; then
+    DOS_ENGINE="/usr/bin/dosbox"
+elif [ -x /usr/bin/dosbox-staging ]; then
+    DOS_ENGINE="/usr/bin/dosbox-staging"
+else
+    echo "[uniload-dos] Built-in MS-DOS engine missing (/usr/bin/dosbox)" >&2
+    exit 127
+fi
+
+SANDBOX_DIR="${UNILOAD_SANDBOX_DIR:-${HOME:-/tmp}}"
+DOS_DRIVE_C="${UNILOAD_DOS_DRIVE_C:-${SANDBOX_DIR}/drive_c}"
+DOS_CONF="${UNILOAD_DOS_CONF:-${SANDBOX_DIR}/config/dos.conf}"
+
+mkdir -p "${DOS_DRIVE_C}" "$(dirname "${DOS_CONF}")"
+
+if [ ! -f "${DOS_CONF}" ]; then
+    cat <<'EOF' > "${DOS_CONF}"
+[sdl]
+fullscreen = false
+windowresolution = default
+output = texture
+
+[dosbox]
+startup_verbosity = quiet
+
+[cpu]
+core = auto
+cycles = auto
+
+[mixer]
+rate = 44100
+
+[sblaster]
+sbtype = sb16
+
+[joystick]
+joysticktype = auto
+EOF
+fi
+
+export SDL_APP_NAME="UniCore DOS"
+export SDL_VIDEO_WAYLAND_WMCLASS="unicore-dos"
+
+if [ -n "${UNILOAD_DOS_WORKDIR:-}" ] && [ -d "${UNILOAD_DOS_WORKDIR}" ]; then
+    RUN_TARGET="${TARGET_BIN}"
+else
+    SAFE_NAME="$(basename "${TARGET_BIN}")"
+    cp -f "${TARGET_BIN}" "${DOS_DRIVE_C}/${SAFE_NAME}"
+    RUN_TARGET="${DOS_DRIVE_C}/${SAFE_NAME}"
+fi
+
+exec /usr/libexec/uniload-sandbox-exec "${DOS_ENGINE}" \
+    -conf "${DOS_CONF}" -noprimaryconf -nolocalconf \
+    -exit "${RUN_TARGET}" "$@"

@@ -1,0 +1,60 @@
+# UniCore Dark - Windows-11-inspired Openbox/labwc decoration theme
+
+border.width: 1
+padding.width: 6
+padding.height: 5
+window.handle.width: 0
+window.client.padding.width: 0
+window.client.padding.height: 0
+
+window.active.border.color: #38bdf8
+window.inactive.border.color: #334155
+
+window.active.title.bg: flat solid
+window.active.title.bg.color: #0f172a
+window.inactive.title.bg: flat solid
+window.inactive.title.bg.color: #1e293b
+
+window.active.label.bg: parentrelative
+window.active.label.text.color: #f8fafc
+window.inactive.label.bg: parentrelative
+window.inactive.label.text.color: #94a3b8
+window.label.text.justify: left
+
+window.active.button.unpressed.bg: parentrelative
+window.active.button.unpressed.image.color: #e2e8f0
+window.active.button.hover.bg: flat solid
+window.active.button.hover.bg.color: #334155
+window.active.button.pressed.bg: flat solid
+window.active.button.pressed.bg.color: #475569
+
+window.active.button.close.unpressed.bg: parentrelative
+window.active.button.close.unpressed.image.color: #f87171
+window.active.button.close.hover.bg: flat solid
+window.active.button.close.hover.bg.color: #dc2626
+window.active.button.close.hover.image.color: #ffffff
+window.active.button.close.pressed.bg: flat solid
+window.active.button.close.pressed.bg.color: #991b1b
+
+window.inactive.button.unpressed.bg: parentrelative
+window.inactive.button.unpressed.image.color: #94a3b8
+window.inactive.button.hover.bg: flat solid
+window.inactive.button.hover.bg.color: #334155
+
+osd.border.width: 1
+osd.border.color: #38bdf8
+osd.bg: flat solid
+osd.bg.color: #0f172a
+osd.label.text.color: #f8fafc
+osd.hilight.bg.color: #0284c7
+osd.unhilight.bg.color: #334155
+
+menu.border.width: 1
+menu.border.color: #334155
+menu.items.bg: flat solid
+menu.items.bg.color: #0f172a
+menu.items.text.color: #f8fafc
+menu.items.active.bg: flat solid
+menu.items.active.bg.color: #0284c7
+menu.items.active.text.color: #ffffff
+menu.separator.color: #334155

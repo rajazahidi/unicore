@@ -1,0 +1,279 @@
+#!/bin/sh
+# UniCore OS Win32 / Win16 optional graphics & legacy runtime asset manager.
+# Provisions DXVK, VKD3D-Proton, and OTVDM (Win16) into /data/uniload/.
+set -eu
+
+export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+DXVK_DIR="/data/uniload/dxvk"
+VKD3D_DIR="/data/uniload/vkd3d"
+OTVDM_DIR="/data/uniload/otvdm"
+CNCDDRAW_DIR="/data/uniload/cnc-ddraw"
+
+DEFAULT_DXVK_URL="https://github.com/doitsujin/dxvk/releases/download/v2.4.1/dxvk-2.4.1.tar.gz"
+DEFAULT_VKD3D_URL="https://github.com/HansKristian-Work/vkd3d-proton/releases/download/v2.13/vkd3d-proton-2.13.tar.zst"
+DEFAULT_OTVDM_URL="https://github.com/otya128/winevdm/releases/download/v0.9.0/otvdm-v0.9.0.zip"
+DEFAULT_CNCDDRAW_URL="https://github.com/FunkyFr3sh/cnc-ddraw/releases/download/v7.1.0.0/cnc-ddraw.zip"
+DEFAULT_RUNTIME_VERBS="d3dx9 d3dcompiler_43 d3dcompiler_47 vcrun2005 vcrun2008 vcrun2010 vcrun2015 xact"
+
+usage() {
+    cat <<'EOF'
+uniload-win32-assets - Manage DXVK, VKD3D-Proton, OTVDM, cnc-ddraw & DX9/VC++ runtimes
+
+USAGE:
+  uniload-win32-assets status
+  uniload-win32-assets install <dxvk|vkd3d|otvdm|cnc-ddraw> [--url <HTTPS_URL>] [--from-file <ARCHIVE>]
+  uniload-win32-assets install-runtimes --prefix <WINEPREFIX> [--verbs "<WINETRICKS_VERBS>"]
+EOF
+}
+
+has_dir_dlls() {
+    dir="$1"
+    [ -d "${dir}" ] && find "${dir}" -maxdepth 3 -iname '*.dll' 2>/dev/null | grep -q .
+}
+
+emit_status_json() {
+    wine_ok="false"
+    dxvk_ok="false"
+    vkd3d_ok="false"
+    otvdm_ok="false"
+    cnc_ddraw_ok="false"
+    winetricks_ok="false"
+    dos_subsystem_ok="false"
+
+    command -v wine >/dev/null 2>&1 && wine_ok="true"
+    for d in "${DXVK_DIR}" /usr/share/dxvk /usr/lib/dxvk; do
+        if has_dir_dlls "${d}"; then
+            dxvk_ok="true"
+            break
+        fi
+    done
+    for d in "${VKD3D_DIR}" /usr/share/vkd3d-proton; do
+        if has_dir_dlls "${d}"; then
+            vkd3d_ok="true"
+            break
+        fi
+    done
+    for f in "${OTVDM_DIR}/otvdm.exe" /usr/share/unicore/otvdm/otvdm.exe; do
+        if [ -f "${f}" ]; then
+            otvdm_ok="true"
+            break
+        fi
+    done
+    for d in "${CNCDDRAW_DIR}" /usr/share/cnc-ddraw; do
+        if [ -f "${d}/ddraw.dll" ] || has_dir_dlls "${d}"; then
+            cnc_ddraw_ok="true"
+            break
+        fi
+    done
+    command -v winetricks >/dev/null 2>&1 && winetricks_ok="true"
+    if [ -x /usr/libexec/uniload-dos ] && { command -v dosbox-staging >/dev/null 2>&1 || command -v dosbox >/dev/null 2>&1; }; then
+        dos_subsystem_ok="true"
+    fi
+
+    printf '{\n'
+    printf '  "wine_installed": %s,\n' "${wine_ok}"
+    printf '  "dxvk_installed": %s,\n' "${dxvk_ok}"
+    printf '  "vkd3d_installed": %s,\n' "${vkd3d_ok}"
+    printf '  "otvdm_installed": %s,\n' "${otvdm_ok}"
+    printf '  "cnc_ddraw_installed": %s,\n' "${cnc_ddraw_ok}"
+    printf '  "winetricks_installed": %s,\n' "${winetricks_ok}"
+    printf '  "dos_subsystem_ready": %s,\n' "${dos_subsystem_ok}"
+    printf '  "dxvk_dir": "%s",\n' "${DXVK_DIR}"
+    printf '  "vkd3d_dir": "%s",\n' "${VKD3D_DIR}"
+    printf '  "cnc_ddraw_dir": "%s",\n' "${CNCDDRAW_DIR}"
+    printf '  "otvdm_bin": "%s/otvdm.exe"\n' "${OTVDM_DIR}"
+    printf '}\n'
+}
+
+validate_https_url() {
+    printf '%s' "$1" | grep -Eq '^https://[^[:space:]"'\''$`\\;<>|&]+$'
+}
+
+extract_archive() {
+    archive="$1"
+    dest="$2"
+    mkdir -p "${dest}"
+    case "${archive}" in
+        *.tar.gz|*.tgz)
+            tar -xzf "${archive}" -C "${dest}" --strip-components=1 2>/dev/null || tar -xzf "${archive}" -C "${dest}"
+            ;;
+        *.tar.zst)
+            tar --zstd -xf "${archive}" -C "${dest}" --strip-components=1 2>/dev/null || tar --zstd -xf "${archive}" -C "${dest}"
+            ;;
+        *.tar.xz)
+            tar -xJf "${archive}" -C "${dest}" --strip-components=1 2>/dev/null || tar -xJf "${archive}" -C "${dest}"
+            ;;
+        *.zip)
+            unzip -q -o "${archive}" -d "${dest}"
+            ;;
+        *)
+            echo "Unsupported archive format: ${archive}" >&2
+            return 1
+            ;;
+    esac
+}
+
+install_asset() {
+    asset="$1"
+    shift || true
+    url=""
+    from_file=""
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --url)
+                url="${2:-}"
+                [ -n "${url}" ] || { echo "Error: --url requires value" >&2; exit 2; }
+                shift 2
+                ;;
+            --from-file)
+                from_file="${2:-}"
+                [ -n "${from_file}" ] || { echo "Error: --from-file requires value" >&2; exit 2; }
+                shift 2
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                exit 2
+                ;;
+        esac
+    done
+
+    case "${asset}" in
+        dxvk)
+            target_dir="${DXVK_DIR}"
+            [ -n "${url}" ] || url="${DEFAULT_DXVK_URL}"
+            ;;
+        vkd3d)
+            target_dir="${VKD3D_DIR}"
+            [ -n "${url}" ] || url="${DEFAULT_VKD3D_URL}"
+            ;;
+        otvdm)
+            target_dir="${OTVDM_DIR}"
+            [ -n "${url}" ] || url="${DEFAULT_OTVDM_URL}"
+            ;;
+        cnc-ddraw)
+            target_dir="${CNCDDRAW_DIR}"
+            [ -n "${url}" ] || url="${DEFAULT_CNCDDRAW_URL}"
+            ;;
+        *)
+            echo "Unknown asset '${asset}'. Choose dxvk, vkd3d, otvdm, or cnc-ddraw." >&2
+            exit 2
+            ;;
+    esac
+
+    tmp="/tmp/uniload-win32-${asset}.$$"
+    stage="${tmp}/stage"
+    cleanup() {
+        rm -rf "${tmp}"
+    }
+    trap cleanup EXIT
+    mkdir -p "${stage}"
+
+    if [ -n "${from_file}" ]; then
+        [ -f "${from_file}" ] || { echo "Error: Archive not found: ${from_file}" >&2; exit 1; }
+        archive="${from_file}"
+    else
+        validate_https_url "${url}" || { echo "Error: URL must use https:// (${url})" >&2; exit 1; }
+        ext="tar.gz"
+        case "${url}" in
+            *.tar.zst) ext="tar.zst" ;;
+            *.tar.xz) ext="tar.xz" ;;
+            *.zip) ext="zip" ;;
+        esac
+        archive="${tmp}/payload.${ext}"
+        echo "==> Downloading ${asset} from ${url}"
+        curl -fsSL --connect-timeout 15 --max-time 600 -o "${archive}" "${url}"
+    fi
+
+    echo "==> Extracting ${asset} into ${target_dir}"
+    extract_archive "${archive}" "${stage}"
+
+    # Normalize otvdm nested directory if archive unpacks into a single subfolder
+    if [ "${asset}" = "otvdm" ] && [ ! -f "${stage}/otvdm.exe" ]; then
+        found_exe="$(find "${stage}" -maxdepth 3 -name 'otvdm.exe' 2>/dev/null | head -n1 || true)"
+        if [ -n "${found_exe}" ]; then
+            src_parent="$(dirname "${found_exe}")"
+            rm -rf "${target_dir}"
+            mkdir -p "${target_dir}"
+            cp -a "${src_parent}/." "${target_dir}/"
+            emit_status_json
+            return 0
+        fi
+    fi
+
+    rm -rf "${target_dir}"
+    mkdir -p "${target_dir}"
+    cp -a "${stage}/." "${target_dir}/"
+    emit_status_json
+}
+
+install_runtimes() {
+    prefix=""
+    verbs="${DEFAULT_RUNTIME_VERBS}"
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --prefix)
+                prefix="${2:-}"
+                [ -n "${prefix}" ] || { echo "Error: --prefix requires a path" >&2; exit 2; }
+                shift 2
+                ;;
+            --verbs)
+                verbs="${2:-}"
+                [ -n "${verbs}" ] || { echo "Error: --verbs requires a value" >&2; exit 2; }
+                shift 2
+                ;;
+            *)
+                echo "Unknown option for install-runtimes: $1" >&2
+                exit 2
+                ;;
+        esac
+    done
+
+    [ -n "${prefix}" ] || { echo "Error: --prefix is required" >&2; exit 2; }
+    case "${prefix}" in
+        /*) ;;
+        *) echo "Error: --prefix must be an absolute path" >&2; exit 2 ;;
+    esac
+    command -v winetricks >/dev/null 2>&1 || {
+        echo "Error: winetricks is not installed." >&2
+        exit 127
+    }
+    command -v wine >/dev/null 2>&1 || {
+        echo "Error: wine is not installed." >&2
+        exit 127
+    }
+
+    mkdir -p "${prefix}"
+    echo "==> Initializing Wine prefix at ${prefix}"
+    WINEPREFIX="${prefix}" WINEDEBUG=-all wineboot --init >/dev/null 2>&1 || true
+    echo "==> Installing classic DirectX 9 / VC++ runtimes: ${verbs}"
+    # shellcheck disable=SC2086
+    WINEPREFIX="${prefix}" WINEDEBUG=-all winetricks -q ${verbs}
+    echo "==> Classic game runtimes installed cleanly for ${prefix}"
+}
+
+cmd="${1:-status}"
+case "${cmd}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    status)
+        emit_status_json
+        ;;
+    install)
+        [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+        asset="$2"
+        shift 2
+        install_asset "${asset}" "$@"
+        ;;
+    install-runtimes)
+        shift
+        install_runtimes "$@"
+        ;;
+    *)
+        echo "Unknown subcommand: ${cmd}" >&2
+        usage >&2
+        exit 2
+        ;;
+esac

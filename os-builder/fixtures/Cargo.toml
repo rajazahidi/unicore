@@ -1,0 +1,10 @@
+[package]
+name = "unicore_hello"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[[bin]]
+name = "unicore_hello"
+path = "unicore_hello.rs"

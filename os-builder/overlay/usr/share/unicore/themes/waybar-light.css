@@ -1,0 +1,112 @@
+* {
+    font-family: "DejaVu Sans", sans-serif;
+    font-size: 12px;
+    border: none;
+    border-radius: 0;
+    min-height: 0;
+}
+
+window#waybar {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border-top: 1px solid #cbd5e1;
+}
+
+#custom-start {
+    background-color: #0284c7;
+    color: #ffffff;
+    font-weight: bold;
+    padding: 4px 14px;
+    margin: 5px 2px 5px 6px;
+    border-radius: 6px;
+}
+
+#custom-start:hover {
+    background-color: #0369a1;
+}
+
+#custom-files,
+#custom-browser,
+#custom-center,
+#custom-taskmgr {
+    background-color: #ffffff;
+    color: #1e293b;
+    padding: 4px 10px;
+    margin: 5px 2px;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+}
+
+#custom-files:hover,
+#custom-browser:hover,
+#custom-center:hover,
+#custom-taskmgr:hover {
+    background-color: #e2e8f0;
+}
+
+#taskbar button {
+    padding: 3px 10px;
+    margin: 5px 2px;
+    border-radius: 6px;
+    background-color: #e2e8f0;
+    color: #334155;
+    border-bottom: 2px solid transparent;
+}
+
+#taskbar button.active {
+    background-color: #dbeafe;
+    color: #0f172a;
+    border-bottom: 2px solid #0284c7;
+}
+
+#network,
+#pulseaudio,
+#battery {
+    padding: 4px 9px;
+    margin: 5px 2px;
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    color: #1e293b;
+}
+
+#network:hover,
+#pulseaudio:hover {
+    background-color: #e2e8f0;
+}
+
+#clock {
+    padding: 2px 10px;
+    margin: 4px 3px;
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    color: #0f172a;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+#custom-power {
+    background-color: #dc2626;
+    color: #ffffff;
+    font-weight: bold;
+    padding: 4px 10px;
+    margin: 5px 3px;
+    border-radius: 6px;
+}
+
+#custom-power:hover {
+    background-color: #b91c1c;
+}
+
+#custom-desktop {
+    min-width: 10px;
+    padding: 0 4px;
+    margin: 4px 0 4px 2px;
+    border-left: 1px solid #cbd5e1;
+    background-color: #f1f5f9;
+}
+
+#custom-desktop:hover {
+    background-color: #0284c7;
+}

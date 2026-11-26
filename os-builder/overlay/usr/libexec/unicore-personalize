@@ -1,0 +1,267 @@
+#!/bin/sh
+set -eu
+
+default_conf_path() {
+    if [ -n "${UNICORE_PERSONALIZE_CONF:-}" ]; then
+        printf '%s\n' "${UNICORE_PERSONALIZE_CONF}"
+    elif [ -d /data/home ]; then
+        printf '/data/home/.config/unicore/personalize.conf\n'
+    else
+        printf '%s/.config/unicore/personalize.conf\n' "${HOME:-/home/unicore}"
+    fi
+}
+
+CONF_PATH="$(default_conf_path)"
+UNICORE_THEME="dark"
+UNICORE_WALLPAPER="/usr/share/unicore/wallpaper.png"
+UNICORE_KB_LAYOUT="us"
+UNICORE_NATURAL_SCROLL="yes"
+UNICORE_TAP_TO_CLICK="yes"
+UNICORE_POINTER_SPEED="0.0"
+
+validate_theme() {
+    case "$1" in
+        dark|light) printf '%s\n' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_bool_yn() {
+    case "$1" in
+        yes|1|true|on) printf 'yes\n' ;;
+        no|0|false|off) printf 'no\n' ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_kb_layout() {
+    case "$1" in
+        us|my|gb|de|fr|jp) printf '%s\n' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_wallpaper() {
+    wp="$1"
+    case "${wp}" in
+        /*) ;;
+        *) return 1 ;;
+    esac
+    case "${wp}" in
+        *..*|*\"*|*\'*|*\$*|*\`*|*\\*|*\;*|*\<*|*\>*|*\|*|*\&*) return 1 ;;
+    esac
+    printf '%s\n' "${wp}"
+}
+
+clamp_pointer_speed() {
+    awk -v v="$1" 'BEGIN {
+        if (v !~ /^-?[0-9]+(\.[0-9]+)?$/) exit 1;
+        val = v + 0.0;
+        if (val < -0.8) val = -0.8;
+        if (val > 0.8) val = 0.8;
+        printf "%.1f\n", val;
+    }'
+}
+
+load_conf() {
+    UNICORE_THEME="dark"
+    UNICORE_WALLPAPER="/usr/share/unicore/wallpaper.png"
+    UNICORE_KB_LAYOUT="us"
+    UNICORE_NATURAL_SCROLL="yes"
+    UNICORE_TAP_TO_CLICK="yes"
+    UNICORE_POINTER_SPEED="0.0"
+    if [ -r "${CONF_PATH}" ]; then
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                UNICORE_THEME)
+                    if t="$(validate_theme "${v}" 2>/dev/null)"; then
+                        UNICORE_THEME="${t}"
+                    fi
+                    ;;
+                UNICORE_WALLPAPER)
+                    if wp="$(validate_wallpaper "${v}" 2>/dev/null)"; then
+                        UNICORE_WALLPAPER="${wp}"
+                    fi
+                    ;;
+                UNICORE_KB_LAYOUT)
+                    if kb="$(validate_kb_layout "${v}" 2>/dev/null)"; then
+                        UNICORE_KB_LAYOUT="${kb}"
+                    fi
+                    ;;
+                UNICORE_NATURAL_SCROLL)
+                    if ns="$(validate_bool_yn "${v}" 2>/dev/null)"; then
+                        UNICORE_NATURAL_SCROLL="${ns}"
+                    fi
+                    ;;
+                UNICORE_TAP_TO_CLICK)
+                    if tp="$(validate_bool_yn "${v}" 2>/dev/null)"; then
+                        UNICORE_TAP_TO_CLICK="${tp}"
+                    fi
+                    ;;
+                UNICORE_POINTER_SPEED)
+                    if ps="$(clamp_pointer_speed "${v}" 2>/dev/null)"; then
+                        UNICORE_POINTER_SPEED="${ps}"
+                    fi
+                    ;;
+            esac
+        done < "${CONF_PATH}"
+    fi
+}
+
+write_conf() {
+    mkdir -p "$(dirname "${CONF_PATH}")"
+    cat <<EOF > "${CONF_PATH}"
+UNICORE_THEME=${UNICORE_THEME}
+UNICORE_WALLPAPER=${UNICORE_WALLPAPER}
+UNICORE_KB_LAYOUT=${UNICORE_KB_LAYOUT}
+UNICORE_NATURAL_SCROLL=${UNICORE_NATURAL_SCROLL}
+UNICORE_TAP_TO_CLICK=${UNICORE_TAP_TO_CLICK}
+UNICORE_POINTER_SPEED=${UNICORE_POINTER_SPEED}
+EOF
+}
+
+apply_configs() {
+    no_reload="${1:-0}"
+    load_conf
+    USER_HOME="${HOME:-/home/unicore}"
+    CFG_ROOT="${USER_HOME}/.config"
+    mkdir -p "${CFG_ROOT}/gtk-3.0" "${CFG_ROOT}/waybar" "${CFG_ROOT}/fuzzel" "${CFG_ROOT}/labwc"
+
+    if [ "${UNICORE_THEME}" = "light" ]; then
+        GTK_THEME="Adwaita"
+        GTK_PREFER_DARK="0"
+        OPENBOX_THEME="UniCore-Light"
+    else
+        GTK_THEME="Adwaita-dark"
+        GTK_PREFER_DARK="1"
+        OPENBOX_THEME="UniCore-Dark"
+    fi
+
+    cat <<EOF > "${CFG_ROOT}/gtk-3.0/settings.ini"
+[Settings]
+gtk-theme-name=${GTK_THEME}
+gtk-icon-theme-name=Adwaita
+gtk-font-name=DejaVu Sans 10
+gtk-application-prefer-dark-theme=${GTK_PREFER_DARK}
+EOF
+
+    if [ -f "/usr/share/unicore/themes/waybar-${UNICORE_THEME}.css" ]; then
+        cp "/usr/share/unicore/themes/waybar-${UNICORE_THEME}.css" "${CFG_ROOT}/waybar/style.css"
+    fi
+    if [ -f "/usr/share/unicore/themes/fuzzel-${UNICORE_THEME}.ini" ]; then
+        cp "/usr/share/unicore/themes/fuzzel-${UNICORE_THEME}.ini" "${CFG_ROOT}/fuzzel/fuzzel.ini"
+    fi
+
+    if [ -r /etc/xdg/labwc/rc.xml ]; then
+        awk \
+            -v theme="${OPENBOX_THEME}" \
+            -v ns="${UNICORE_NATURAL_SCROLL}" \
+            -v tap="${UNICORE_TAP_TO_CLICK}" \
+            -v speed="${UNICORE_POINTER_SPEED}" \
+            '{
+                if ($0 ~ /<name>UniCore-(Dark|Light)<\/name>/) {
+                    sub(/<name>UniCore-(Dark|Light)<\/name>/, "<name>" theme "</name>");
+                }
+                if ($0 ~ /<naturalScroll>/) {
+                    sub(/<naturalScroll>.*<\/naturalScroll>/, "<naturalScroll>" ns "</naturalScroll>");
+                }
+                if ($0 ~ /<tap>/) {
+                    sub(/<tap>.*<\/tap>/, "<tap>" tap "</tap>");
+                    print $0;
+                    print "      <pointerSpeed>" speed "</pointerSpeed>";
+                    next;
+                }
+                if ($0 ~ /<\/libinput>/) {
+                    print "    <device category=\"non-touch\">";
+                    print "      <pointerSpeed>" speed "</pointerSpeed>";
+                    print "    </device>";
+                }
+                print $0;
+            }' /etc/xdg/labwc/rc.xml > "${CFG_ROOT}/labwc/rc.xml"
+    fi
+
+    printf 'XKB_DEFAULT_LAYOUT=%s\n' "${UNICORE_KB_LAYOUT}" > "${CFG_ROOT}/labwc/environment"
+
+    if [ "${no_reload}" = "0" ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
+        LABWC_P="$(pgrep -u "$(id -u)" -x labwc 2>/dev/null | head -n1 || true)"
+        if [ -n "${LABWC_P}" ]; then
+            kill -HUP "${LABWC_P}" 2>/dev/null || true
+            sleep 0.3
+        elif command -v labwc >/dev/null 2>&1; then
+            labwc --reconfigure >/dev/null 2>&1 || true
+            sleep 0.3
+        fi
+        if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ]; then
+            if [ -f "${UNICORE_WALLPAPER}" ] && command -v swaybg >/dev/null 2>&1; then
+                pkill -x swaybg >/dev/null 2>&1 || true
+                swaybg -i "${UNICORE_WALLPAPER}" -m fill </dev/null >/dev/null 2>&1 &
+            fi
+            if command -v waybar >/dev/null 2>&1 && pgrep -x waybar >/dev/null 2>&1; then
+                pkill -x waybar >/dev/null 2>&1 || true
+                sleep 0.2
+                waybar </dev/null >/dev/null 2>&1 &
+            fi
+        fi
+    fi
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        load_conf
+        printf 'theme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\n' \
+            "${UNICORE_THEME}" "${UNICORE_WALLPAPER}" "${UNICORE_KB_LAYOUT}" \
+            "${UNICORE_NATURAL_SCROLL}" "${UNICORE_TAP_TO_CLICK}" "${UNICORE_POINTER_SPEED}"
+        ;;
+    apply)
+        no_reload=0
+        if [ "${1:-}" = "--no-reload" ]; then
+            no_reload=1
+        fi
+        apply_configs "${no_reload}"
+        ;;
+    set)
+        load_conf
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                --theme)
+                    shift || { echo "Missing value for --theme" >&2; exit 2; }
+                    UNICORE_THEME="$(validate_theme "$1")" || { echo "Invalid theme: $1" >&2; exit 2; }
+                    ;;
+                --wallpaper)
+                    shift || { echo "Missing value for --wallpaper" >&2; exit 2; }
+                    UNICORE_WALLPAPER="$(validate_wallpaper "$1")" || { echo "Invalid wallpaper path: $1" >&2; exit 2; }
+                    ;;
+                --kb-layout)
+                    shift || { echo "Missing value for --kb-layout" >&2; exit 2; }
+                    UNICORE_KB_LAYOUT="$(validate_kb_layout "$1")" || { echo "Invalid kb layout: $1" >&2; exit 2; }
+                    ;;
+                --natural-scroll)
+                    shift || { echo "Missing value for --natural-scroll" >&2; exit 2; }
+                    UNICORE_NATURAL_SCROLL="$(validate_bool_yn "$1")" || { echo "Invalid natural-scroll value: $1" >&2; exit 2; }
+                    ;;
+                --tap)
+                    shift || { echo "Missing value for --tap" >&2; exit 2; }
+                    UNICORE_TAP_TO_CLICK="$(validate_bool_yn "$1")" || { echo "Invalid tap value: $1" >&2; exit 2; }
+                    ;;
+                --pointer-speed)
+                    shift || { echo "Missing value for --pointer-speed" >&2; exit 2; }
+                    UNICORE_POINTER_SPEED="$(clamp_pointer_speed "$1")" || { echo "Invalid pointer-speed: $1" >&2; exit 2; }
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 2
+                    ;;
+            esac
+            shift || true
+        done
+        write_conf
+        apply_configs 0
+        ;;
+    *)
+        echo "Usage: unicore-personalize <status|apply [--no-reload]|set [--theme dark|light] [--wallpaper PATH] [--kb-layout us|my|gb|de|fr|jp] [--natural-scroll yes|no] [--tap yes|no] [--pointer-speed -0.8..0.8]>" >&2
+        exit 2
+        ;;
+esac

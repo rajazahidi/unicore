@@ -1,0 +1,438 @@
+#!/bin/sh
+# UniCore OS A/B OTA & Local ISO Updater and Rollback Engine.
+set -eu
+
+export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+ARCH="$(uname -m 2>/dev/null || echo x86_64)"
+
+UNILOAD_BIN="/usr/bin/uniload"
+WORK="/tmp/unicore-update.$$"
+STAGING="/data/unicore/staging"
+EFI_MNT="${WORK}/efi"
+SLOT_MNT="${WORK}/slot"
+ISO_MNT="${WORK}/iso"
+
+cleanup() {
+    umount "${ISO_MNT}" 2>/dev/null || true
+    umount "${SLOT_MNT}" 2>/dev/null || true
+    umount "${EFI_MNT}" 2>/dev/null || true
+    rmdir "${ISO_MNT}" "${SLOT_MNT}" "${EFI_MNT}" "${WORK}" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+usage() {
+    cat <<'EOF'
+unicore-update - UniCore OS A/B System Updater & Rollback
+
+USAGE:
+  unicore-update --status
+  unicore-update --check [--url <URL>] [--allow-insecure-http] [--allow-unsigned]
+  unicore-update --apply-url <URL> [--allow-insecure-http] [--allow-unsigned]
+  unicore-update --apply-local <ISO_OR_MANIFEST_OR_DIR> [--allow-unsigned]
+  unicore-update --confirm-boot [--force]
+  unicore-update --rollback
+EOF
+}
+
+BOOT_MODE="unknown"
+BOOT_SLOT=""
+if [ -r /mnt/unicore-boot.env ]; then
+    # shellcheck disable=SC1091
+    . /mnt/unicore-boot.env
+    BOOT_MODE="${UNICORE_BOOT_MODE:-unknown}"
+    BOOT_SLOT="${UNICORE_BOOT_SLOT:-}"
+fi
+
+json_str() {
+    raw="$1"
+    key="$2"
+    printf '%s\n' "${raw}" | sed -n "s/^[[:space:]]*\"${key}\":[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -n1
+}
+
+slot_dir_name() {
+    case "$1" in
+        UNICORE_SYS_A) printf 'slot_a\n' ;;
+        UNICORE_SYS_B) printf 'slot_b\n' ;;
+        *) return 1 ;;
+    esac
+}
+
+other_slot() {
+    case "$1" in
+        UNICORE_SYS_A) printf 'UNICORE_SYS_B\n' ;;
+        UNICORE_SYS_B) printf 'UNICORE_SYS_A\n' ;;
+        *) return 1 ;;
+    esac
+}
+
+require_installed_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "Error: This operation requires root privileges." >&2
+        exit 1
+    fi
+    if [ "${BOOT_MODE}" != "installed" ]; then
+        echo "Error: A/B system updates require an installed A/B system (current boot mode: ${BOOT_MODE})." >&2
+        exit 1
+    fi
+    if [ "${BOOT_SLOT}" != "UNICORE_SYS_A" ] && [ "${BOOT_SLOT}" != "UNICORE_SYS_B" ]; then
+        echo "Error: Unknown active A/B slot '${BOOT_SLOT}'." >&2
+        exit 1
+    fi
+}
+
+find_label_dev() {
+    blkid -t "LABEL=$1" -o device 2>/dev/null | head -n1 || true
+}
+
+check_standby_ready() {
+    standby="$1"
+    efi_mounted="$2"
+    standby_dir="$(slot_dir_name "${standby}")"
+    standby_dev="$(find_label_dev "${standby}")"
+    [ -n "${standby_dev}" ] || { printf '0\n'; return 0; }
+    [ "${efi_mounted}" = "1" ] || { printf '0\n'; return 0; }
+    [ -f "${EFI_MNT}/boot/${standby_dir}/vmlinuz-${ARCH}" ] || { printf '0\n'; return 0; }
+    [ -f "${EFI_MNT}/boot/${standby_dir}/initramfs-${ARCH}.img" ] || { printf '0\n'; return 0; }
+
+    mkdir -p "${SLOT_MNT}"
+    ready="0"
+    if mount -t ext4 -o ro "${standby_dev}" "${SLOT_MNT}" 2>/dev/null; then
+        if [ -f "${SLOT_MNT}/unicore/unicore-rootfs-${ARCH}.squashfs" ]; then
+            ready="1"
+        fi
+        umount "${SLOT_MNT}" 2>/dev/null || true
+    fi
+    printf '%s\n' "${ready}"
+}
+
+flash_standby_slot() {
+    vmlinuz_src="$1"
+    initrd_src="$2"
+    squash_src="$3"
+    new_version="$4"
+
+    target_slot="$(other_slot "${BOOT_SLOT}")"
+    target_dir="$(slot_dir_name "${target_slot}")"
+    efi_dev="$(find_label_dev UNICORE_EFI)"
+    slot_dev="$(find_label_dev "${target_slot}")"
+
+    [ -n "${efi_dev}" ] || { echo "Error: UNICORE_EFI partition not found." >&2; exit 1; }
+    [ -n "${slot_dev}" ] || { echo "Error: Target partition ${target_slot} not found." >&2; exit 1; }
+
+    mkdir -p "${EFI_MNT}" "${SLOT_MNT}"
+    mount -t vfat "${efi_dev}" "${EFI_MNT}"
+    mount -t ext4 "${slot_dev}" "${SLOT_MNT}"
+
+    mkdir -p "${SLOT_MNT}/unicore" "${EFI_MNT}/boot/${target_dir}" "${EFI_MNT}/boot/grub"
+
+    echo "==> Flashing ${target_slot} SquashFS atomically"
+    cp "${squash_src}" "${SLOT_MNT}/unicore/unicore-rootfs-${ARCH}.squashfs.new"
+    sync
+    mv -f "${SLOT_MNT}/unicore/unicore-rootfs-${ARCH}.squashfs.new" "${SLOT_MNT}/unicore/unicore-rootfs-${ARCH}.squashfs"
+
+    echo "==> Flashing ${target_dir} kernel & initramfs atomically"
+    cp "${vmlinuz_src}" "${EFI_MNT}/boot/${target_dir}/vmlinuz-${ARCH}.new"
+    cp "${initrd_src}" "${EFI_MNT}/boot/${target_dir}/initramfs-${ARCH}.img.new"
+    sync
+    mv -f "${EFI_MNT}/boot/${target_dir}/vmlinuz-${ARCH}.new" "${EFI_MNT}/boot/${target_dir}/vmlinuz-${ARCH}"
+    mv -f "${EFI_MNT}/boot/${target_dir}/initramfs-${ARCH}.img.new" "${EFI_MNT}/boot/${target_dir}/initramfs-${ARCH}.img"
+
+    echo "==> Resetting OverlayFS for ${target_dir} (keeping /data user apps/files)"
+    rm -rf "/data/sys_overlay/${target_dir}"
+    mkdir -p "/data/sys_overlay/${target_dir}/upper" "/data/sys_overlay/${target_dir}/work"
+
+    grubenv_path="${EFI_MNT}/boot/grub/grubenv"
+    if [ ! -f "${grubenv_path}" ]; then
+        cur_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || printf '0.1.0')"
+        "${UNILOAD_BIN}" update grubenv init --file "${grubenv_path}" --slot "${BOOT_SLOT}" --version "${cur_ver}" >/dev/null
+    fi
+    "${UNILOAD_BIN}" update grubenv stage --file "${grubenv_path}" --slot "${target_slot}" --version "${new_version}" >/dev/null
+    sync
+
+    umount "${SLOT_MNT}"
+    umount "${EFI_MNT}"
+    echo "Staged UniCore OS ${new_version} into ${target_slot}. Reboot to boot & auto-verify."
+}
+
+MODE=""
+TARGET_ARG=""
+ALLOW_INSECURE_HTTP="0"
+ALLOW_UNSIGNED="0"
+FORCE_CONFIRM="0"
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --status)
+            MODE="status"
+            shift
+            ;;
+        --check)
+            MODE="check"
+            shift
+            ;;
+        --url)
+            TARGET_ARG="${2:-}"
+            [ -n "${TARGET_ARG}" ] || { echo "Error: --url requires a value" >&2; exit 2; }
+            shift 2
+            ;;
+        --apply-url)
+            MODE="apply-url"
+            TARGET_ARG="${2:-}"
+            [ -n "${TARGET_ARG}" ] || { echo "Error: --apply-url requires <URL>" >&2; exit 2; }
+            shift 2
+            ;;
+        --apply-local)
+            MODE="apply-local"
+            TARGET_ARG="${2:-}"
+            [ -n "${TARGET_ARG}" ] || { echo "Error: --apply-local requires <PATH>" >&2; exit 2; }
+            shift 2
+            ;;
+        --confirm-boot)
+            MODE="confirm-boot"
+            shift
+            ;;
+        --rollback)
+            MODE="rollback"
+            shift
+            ;;
+        --allow-insecure-http)
+            ALLOW_INSECURE_HTTP="1"
+            shift
+            ;;
+        --allow-unsigned)
+            ALLOW_UNSIGNED="1"
+            shift
+            ;;
+        --force)
+            FORCE_CONFIRM="1"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+case "${MODE}" in
+    status|"")
+        mkdir -p "${WORK}" "${EFI_MNT}"
+        efi_dev="$(find_label_dev UNICORE_EFI)"
+        efi_mounted="0"
+        grubenv_arg=""
+        if [ -n "${efi_dev}" ] && mount -t vfat -o ro "${efi_dev}" "${EFI_MNT}" 2>/dev/null; then
+            efi_mounted="1"
+            grubenv_arg="${EFI_MNT}/boot/grub/grubenv"
+        fi
+        standby_ready="0"
+        if [ "${BOOT_MODE}" = "installed" ] && { [ "${BOOT_SLOT}" = "UNICORE_SYS_A" ] || [ "${BOOT_SLOT}" = "UNICORE_SYS_B" ]; }; then
+            standby_ready="$(check_standby_ready "$(other_slot "${BOOT_SLOT}")" "${efi_mounted}")"
+        fi
+        if [ -n "${grubenv_arg}" ]; then
+            "${UNILOAD_BIN}" update status --grubenv "${grubenv_arg}" --standby-ready "${standby_ready}"
+        else
+            "${UNILOAD_BIN}" update status --standby-ready "${standby_ready}"
+        fi
+        ;;
+
+    check)
+        set -- update check
+        [ -n "${TARGET_ARG}" ] && set -- "$@" --url "${TARGET_ARG}"
+        [ "${ALLOW_INSECURE_HTTP}" = "1" ] && set -- "$@" --allow-insecure-http
+        [ "${ALLOW_UNSIGNED}" = "1" ] && set -- "$@" --allow-unsigned
+        exec "${UNILOAD_BIN}" "$@"
+        ;;
+
+    apply-url)
+        require_installed_root
+        mkdir -p "${STAGING}"
+        rm -rf "${STAGING:?}"/*
+
+        manifest_file="${STAGING}/manifest.json"
+        sig_file="${STAGING}/manifest.json.sig"
+
+        curl -fsSL --connect-timeout 15 --max-time 60 -o "${manifest_file}" "${TARGET_ARG}"
+        curl -fsSL --connect-timeout 10 --max-time 30 -o "${sig_file}" "${TARGET_ARG}.sig" 2>/dev/null || rm -f "${sig_file}"
+
+        if [ "${ALLOW_UNSIGNED}" = "1" ]; then
+            meta="$("${UNILOAD_BIN}" update verify-manifest "${manifest_file}" --arch "${ARCH}" --manifest-url "${TARGET_ARG}" --allow-unsigned)"
+        else
+            meta="$("${UNILOAD_BIN}" update verify-manifest "${manifest_file}" --arch "${ARCH}" --manifest-url "${TARGET_ARG}")"
+        fi
+
+        new_ver="$(json_str "${meta}" version)"
+        vm_url="$(json_str "${meta}" vmlinuz_url)"
+        vm_sha="$(json_str "${meta}" vmlinuz_sha256)"
+        in_url="$(json_str "${meta}" initramfs_url)"
+        in_sha="$(json_str "${meta}" initramfs_sha256)"
+        sq_url="$(json_str "${meta}" squashfs_url)"
+        sq_sha="$(json_str "${meta}" squashfs_sha256)"
+
+        if [ "${ALLOW_INSECURE_HTTP}" != "1" ]; then
+            for u in "${vm_url}" "${in_url}" "${sq_url}"; do
+                case "${u}" in
+                    https://*) ;;
+                    *) echo "Error: Artifact URL must use https:// (${u})" >&2; exit 1 ;;
+                esac
+            done
+        fi
+
+        echo "==> Downloading UniCore OS ${new_ver} artifacts to ${STAGING}"
+        curl -fsSL --connect-timeout 15 --max-time 300 -o "${STAGING}/vmlinuz-${ARCH}" "${vm_url}"
+        curl -fsSL --connect-timeout 15 --max-time 300 -o "${STAGING}/initramfs-${ARCH}.img" "${in_url}"
+        curl -fsSL --connect-timeout 15 --max-time 1800 -o "${STAGING}/unicore-rootfs-${ARCH}.squashfs" "${sq_url}"
+
+        "${UNILOAD_BIN}" update verify-file "${STAGING}/vmlinuz-${ARCH}" "${vm_sha}" >/dev/null
+        "${UNILOAD_BIN}" update verify-file "${STAGING}/initramfs-${ARCH}.img" "${in_sha}" >/dev/null
+        "${UNILOAD_BIN}" update verify-file "${STAGING}/unicore-rootfs-${ARCH}.squashfs" "${sq_sha}" >/dev/null
+
+        flash_standby_slot \
+            "${STAGING}/vmlinuz-${ARCH}" \
+            "${STAGING}/initramfs-${ARCH}.img" \
+            "${STAGING}/unicore-rootfs-${ARCH}.squashfs" \
+            "${new_ver}"
+        rm -rf "${STAGING:?}"/*
+        ;;
+
+    apply-local)
+        require_installed_root
+        mkdir -p "${WORK}"
+        manifest_file=""
+        src_root=""
+
+        if [ -f "${TARGET_ARG}" ]; then
+            case "${TARGET_ARG}" in
+                *.json)
+                    manifest_file="${TARGET_ARG}"
+                    src_root="$(dirname "${TARGET_ARG}")"
+                    ;;
+                *)
+                    mkdir -p "${ISO_MNT}"
+                    mount -o loop,ro "${TARGET_ARG}" "${ISO_MNT}"
+                    if [ -f "${ISO_MNT}/unicore/unicore-manifest.json" ]; then
+                        manifest_file="${ISO_MNT}/unicore/unicore-manifest.json"
+                    fi
+                    src_root="${ISO_MNT}"
+                    ;;
+            esac
+        elif [ -d "${TARGET_ARG}" ]; then
+            src_root="${TARGET_ARG}"
+            if [ -f "${TARGET_ARG}/unicore-manifest.json" ]; then
+                manifest_file="${TARGET_ARG}/unicore-manifest.json"
+            elif [ -f "${TARGET_ARG}/unicore/unicore-manifest.json" ]; then
+                manifest_file="${TARGET_ARG}/unicore/unicore-manifest.json"
+            fi
+        else
+            echo "Error: Local update path not found: ${TARGET_ARG}" >&2
+            exit 1
+        fi
+
+        if [ -n "${manifest_file}" ]; then
+            if [ "${ALLOW_UNSIGNED}" = "1" ]; then
+                meta="$("${UNILOAD_BIN}" update verify-manifest "${manifest_file}" --arch "${ARCH}" --allow-unsigned)"
+            else
+                meta="$("${UNILOAD_BIN}" update verify-manifest "${manifest_file}" --arch "${ARCH}")"
+            fi
+            new_ver="$(json_str "${meta}" version)"
+            vm_fn="$(json_str "${meta}" vmlinuz_filename)"
+            vm_sha="$(json_str "${meta}" vmlinuz_sha256)"
+            in_fn="$(json_str "${meta}" initramfs_filename)"
+            in_sha="$(json_str "${meta}" initramfs_sha256)"
+            sq_fn="$(json_str "${meta}" squashfs_filename)"
+            sq_sha="$(json_str "${meta}" squashfs_sha256)"
+
+            find_local_file() {
+                fn="$1"
+                sub="$2"
+                if [ -f "${src_root}/${fn}" ]; then
+                    printf '%s\n' "${src_root}/${fn}"
+                elif [ -f "${src_root}/${sub}/${fn}" ]; then
+                    printf '%s\n' "${src_root}/${sub}/${fn}"
+                else
+                    return 1
+                fi
+            }
+
+            vm_path="$(find_local_file "${vm_fn}" boot)" || { echo "Error: Missing ${vm_fn}" >&2; exit 1; }
+            in_path="$(find_local_file "${in_fn}" boot)" || { echo "Error: Missing ${in_fn}" >&2; exit 1; }
+            sq_path="$(find_local_file "${sq_fn}" unicore)" || { echo "Error: Missing ${sq_fn}" >&2; exit 1; }
+
+            "${UNILOAD_BIN}" update verify-file "${vm_path}" "${vm_sha}" >/dev/null
+            "${UNILOAD_BIN}" update verify-file "${in_path}" "${in_sha}" >/dev/null
+            "${UNILOAD_BIN}" update verify-file "${sq_path}" "${sq_sha}" >/dev/null
+
+            flash_standby_slot "${vm_path}" "${in_path}" "${sq_path}" "${new_ver}"
+        else
+            if [ -f /etc/unicore/update.pub ] && [ "${ALLOW_UNSIGNED}" != "1" ]; then
+                echo "Error: Local ISO has no signed unicore-manifest.json; pass --allow-unsigned to override." >&2
+                exit 1
+            fi
+            vm_path="${src_root}/boot/vmlinuz-${ARCH}"
+            in_path="${src_root}/boot/initramfs-${ARCH}.img"
+            sq_path="${src_root}/unicore/unicore-rootfs-${ARCH}.squashfs"
+            for f in "${vm_path}" "${in_path}" "${sq_path}"; do
+                [ -f "${f}" ] || { echo "Error: Missing required image file ${f}" >&2; exit 1; }
+            done
+            flash_standby_slot "${vm_path}" "${in_path}" "${sq_path}" "local-iso"
+        fi
+        ;;
+
+    confirm-boot)
+        require_installed_root
+        if [ "${FORCE_CONFIRM}" != "1" ] && [ ! -S /run/seatd.sock ]; then
+            echo "Error: Wayland/seatd not ready yet; deferring boot confirmation." >&2
+            exit 1
+        fi
+        efi_dev="$(find_label_dev UNICORE_EFI)"
+        [ -n "${efi_dev}" ] || exit 0
+        mkdir -p "${EFI_MNT}"
+        mount -t vfat -o ro "${efi_dev}" "${EFI_MNT}"
+        grubenv_path="${EFI_MNT}/boot/grub/grubenv"
+        if [ ! -f "${grubenv_path}" ]; then
+            umount "${EFI_MNT}"
+            exit 0
+        fi
+        env_json="$("${UNILOAD_BIN}" update grubenv show --file "${grubenv_path}")"
+        pending="$(json_str "${env_json}" pending_slot)"
+        umount "${EFI_MNT}"
+
+        if [ "${pending}" = "${BOOT_SLOT}" ]; then
+            mount -t vfat -o rw "${efi_dev}" "${EFI_MNT}"
+            "${UNILOAD_BIN}" update grubenv confirm --file "${grubenv_path}" --slot "${BOOT_SLOT}" >/dev/null
+            sync
+            umount "${EFI_MNT}"
+            echo "Confirmed healthy A/B boot on ${BOOT_SLOT}."
+        fi
+        ;;
+
+    rollback)
+        require_installed_root
+        efi_dev="$(find_label_dev UNICORE_EFI)"
+        [ -n "${efi_dev}" ] || { echo "Error: UNICORE_EFI partition not found." >&2; exit 1; }
+        mkdir -p "${EFI_MNT}"
+        mount -t vfat -o rw "${efi_dev}" "${EFI_MNT}"
+        target_slot="$(other_slot "${BOOT_SLOT}")"
+        ready="$(check_standby_ready "${target_slot}" 1)"
+        if [ "${ready}" != "1" ]; then
+            echo "Error: Standby slot ${target_slot} does not contain a complete bootable OS image." >&2
+            exit 1
+        fi
+        grubenv_path="${EFI_MNT}/boot/grub/grubenv"
+        [ -f "${grubenv_path}" ] || { echo "Error: grubenv missing on UNICORE_EFI." >&2; exit 1; }
+        "${UNILOAD_BIN}" update grubenv rollback --file "${grubenv_path}" >/dev/null
+        sync
+        umount "${EFI_MNT}"
+        echo "Scheduled rollback to ${target_slot}. Reboot to boot previous OS slot."
+        ;;
+
+    *)
+        echo "Unknown command" >&2
+        usage >&2
+        exit 2
+        ;;
+esac

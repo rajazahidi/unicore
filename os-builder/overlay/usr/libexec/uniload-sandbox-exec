@@ -1,0 +1,152 @@
+#!/bin/sh
+set -eu
+
+# UniCore OS Zero-Trust Sandbox Execution Wrapper (Phase 9).
+# Enforces filesystem, device (/dev/dri, /dev/video*, /dev/snd), PID, and network
+# isolation via bubblewrap (bwrap), falling back to unshare network isolation.
+
+if [ "$#" -lt 1 ]; then
+    echo "[uniload-sandbox-exec] Missing command" >&2
+    exit 1
+fi
+
+if [ "${UNILOAD_ALLOW_GPU:-1}" = "0" ] || [ "${UNILOAD_VK_BACKEND:-}" = "software" ]; then
+    export LIBGL_ALWAYS_SOFTWARE=1
+    export GALLIUM_DRIVER=llvmpipe
+fi
+
+if [ "${UNILOAD_ALLOW_MIC:-1}" = "0" ]; then
+    export PULSE_SOURCE=/dev/null
+    export UNILOAD_MIC_BLOCKED=1
+fi
+
+if command -v bwrap >/dev/null 2>&1 && bwrap --ro-bind / / -- true >/dev/null 2>&1; then
+    orig_count="$#"
+
+    set -- "$@" \
+        --ro-bind /usr /usr \
+        --ro-bind-try /lib /lib \
+        --ro-bind-try /lib64 /lib64 \
+        --ro-bind-try /bin /bin \
+        --ro-bind-try /sbin /sbin \
+        --ro-bind /etc /etc \
+        --tmpfs /etc/doas.d \
+        --ro-bind-try /dev/null /etc/doas.conf \
+        --ro-bind-try /dev/null /etc/shadow \
+        --proc /proc \
+        --dev /dev \
+        --tmpfs /tmp \
+        --tmpfs /run \
+        --tmpfs /data \
+        --dir /data/network
+
+    if [ -d /etc/NetworkManager/system-connections ] && [ ! -L /etc/NetworkManager/system-connections ]; then
+        set -- "$@" --tmpfs /etc/NetworkManager/system-connections
+    fi
+
+    if [ -n "${UNILOAD_SANDBOX_DIR:-}" ] && [ -d "${UNILOAD_SANDBOX_DIR}" ]; then
+        set -- "$@" --bind "${UNILOAD_SANDBOX_DIR}" "${UNILOAD_SANDBOX_DIR}"
+    fi
+
+    if [ "${UNILOAD_SUBSYSTEM:-}" = "dos" ] && [ -n "${UNILOAD_DOS_WORKDIR:-}" ] && [ -d "${UNILOAD_DOS_WORKDIR}" ]; then
+        case "${UNILOAD_DOS_WORKDIR}" in
+            /|/tmp|/var|/usr|/etc|/bin|/sbin|/lib|/home|/home/unicore|/data|/data/home)
+                ;;
+            *)
+                set -- "$@" --bind "${UNILOAD_DOS_WORKDIR}" "${UNILOAD_DOS_WORKDIR}"
+                ;;
+        esac
+    fi
+
+    if [ -n "${UNILOAD_APP_WORKDIR:-}" ] && [ -d "${UNILOAD_APP_WORKDIR}" ]; then
+        case "${UNILOAD_APP_WORKDIR}" in
+            /|/tmp|/var|/usr|/etc|/bin|/sbin|/lib|/home|/home/unicore|/data|/data/home)
+                ;;
+            *)
+                set -- "$@" --bind "${UNILOAD_APP_WORKDIR}" "${UNILOAD_APP_WORKDIR}"
+                ;;
+        esac
+    fi
+
+    if [ -n "${UNILOAD_APP_SOURCE:-}" ] && [ -e "${UNILOAD_APP_SOURCE}" ]; then
+        case "${UNILOAD_APP_SOURCE}" in
+            /usr/*|"${UNILOAD_SANDBOX_DIR:-__none__}"/*|"${UNILOAD_SANDBOX_DIR:-__none__}")
+                ;;
+            *)
+                set -- "$@" --ro-bind "${UNILOAD_APP_SOURCE}" "${UNILOAD_APP_SOURCE}"
+                ;;
+        esac
+    fi
+
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "${XDG_RUNTIME_DIR}" ]; then
+        set -- "$@" --dir "${XDG_RUNTIME_DIR}"
+        if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -e "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ]; then
+            set -- "$@" --bind "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
+        fi
+        set -- "$@" \
+            --bind-try "${XDG_RUNTIME_DIR}/pipewire-0" "${XDG_RUNTIME_DIR}/pipewire-0" \
+            --bind-try "${XDG_RUNTIME_DIR}/pulse" "${XDG_RUNTIME_DIR}/pulse"
+    fi
+
+    if [ -d /tmp/.X11-unix ]; then
+        set -- "$@" --bind-try /tmp/.X11-unix /tmp/.X11-unix
+    fi
+
+    if [ "${UNILOAD_ALLOW_NETWORK:-1}" = "0" ]; then
+        set -- "$@" --unshare-net
+    fi
+
+    if [ "${UNILOAD_ALLOW_GPU:-1}" != "0" ]; then
+        set -- "$@" --dev-bind-try /dev/dri /dev/dri
+        set -- "$@" --dev-bind-try /dev/input /dev/input
+        for hdev in /dev/hidraw*; do
+            if [ -e "${hdev}" ]; then
+                set -- "$@" --dev-bind "${hdev}" "${hdev}"
+            fi
+        done
+    fi
+
+    if [ "${UNILOAD_ALLOW_CAMERA:-0}" = "1" ]; then
+        for dev in /dev/video* /dev/media*; do
+            if [ -e "${dev}" ]; then
+                set -- "$@" --dev-bind "${dev}" "${dev}"
+            fi
+        done
+    fi
+
+    if [ "${UNILOAD_ALLOW_MIC:-1}" = "1" ]; then
+        set -- "$@" --dev-bind-try /dev/snd /dev/snd
+    fi
+
+    if [ "${UNILOAD_ALLOW_DOCS:-0}" = "1" ] && [ -d /data/home/Documents ]; then
+        set -- "$@" --bind /data/home/Documents /data/home/Documents
+    fi
+
+    if [ "${UNILOAD_SUBSYSTEM:-}" = "native" ]; then
+        set -- "$@" --unshare-pid
+    fi
+
+    set -- "$@" --die-with-parent --new-session --cap-drop ALL --
+
+    # Rotate the original command arguments after all bwrap flags without losing quoting.
+    i=0
+    while [ "${i}" -lt "${orig_count}" ]; do
+        set -- "$@" "$1"
+        shift
+        i=$((i + 1))
+    done
+
+    exec bwrap "$@"
+fi
+
+if [ "${UNILOAD_ALLOW_NETWORK:-1}" = "0" ] && command -v unshare >/dev/null 2>&1; then
+    if unshare --user --map-current-user --net -- true >/dev/null 2>&1; then
+        exec unshare --user --map-current-user --net -- "$@"
+    elif unshare -r -n -- true >/dev/null 2>&1; then
+        exec unshare -r -n -- "$@"
+    elif [ "$(id -u)" -eq 0 ] && unshare --net -- true >/dev/null 2>&1; then
+        exec unshare --net -- "$@"
+    fi
+fi
+
+exec "$@"

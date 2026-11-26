@@ -1,0 +1,48 @@
+#!/bin/sh
+# UniCore OS Wayland screenshot & Snipping Tool helper (Print / Win+Shift+S)
+set -eu
+
+REGION_MODE=0
+if [ "${1:-}" = "--region" ] || [ "${1:-}" = "-r" ]; then
+    REGION_MODE=1
+fi
+
+if [ -d /data/home ]; then
+    SHOT_DIR="/data/home/Pictures/Screenshots"
+else
+    SHOT_DIR="${HOME:-/home/unicore}/Pictures/Screenshots"
+fi
+mkdir -p "${SHOT_DIR}"
+
+OUT_FILE="${SHOT_DIR}/unicore-$(date +%Y%m%d-%H%M%S).png"
+if ! command -v grim >/dev/null 2>&1; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -u critical -a "UniCore OS" "Screenshot Failed" "grim is not installed." || true
+    fi
+    exit 1
+fi
+
+if [ "${REGION_MODE}" = "1" ]; then
+    if ! command -v slurp >/dev/null 2>&1; then
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send -u critical -a "UniCore OS" "Snipping Tool Unavailable" "slurp is not installed." || true
+        fi
+        exit 1
+    fi
+    GEOM="$(slurp 2>/dev/null || true)"
+    if [ -z "${GEOM}" ]; then
+        # User cancelled region selection cleanly (e.g. Esc)
+        exit 0
+    fi
+    grim -g "${GEOM}" "${OUT_FILE}"
+else
+    grim "${OUT_FILE}"
+fi
+
+if command -v wl-copy >/dev/null 2>&1; then
+    wl-copy --type image/png < "${OUT_FILE}" 2>/dev/null || printf '%s' "${OUT_FILE}" | wl-copy 2>/dev/null || true
+fi
+if command -v notify-send >/dev/null 2>&1; then
+    notify-send -a "UniCore OS" "Screenshot Saved & Copied" "${OUT_FILE}" || true
+fi
+printf '%s\n' "${OUT_FILE}"

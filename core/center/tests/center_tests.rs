@@ -1,0 +1,972 @@
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use unicore_center::backend::{CenterBackend, CenterConfig, InstallRequest};
+use unicore_center::cli::{parse_args, LaunchMode};
+use unicore_center::desktop::{
+    platform_display_name, render_desktop_entry, scan_launchable_files, supports_win_era,
+    win_era_from_index, win_era_to_index,
+};
+use unicore_center::gaming::{
+    load_gaming_config, parse_gaming_conf, read_cpu_governor_from, render_gaming_conf,
+    save_gaming_config, GamingConfig,
+};
+use unicore_center::i18n::{detect_ui_lang, persist_ui_lang, UiLabels, UiLang};
+use unicore_center::settings::{
+    clamp_nightlight_temp, detect_vpn_import_type, load_nightlight_config,
+    parse_backup_targets, parse_bluetooth_devices, parse_firewall_status, parse_lpinfo_devices,
+    parse_lpstat_printers, parse_nightlight_conf, parse_nmcli_vpn_list, parse_nmcli_wifi_list,
+    parse_pactl_sinks, parse_pactl_volume, parse_wlr_randr, read_printers_overview,
+    render_display_apply_script, render_nightlight_conf, save_and_apply_nightlight,
+    validate_backup_passphrase, validate_backup_path, validate_printer_name, validate_printer_uri,
+    NightLightConfig,
+};
+use unicore_center::taskmgr::{parse_proc_status, read_processes_from, validate_kill_target};
+use uniload::inspector::WinEra;
+use uniload::sandbox::PermissionProfile;
+
+fn make_temp_dir(label: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!(
+        "unicore_center_test_{label}_{}_{nanos}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&dir).expect("create temp dir");
+    dir
+}
+
+/// Write a minimal synthetic WinXP 32-bit PE header (`MajorSubsystemVersion = 5.1`).
+fn build_minimal_pe(major_subsys: u16, minor_subsys: u16) -> Vec<u8> {
+    let mut data = vec![0u8; 512];
+    data[0] = b'M';
+    data[1] = b'Z';
+    let pe_off: usize = 0x80;
+    data[0x3C..0x40].copy_from_slice(&(pe_off as u32).to_le_bytes());
+    data[pe_off..pe_off + 4].copy_from_slice(b"PE\0\0");
+    // COFF Machine = i386 (0x014c), OptionalHeaderSize = 0xE0
+    let coff = pe_off + 4;
+    data[coff..coff + 2].copy_from_slice(&0x014Cu16.to_le_bytes());
+    data[coff + 16..coff + 18].copy_from_slice(&0x00E0u16.to_le_bytes());
+    // Optional header PE32 magic = 0x010B
+    let opt = coff + 20;
+    data[opt..opt + 2].copy_from_slice(&0x010Bu16.to_le_bytes());
+    // Major/MinorSubsystemVersion at opt + 48
+    data[opt + 48..opt + 50].copy_from_slice(&major_subsys.to_le_bytes());
+    data[opt + 50..opt + 52].copy_from_slice(&minor_subsys.to_le_bytes());
+    // Subsystem = WINDOWS_GUI (2) at opt + 68
+    data[opt + 68..opt + 70].copy_from_slice(&2u16.to_le_bytes());
+    data
+}
+
+#[test]
+fn cli_parses_open_and_state_overrides() {
+    let args: Vec<String> = vec![
+        "--state-dir",
+        "/data/uniload",
+        "--apps-dir",
+        "/home/unicore/.local/share/applications",
+        "--desktop-dir",
+        "/home/unicore/Desktop",
+        "--open",
+        "/tmp/demo.exe",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect();
+
+    let parsed = parse_args(&args).expect("parse ok").expect("not help");
+    assert_eq!(parsed.mode, LaunchMode::OpenDialog(PathBuf::from("/tmp/demo.exe")));
+    assert_eq!(parsed.config.state_dir, PathBuf::from("/data/uniload"));
+    assert_eq!(
+        parsed.config.apps_dir,
+        PathBuf::from("/home/unicore/.local/share/applications")
+    );
+    assert_eq!(
+        parsed.config.desktop_dir,
+        Some(PathBuf::from("/home/unicore/Desktop"))
+    );
+}
+
+#[test]
+fn backend_inspect_install_permissions_and_desktop_shortcut() {
+    let root = make_temp_dir("install_flow");
+    let state_dir = root.join("state");
+    let apps_dir = root.join("applications");
+    let desktop_dir = root.join("Desktop");
+    fs::create_dir_all(&desktop_dir).unwrap();
+
+    let sample_exe = root.join("RetroGame98.exe");
+    fs::write(&sample_exe, build_minimal_pe(4, 10)).unwrap();
+
+    let backend = CenterBackend::new(CenterConfig {
+        state_dir: state_dir.clone(),
+        apps_dir: apps_dir.clone(),
+        desktop_dir: Some(desktop_dir.clone()),
+        uniload_bin: PathBuf::from("/usr/bin/uniload"),
+        host_arch: "x86_64".to_string(),
+    });
+
+    // 1. Inspect before install detects Win98 era + default privacy-first permissions
+    let inspected = backend.inspect_file(&sample_exe).expect("inspect ok");
+    assert_eq!(inspected.win_era, Some(WinEra::Win98));
+    assert!(inspected.supports_era);
+    assert!(inspected.already_installed_id.is_none());
+    assert!(!inspected.permissions.shared_documents);
+
+    // 2. Install with overridden WinXP era and enabled shared_documents + network=false
+    let installed = backend
+        .install_file(
+            &sample_exe,
+            &InstallRequest {
+                app_name: Some("Retro Game".to_string()),
+                win_era: Some(WinEra::WinXp),
+                permissions: PermissionProfile {
+                    network: false,
+                    gpu_acceleration: true,
+                    shared_documents: true,
+                    camera: false,
+                    microphone: false,
+                },
+                create_shortcut: true,
+            },
+        )
+        .expect("install ok");
+
+    assert_eq!(installed.win_era, Some(WinEra::WinXp));
+    assert!(!installed.permissions.network);
+    assert!(installed.permissions.shared_documents);
+
+    // 3. Verify generated .desktop files launch directly via `uniload launch <app_id>`
+    let expected_name = format!("unicore-app-{}.desktop", installed.app_id);
+    let menu_desktop = apps_dir.join(&expected_name);
+    let user_desktop = desktop_dir.join(&expected_name);
+    assert!(menu_desktop.is_file(), "Start Menu .desktop missing");
+    assert!(user_desktop.is_file(), "Desktop .desktop missing");
+
+    let desktop_text = fs::read_to_string(&menu_desktop).unwrap();
+    let expected_rendered = render_desktop_entry(
+        &installed,
+        &state_dir,
+        &PathBuf::from("/usr/bin/uniload"),
+    );
+    assert_eq!(desktop_text, expected_rendered);
+    assert!(desktop_text.contains("Name=Retro Game"));
+    assert!(desktop_text.contains(&format!("launch {}", installed.app_id)));
+    assert!(desktop_text.contains("Terminal=false"));
+
+    // 4. Subsequent re-inspection loads persisted WinXP & permissions
+    let re_inspected = backend.inspect_file(&sample_exe).expect("re-inspect ok");
+    assert_eq!(re_inspected.already_installed_id, Some(installed.app_id.clone()));
+    assert_eq!(re_inspected.win_era, Some(WinEra::WinXp));
+    assert!(!re_inspected.permissions.network);
+    assert!(re_inspected.permissions.shared_documents);
+
+    // 5. Launch command uses --state-dir & app_id directly
+    let launch_cmd = backend.build_launch_command(&installed.app_id);
+    let argv: Vec<String> = launch_cmd
+        .get_args()
+        .map(|s| s.to_string_lossy().to_string())
+        .collect();
+    assert!(argv.contains(&"launch".to_string()));
+    assert!(argv.contains(&installed.app_id));
+
+    // 6. Uninstall removes sandbox dir, registry entry, and .desktop shortcuts
+    let (removed, shortcut_count) = backend
+        .uninstall_app(&installed.app_id)
+        .expect("uninstall ok");
+    assert_eq!(removed.app_id, installed.app_id);
+    assert_eq!(shortcut_count, 2);
+    assert!(!menu_desktop.exists());
+    assert!(!user_desktop.exists());
+    assert!(!PathBuf::from(&installed.sandbox_dir).exists());
+    assert!(backend.list_apps().unwrap().is_empty());
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn browse_scanner_finds_exe_and_apk_only() {
+    let root = make_temp_dir("scanner");
+    fs::write(root.join("app.exe"), b"MZ").unwrap();
+    fs::write(root.join("mobile.apk"), b"PK").unwrap();
+    fs::write(root.join("notes.txt"), b"hello").unwrap();
+
+    let found = scan_launchable_files(std::slice::from_ref(&root));
+    let names: Vec<String> = found.into_iter().map(|c| c.name).collect();
+    assert_eq!(names, vec!["app.exe", "mobile.apk"]);
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn cli_parses_tab_and_power_modes() {
+    let tab_args: Vec<String> = vec!["--tab", "settings"].into_iter().map(str::to_string).collect();
+    let parsed_tab = parse_args(&tab_args).unwrap().unwrap();
+    assert_eq!(parsed_tab.mode, LaunchMode::FullCenter);
+    assert_eq!(parsed_tab.initial_tab, 3);
+
+    let power_args: Vec<String> = vec!["--power"].into_iter().map(str::to_string).collect();
+    let parsed_power = parse_args(&power_args).unwrap().unwrap();
+    assert_eq!(parsed_power.mode, LaunchMode::PowerDialog);
+}
+
+#[test]
+fn settings_parsers_handle_wifi_bt_audio_and_display() {
+    let wifi_raw = "\
+ :Cafe\\:5G:62:WPA2
+*:HomeNet:88:WPA2 WPA3
+ :HomeNet:45:WPA2
+ :--:50:
+ :GuestOpen:30:--
+";
+    let nets = parse_nmcli_wifi_list(wifi_raw);
+    assert_eq!(nets.len(), 3);
+    assert_eq!(nets[0].ssid, "HomeNet");
+    assert!(nets[0].in_use);
+    assert_eq!(nets[0].signal, 88);
+    assert_eq!(nets[1].ssid, "Cafe:5G");
+    assert_eq!(nets[2].ssid, "GuestOpen");
+    assert_eq!(nets[2].security, "Open");
+
+    let bt_raw = "Device AA:BB:CC:11:22:33 Sony WH-1000XM5\nDevice 00:11:22:33:44:55 Mouse\nBad line\n";
+    let devs = parse_bluetooth_devices(bt_raw);
+    assert_eq!(devs.len(), 2);
+    assert_eq!(devs[0].mac, "AA:BB:CC:11:22:33");
+    assert_eq!(devs[0].name, "Sony WH-1000XM5");
+
+    let vol_raw = "Volume: front-left: 49152 /  75% / -7.50 dB,   front-right: 49152 /  75% / -7.50 dB";
+    assert_eq!(parse_pactl_volume(vol_raw), 75);
+
+    let sinks_raw = "0\talsa_output.pci-0000.analog-stereo\tPipeWire\ts16le\n1\tbluez_output.AA_BB.a2dp-sink\tPipeWire\n";
+    let sinks = parse_pactl_sinks(sinks_raw, "alsa_output.pci-0000.analog-stereo");
+    assert_eq!(sinks.len(), 2);
+    assert!(sinks[0].is_default);
+    assert!(!sinks[1].is_default);
+
+    let randr_raw = "\
+Virtual-1 \"QEMU\"
+  Enabled: yes
+  Modes:
+    1280x800 px, 60.000000 Hz (preferred, current)
+    1024x768 px, 60.000000 Hz
+  Scale: 1.000000
+";
+    let outs = parse_wlr_randr(randr_raw);
+    assert_eq!(outs.len(), 1);
+    assert_eq!(outs[0].name, "Virtual-1");
+    assert_eq!(outs[0].current_mode, "1280x800@60Hz");
+    assert_eq!(outs[0].modes, vec!["1280x800@60Hz", "1024x768@60Hz"]);
+    assert_eq!(outs[0].scale, "1.0");
+
+    let script = render_display_apply_script("Virtual-1", "1280x800@60Hz", "1.25").unwrap();
+    assert!(script.contains("wlr-randr --output Virtual-1 --mode 1280x800@60Hz --scale 1.25"));
+    assert!(render_display_apply_script("Virtual-1; rm -rf /", "1280x800@60Hz", "1.0").is_err());
+}
+
+#[test]
+fn bluetooth_overview_returns_promptly_when_daemon_inactive() {
+    let start = std::time::Instant::now();
+    let overview = unicore_center::settings::read_bluetooth_overview();
+    assert!(start.elapsed() < std::time::Duration::from_secs(2));
+    assert!(!overview.service_active);
+    assert!(!overview.summary.is_empty());
+}
+
+#[test]
+fn installer_parsers_and_confirmation_guard_work() {
+    let boot = unicore_center::installer::parse_boot_env(
+        "UNICORE_BOOT_MODE=live\nUNICORE_BOOT_MEDIA=/dev/sr0\nUNICORE_BOOT_SLOT=\n",
+    );
+    assert!(boot.is_live());
+    assert_eq!(boot.boot_media, "/dev/sr0");
+    assert_eq!(boot.active_slot, "");
+
+    let installed = unicore_center::installer::parse_boot_env(
+        "UNICORE_BOOT_MODE=installed\nUNICORE_BOOT_MEDIA=/dev/sda3\nUNICORE_BOOT_SLOT=UNICORE_SYS_A\n",
+    );
+    assert!(!installed.is_live());
+    assert_eq!(installed.active_slot, "UNICORE_SYS_A");
+
+    let tsv = "\
+/dev/sr0\tsr0\t1.3 GB\tQEMU DVD-ROM\t0\tboot-media
+/dev/sda\tsda\t256.0 GB\tSamsung SSD 860\t1\teligible
+/dev/sdb\tsdb\t4.0 GB\tTiny USB\t0\ttoo-small
+";
+    let disks = unicore_center::installer::parse_install_disks(tsv);
+    assert_eq!(disks.len(), 3);
+    assert!(!disks[0].eligible);
+    assert!(disks[1].eligible);
+    assert_eq!(disks[1].name, "sda");
+    assert!(!disks[2].eligible);
+
+    assert!(unicore_center::installer::validate_install_confirmation("sda", "sda").is_ok());
+    assert!(unicore_center::installer::validate_install_confirmation("sda", " sda ").is_ok());
+    assert!(unicore_center::installer::validate_install_confirmation("sda", "sdb").is_err());
+    assert!(unicore_center::installer::validate_install_confirmation("sda", "").is_err());
+    assert!(unicore_center::installer::validate_install_confirmation("sda;rm", "sda;rm").is_err());
+    assert!(unicore_center::installer::validate_install_confirmation("sda/1", "sda/1").is_err());
+}
+
+#[test]
+fn updater_parsers_and_local_path_validation_work() {
+    let status_json = r#"{
+        "active_slot": "UNICORE_SYS_A",
+        "allow_insecure_http": false,
+        "boot_mode": "installed",
+        "boot_tried": false,
+        "can_rollback": true,
+        "can_update": true,
+        "channel": "stable",
+        "current_version": "0.1.0",
+        "pending_slot": "UNICORE_SYS_B",
+        "pubkey_configured": false,
+        "slot_a_version": "0.1.0",
+        "slot_b_version": "0.2.0",
+        "standby_slot": "UNICORE_SYS_B",
+        "update_url": "https://updates.example.com/unicore-manifest.json"
+    }"#;
+    let overview = unicore_center::updater::parse_update_status_json(status_json).unwrap();
+    assert_eq!(overview.active_slot, "UNICORE_SYS_A");
+    assert_eq!(overview.standby_slot, "UNICORE_SYS_B");
+    assert!(overview.can_update);
+    assert!(overview.can_rollback);
+    assert!(overview.pending_summary().contains("UNICORE_SYS_B"));
+
+    let check_json = r#"{
+        "channel": "stable",
+        "current_version": "0.1.0",
+        "latest_version": "0.2.0",
+        "notes": "Security and kernel update",
+        "signature_status": "verified",
+        "source_url": "https://updates.example.com/unicore-manifest.json",
+        "update_available": true
+    }"#;
+    let chk = unicore_center::updater::parse_update_check_json(check_json).unwrap();
+    assert!(chk.update_available);
+    assert_eq!(chk.latest_version, "0.2.0");
+    assert_eq!(chk.signature_status, "verified");
+
+    assert!(unicore_center::updater::validate_local_update_path("/data/home/Downloads/unicore.iso").is_ok());
+    assert!(unicore_center::updater::validate_local_update_path("relative/path.iso").is_err());
+    assert!(unicore_center::updater::validate_local_update_path("/tmp/../etc/passwd").is_err());
+    assert!(unicore_center::updater::validate_local_update_path("/tmp/a;rm -rf /").is_err());
+}
+
+#[test]
+fn oobe_and_luks2_validation_and_encrypted_boot_env_work() {
+    let oobe_args: Vec<String> = vec!["--oobe"].into_iter().map(str::to_string).collect();
+    let parsed_oobe = parse_args(&oobe_args).unwrap().unwrap();
+    assert_eq!(parsed_oobe.mode, LaunchMode::OobeWizard);
+
+    assert_eq!(
+        unicore_center::oobe::validate_hostname("my-laptop-01").unwrap(),
+        "my-laptop-01"
+    );
+    assert!(unicore_center::oobe::validate_hostname("-bad").is_err());
+    assert!(unicore_center::oobe::validate_hostname("bad;host").is_err());
+
+    assert_eq!(
+        unicore_center::oobe::validate_timezone("Asia/Kuala_Lumpur").unwrap(),
+        "Asia/Kuala_Lumpur"
+    );
+    assert!(unicore_center::oobe::validate_timezone("../etc/passwd").is_err());
+
+    assert_eq!(unicore_center::oobe::validate_user_password("", "").unwrap(), None);
+    assert!(unicore_center::oobe::validate_user_password("abc", "abc").is_err());
+    assert!(unicore_center::oobe::validate_user_password("pass1", "pass2").is_err());
+    assert_eq!(
+        unicore_center::oobe::validate_user_password("unicore123", "unicore123").unwrap(),
+        Some("unicore123".to_string())
+    );
+
+    let root = make_temp_dir("oobe_state");
+    assert!(!unicore_center::oobe::is_oobe_done(&root));
+    let cfg = unicore_center::oobe::OobeSettings {
+        language: "ms_MY.UTF-8".to_string(),
+        timezone: "Asia/Kuala_Lumpur".to_string(),
+        hostname: "unicore-book".to_string(),
+    };
+    unicore_center::oobe::save_oobe_state(&root, &cfg).unwrap();
+    assert!(unicore_center::oobe::is_oobe_done(&root));
+    let conf_raw = fs::read_to_string(root.join("oobe.conf")).unwrap();
+    let parsed_cfg = unicore_center::oobe::parse_oobe_conf(&conf_raw);
+    assert_eq!(parsed_cfg, cfg);
+    let _ = fs::remove_dir_all(&root);
+
+    // LUKS2 passphrase guard and encrypted boot env parsing
+    assert!(unicore_center::installer::validate_luks_passphrase("short", "short").is_err());
+    assert!(unicore_center::installer::validate_luks_passphrase("LongPass123", "OtherPass").is_err());
+    assert!(unicore_center::installer::validate_luks_passphrase("UniCoreSecret99!", "UniCoreSecret99!").is_ok());
+
+    let enc_boot = unicore_center::installer::parse_boot_env(
+        "UNICORE_BOOT_MODE=installed\nUNICORE_BOOT_MEDIA=/dev/vda3\nUNICORE_BOOT_SLOT=UNICORE_SYS_A\nUNICORE_DATA_ENCRYPTED=1\n",
+    );
+    assert!(enc_boot.data_encrypted);
+    assert!(enc_boot.display_summary().contains("[LUKS2]"));
+}
+
+#[test]
+fn settings_subtab_cli_parsing_and_app_log_reader_work() {
+    let wifi_args: Vec<String> = vec!["--tab", "settings:wifi"].into_iter().map(str::to_string).collect();
+    let parsed_wifi = parse_args(&wifi_args).unwrap().unwrap();
+    assert_eq!(parsed_wifi.initial_tab, 3);
+    assert_eq!(parsed_wifi.initial_settings_subtab, 0);
+
+    let audio_args: Vec<String> = vec!["--tab", "settings:audio"].into_iter().map(str::to_string).collect();
+    let parsed_audio = parse_args(&audio_args).unwrap().unwrap();
+    assert_eq!(parsed_audio.initial_tab, 3);
+    assert_eq!(parsed_audio.initial_settings_subtab, 2);
+
+    let bad_args: Vec<String> = vec!["--tab", "settings:invalid"].into_iter().map(str::to_string).collect();
+    assert!(parse_args(&bad_args).is_err());
+
+    let root = make_temp_dir("app_log");
+    let backend = CenterBackend::new(CenterConfig {
+        state_dir: root.join("state"),
+        apps_dir: root.join("apps"),
+        desktop_dir: None,
+        uniload_bin: PathBuf::from("/usr/bin/uniload"),
+        host_arch: "x86_64".to_string(),
+    });
+    let app_id = format!("testlog_{}", std::process::id());
+    let log_path = CenterBackend::app_log_path(&app_id);
+    let _ = fs::remove_file(&log_path);
+    assert!(backend.read_app_log(&app_id).contains("No runtime log"));
+
+    fs::write(&log_path, "line1\nHello from Win32 sandbox\n").unwrap();
+    let txt = backend.read_app_log(&app_id);
+    assert!(txt.contains("Hello from Win32 sandbox"));
+    let _ = fs::remove_file(&log_path);
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn taskmgr_parsing_filtering_and_safety_guards_work() {
+    let taskmgr_args: Vec<String> = vec!["--taskmgr"].into_iter().map(str::to_string).collect();
+    let parsed = parse_args(&taskmgr_args).unwrap().unwrap();
+    assert_eq!(parsed.mode, LaunchMode::TaskManager);
+
+    let status_sample = "\
+Name:\tunicore-center
+State:\tS (sleeping)
+Pid:\t142
+Uid:\t1000\t1000\t1000\t1000
+VmRSS:\t   23552 kB
+";
+    let parsed_status = parse_proc_status(status_sample);
+    assert_eq!(parsed_status.name, "unicore-center");
+    assert_eq!(parsed_status.uid, Some(1000));
+    assert_eq!(parsed_status.ram_mb, 23);
+
+    let root = make_temp_dir("proc_mock");
+    // PID 1 (must be skipped)
+    fs::create_dir_all(root.join("1")).unwrap();
+    fs::write(root.join("1/status"), "Name:\tinit\nUid:\t0\t0\t0\t0\nVmRSS:\t2048 kB\n").unwrap();
+    // Root daemon (must be filtered out when filter_uid=1000)
+    fs::create_dir_all(root.join("55")).unwrap();
+    fs::write(root.join("55/status"), "Name:\tpolkitd\nUid:\t0\t0\t0\t0\nVmRSS:\t8192 kB\n").unwrap();
+    // Two user processes (400 should sort before 300 due to higher RAM)
+    fs::create_dir_all(root.join("300")).unwrap();
+    fs::write(root.join("300/status"), "Name:\tfoot\nState:\tS (sleeping)\nUid:\t1000\t1000\t1000\t1000\nVmRSS:\t10240 kB\n").unwrap();
+    fs::write(root.join("300/cmdline"), b"foot\0-e\0sh\0").unwrap();
+    fs::create_dir_all(root.join("400")).unwrap();
+    fs::write(root.join("400/status"), "Name:\tepiphany\nState:\tR (running)\nUid:\t1000\t1000\t1000\t1000\nVmRSS:\t65536 kB\n").unwrap();
+    fs::write(root.join("400/cmdline"), b"/usr/bin/epiphany\0").unwrap();
+
+    let procs = read_processes_from(&root, Some(1000), Some(999));
+    assert_eq!(procs.len(), 2);
+    assert_eq!(procs[0].pid, 400);
+    assert_eq!(procs[0].ram_mb, 64);
+    assert_eq!(procs[1].pid, 300);
+    assert_eq!(procs[1].cmdline, "foot -e sh");
+
+    assert!(validate_kill_target(1, 999, Some(0), Some(1000)).is_err());
+    assert!(validate_kill_target(999, 999, Some(1000), Some(1000)).is_err());
+    assert!(validate_kill_target(55, 999, Some(0), Some(1000)).is_err());
+    assert!(validate_kill_target(400, 999, Some(1000), Some(1000)).is_ok());
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn i18n_locale_detection_persistence_and_bilingual_labels_work() {
+    let root = make_temp_dir("i18n_test");
+    let conf_path = root.join("oobe.conf");
+
+    // Fallback to LANG env var when oobe.conf does not exist yet
+    assert_eq!(detect_ui_lang(&conf_path, Some("ms_MY.UTF-8")), UiLang::Ms);
+    assert_eq!(detect_ui_lang(&conf_path, Some("en_US.UTF-8")), UiLang::En);
+    assert_eq!(detect_ui_lang(&conf_path, None), UiLang::En);
+
+    // Persisting language updates oobe.conf and overrides env var
+    persist_ui_lang(&root, UiLang::Ms).unwrap();
+    assert_eq!(detect_ui_lang(&conf_path, Some("en_US.UTF-8")), UiLang::Ms);
+    persist_ui_lang(&root, UiLang::En).unwrap();
+    assert_eq!(detect_ui_lang(&conf_path, Some("ms_MY.UTF-8")), UiLang::En);
+
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.title_center, ms.title_center);
+    assert_ne!(en.btn_end_task, ms.btn_end_task);
+    assert_ne!(en.btn_install_run, ms.btn_install_run);
+    assert_ne!(en.hdr_gaming_perf, ms.hdr_gaming_perf);
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn gaming_config_persistence_and_governor_reader_work() {
+    let root = make_temp_dir("gaming_conf");
+    assert_eq!(load_gaming_config(&root), GamingConfig::default());
+
+    let cfg = GamingConfig {
+        game_mode: true,
+        show_fps: true,
+    };
+    save_gaming_config(&root, &cfg).unwrap();
+    let loaded = load_gaming_config(&root);
+    assert_eq!(loaded, cfg);
+
+    let rendered = render_gaming_conf(&cfg);
+    assert!(rendered.contains("UNICORE_GAME_MODE=1"));
+    assert!(rendered.contains("UNICORE_SHOW_FPS=1"));
+    assert_eq!(parse_gaming_conf(&rendered), cfg);
+    assert_eq!(parse_gaming_conf("UNICORE_GAME_MODE=0\nUNICORE_SHOW_FPS=1\n"), GamingConfig {
+        game_mode: false,
+        show_fps: true,
+    });
+
+    let gov_file = root.join("scaling_governor");
+    fs::write(&gov_file, "performance\n").unwrap();
+    assert_eq!(read_cpu_governor_from(&gov_file), "performance");
+    assert!(read_cpu_governor_from(&root.join("missing_gov")).contains("unavailable"));
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn win7_era_dropdown_and_inspection_roundtrip_work() {
+    for (idx, era) in [
+        (0, WinEra::Win98),
+        (1, WinEra::WinXp),
+        (2, WinEra::Win7),
+        (3, WinEra::Win10),
+    ] {
+        assert_eq!(win_era_to_index(Some(era)), idx);
+        assert_eq!(win_era_from_index(idx), era);
+    }
+
+    let root = make_temp_dir("win7_inspect");
+    let win7_exe = root.join("Win7Game.exe");
+    // 32-bit Vista/Win7 binary with SubsystemVersion = 6.0 -> auto-detects as Win7
+    fs::write(&win7_exe, build_minimal_pe(6, 0)).unwrap();
+
+    let backend = CenterBackend::new(CenterConfig {
+        state_dir: root.join("state"),
+        apps_dir: root.join("apps"),
+        desktop_dir: None,
+        uniload_bin: PathBuf::from("/usr/bin/uniload"),
+        host_arch: "x86_64".to_string(),
+    });
+    let inspected = backend.inspect_file(&win7_exe).unwrap();
+    assert_eq!(inspected.win_era, Some(WinEra::Win7));
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dos16_display_name_and_scanner_support() {
+    use uniload::inspector::AppPlatform;
+
+    assert!(platform_display_name(AppPlatform::Dos16).contains("MS-DOS"));
+    assert!(!supports_win_era(AppPlatform::Dos16));
+
+    let root = make_temp_dir("dos_scanner");
+    fs::write(root.join("DOOM.COM"), b"\xb8\x00\x4c\xcd\x21").unwrap();
+    fs::write(root.join("START.BAT"), b"@echo off\r\n").unwrap();
+    fs::write(root.join("README.TXT"), b"ignore").unwrap();
+
+    let found = scan_launchable_files(std::slice::from_ref(&root));
+    let names: Vec<String> = found.iter().map(|c| c.name.clone()).collect();
+    assert_eq!(names, vec!["DOOM.COM", "START.BAT"]);
+    assert_eq!(found[0].kind, "MS-DOS COM");
+    assert_eq!(found[1].kind, "MS-DOS Batch");
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn store_tab_cli_and_catalog_view_work() {
+    use unicore_center::store::load_store_views;
+
+    let store_args: Vec<String> = vec!["--tab", "store"].into_iter().map(str::to_string).collect();
+    let parsed_store = parse_args(&store_args).unwrap().unwrap();
+    assert_eq!(parsed_store.mode, LaunchMode::FullCenter);
+    assert_eq!(parsed_store.initial_tab, 4);
+
+    let root = make_temp_dir("store_views");
+    let state_dir = root.join("state");
+    let apps_dir = root.join("apps");
+    let bundled_exe = root.join("unicore_hello.exe");
+    fs::write(&bundled_exe, build_minimal_pe(6, 1)).unwrap();
+
+    let catalog_path = root.join("catalog.json");
+    fs::write(
+        &catalog_path,
+        format!(
+            r#"{{
+  "version": 1,
+  "apps": [
+    {{
+      "id": "demo-app",
+      "name": "Demo App",
+      "version": "1.0",
+      "size_label": "Offline",
+      "category": "utilities",
+      "platform": "windows_pe",
+      "win_era": "win10",
+      "download_url": "",
+      "sha256": "",
+      "filename": "unicore_hello.exe",
+      "archive_entry": "",
+      "bundled_path": "{}",
+      "summary_en": "English summary",
+      "summary_ms": "Ringkasan Melayu"
+    }}
+  ]
+}}"#,
+            bundled_exe.display().to_string().replace('\\', "\\\\")
+        ),
+    )
+    .unwrap();
+
+    let backend = CenterBackend::new(CenterConfig {
+        state_dir: state_dir.clone(),
+        apps_dir,
+        desktop_dir: None,
+        uniload_bin: PathBuf::from("/usr/bin/uniload"),
+        host_arch: "x86_64".to_string(),
+    });
+
+    let before_en = load_store_views(
+        &backend.list_apps().unwrap(),
+        &state_dir,
+        "all",
+        "",
+        false,
+        Some(&catalog_path),
+    )
+    .unwrap();
+    assert_eq!(before_en.len(), 1);
+    assert_eq!(before_en[0].summary, "English summary");
+    assert!(!before_en[0].is_installed);
+
+    let installed = backend
+        .install_file(
+            &bundled_exe,
+            &InstallRequest {
+                app_name: Some("Demo App".to_string()),
+                win_era: Some(WinEra::Win10),
+                permissions: PermissionProfile::default(),
+                create_shortcut: false,
+            },
+        )
+        .unwrap();
+
+    let after_ms = load_store_views(
+        &backend.list_apps().unwrap(),
+        &state_dir,
+        "all",
+        "",
+        true,
+        Some(&catalog_path),
+    )
+    .unwrap();
+    assert_eq!(after_ms[0].summary, "Ringkasan Melayu");
+    assert!(after_ms[0].is_installed);
+    assert_eq!(after_ms[0].installed_app_id, installed.app_id);
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn store_grid_triples_and_icon_metadata_work() {
+    use unicore_center::store::{chunk_into_triples, era_badge_name, store_icon_meta};
+    use uniload::inspector::AppPlatform;
+
+    assert!(chunk_into_triples::<i32>(&[]).is_empty());
+    assert_eq!(chunk_into_triples(&[1]), vec![(Some(1), None, None)]);
+    assert_eq!(
+        chunk_into_triples(&[1, 2, 3, 4]),
+        vec![
+            (Some(1), Some(2), Some(3)),
+            (Some(4), None, None),
+        ]
+    );
+    assert_eq!(
+        chunk_into_triples(&[1, 2, 3, 4, 5, 6, 7]).len(),
+        3
+    );
+
+    assert_eq!(store_icon_meta("7zip", "7-Zip File Manager", "utilities").0, "7Z");
+    assert_eq!(store_icon_meta("notepadpp", "Notepad++ Portable", "office").0, "N++");
+    assert_eq!(store_icon_meta("sumatrapdf", "SumatraPDF Reader", "office").0, "PDF");
+    assert_eq!(store_icon_meta("commander-keen-1", "Commander Keen 1", "retro").0, "CK1");
+    assert_eq!(store_icon_meta("cave-story", "Cave Story (Doukutsu)", "retro").0, "CS");
+    assert_eq!(store_icon_meta("openra-red-alert", "OpenRA: Red Alert", "retro").0, "RA");
+    assert_eq!(store_icon_meta("custom-app", "Krita", "utilities").0, "KR");
+
+    assert_eq!(era_badge_name(AppPlatform::Dos16, None), "MS-DOS");
+    assert_eq!(era_badge_name(AppPlatform::WindowsPe, Some(WinEra::Win98)), "Win98");
+    assert_eq!(era_badge_name(AppPlatform::WindowsPe, Some(WinEra::WinXp)), "WinXP");
+    assert_eq!(era_badge_name(AppPlatform::WindowsPe, Some(WinEra::Win7)), "Win7");
+
+    let retro_args: Vec<String> = vec!["--tab", "store:retro"].into_iter().map(str::to_string).collect();
+    let parsed_retro = parse_args(&retro_args).unwrap().unwrap();
+    assert_eq!(parsed_retro.initial_tab, 4);
+    assert_eq!(parsed_retro.initial_store_category, "retro");
+}
+
+#[test]
+fn phase20a_printers_and_nightlight_helpers_work() {
+    // 1. CLI --tab settings:printers
+    let printer_args: Vec<String> = vec!["--tab", "settings:printers"]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+    let parsed = parse_args(&printer_args).unwrap().unwrap();
+    assert_eq!(parsed.initial_tab, 3);
+    assert_eq!(parsed.initial_settings_subtab, 4);
+
+    // 2. Non-blocking printer overview when CUPS daemon is idle
+    let start = std::time::Instant::now();
+    let pr_overview = read_printers_overview();
+    assert!(start.elapsed() < std::time::Duration::from_secs(2));
+    assert!(!pr_overview.service_active);
+    assert!(!pr_overview.summary.is_empty());
+
+    // 3. lpstat & lpinfo parsers
+    let lpstat_p = "\
+printer Office_Laser is idle.  enabled since Tue Nov 25 10:00:00 2026
+printer USB_DeskJet disabled since Tue Nov 25 10:01:00 2026
+";
+    let lpstat_d = "system default destination: Office_Laser\n";
+    let parsed_printers = parse_lpstat_printers(lpstat_p, lpstat_d);
+    assert_eq!(parsed_printers.len(), 2);
+    assert_eq!(parsed_printers[0].name, "Office_Laser");
+    assert!(parsed_printers[0].is_default);
+    assert_eq!(parsed_printers[1].name, "USB_DeskJet");
+    assert!(!parsed_printers[1].is_default);
+
+    let lpinfo_v = "\
+file cups-brf:/
+network ipp://192.168.1.50:631/ipp/print
+direct usb://HP/LaserJet%20Pro?serial=ABC123
+";
+    let discovered = parse_lpinfo_devices(lpinfo_v);
+    assert_eq!(discovered.len(), 2);
+    assert_eq!(discovered[0].uri, "ipp://192.168.1.50:631/ipp/print");
+    assert!(!discovered[0].suggested_name.is_empty());
+    assert_eq!(discovered[1].uri, "usb://HP/LaserJet%20Pro?serial=ABC123");
+
+    // 4. Printer input validators reject unsafe shell chars
+    assert!(validate_printer_name("Office_Laser-1").is_ok());
+    assert!(validate_printer_name("-bad").is_err());
+    assert!(validate_printer_name("bad;rm -rf /").is_err());
+    assert!(validate_printer_uri("ipp://192.168.1.50/ipp/print").is_ok());
+    assert!(validate_printer_uri("usb://Brother/HL-L2350DW").is_ok());
+    assert!(validate_printer_uri("file:///etc/passwd").is_err());
+    assert!(validate_printer_uri("ipp://bad;id").is_err());
+
+    // 5. Night Light config parsing, clamping & persistence
+    assert_eq!(clamp_nightlight_temp(1200), 2700);
+    assert_eq!(clamp_nightlight_temp(9000), 5500);
+    let root = make_temp_dir("nightlight");
+    let cfg = save_and_apply_nightlight(&root, true, 3600).unwrap();
+    assert_eq!(
+        cfg,
+        NightLightConfig {
+            enabled: true,
+            temp_k: 3600
+        }
+    );
+    let reloaded = load_nightlight_config(&root);
+    assert_eq!(reloaded, cfg);
+    let rendered = render_nightlight_conf(&cfg);
+    assert_eq!(parse_nightlight_conf(&rendered), cfg);
+    let _ = fs::remove_dir_all(&root);
+
+    // 6. Bilingual EN/BM labels
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.subtab_printers, ms.subtab_printers);
+    assert_ne!(en.chk_night_light, ms.chk_night_light);
+}
+
+#[test]
+fn phase20b_firewall_vpn_and_backup_helpers_work() {
+    // 1. CLI --tab settings:security / firewall / vpn / backup
+    for alias in ["settings:security", "settings:firewall", "settings:vpn", "settings:backup"] {
+        let args = vec!["--tab".to_string(), alias.to_string()];
+        let parsed = parse_args(&args).unwrap().unwrap();
+        assert_eq!(parsed.initial_tab, 3);
+        assert_eq!(parsed.initial_settings_subtab, 5);
+    }
+
+    // 2. Firewall status parser
+    let fw_raw = "enabled=1\nactive=1\nprofile=public\nallow_ssh=1\nrules_count=9\n";
+    let fw = parse_firewall_status(fw_raw);
+    assert!(fw.enabled);
+    assert!(fw.active);
+    assert_eq!(fw.profile, "public");
+    assert!(fw.allow_ssh);
+    assert_eq!(fw.rules_count, 9);
+    assert!(fw.summary.contains("Public"));
+
+    let fw_off = parse_firewall_status("enabled=0\nactive=0\nprofile=home\nallow_ssh=0\nrules_count=0\n");
+    assert!(!fw_off.enabled);
+    assert!(fw_off.summary.contains("Disabled"));
+
+    // 3. VPN nmcli list & import extension validation
+    let nm_raw = "\
+HomeNet:802-11-wireless:yes
+MyOffice\\:OVPN:vpn:no
+wg0:wireguard:yes
+";
+    let vpns = parse_nmcli_vpn_list(nm_raw);
+    assert_eq!(vpns.len(), 2);
+    assert_eq!(vpns[0].name, "wg0");
+    assert_eq!(vpns[0].vpn_type, "WireGuard");
+    assert!(vpns[0].active);
+    assert_eq!(vpns[1].name, "MyOffice:OVPN");
+    assert_eq!(vpns[1].vpn_type, "OpenVPN");
+    assert!(!vpns[1].active);
+
+    assert_eq!(detect_vpn_import_type("/data/home/wg0.conf").unwrap(), "wireguard");
+    assert_eq!(detect_vpn_import_type("/media/usb/work.ovpn").unwrap(), "openvpn");
+    assert!(detect_vpn_import_type("/data/home/file.txt").is_err());
+    assert!(detect_vpn_import_type("relative.conf").is_err());
+
+    // 4. Backup target parsing and path/passphrase guards
+    let targets = parse_backup_targets(
+        "/data/home/Backups\tLocal Backups (/data/home/Backups)\n/media/usb0\tRemovable (/media/usb0)\n",
+    );
+    assert_eq!(targets.len(), 2);
+    assert_eq!(targets[1].path, "/media/usb0");
+
+    assert!(validate_backup_path("/data/home/Backups").is_ok());
+    assert!(validate_backup_path("relative/dir").is_err());
+    assert!(validate_backup_path("/tmp/../etc").is_err());
+    assert!(validate_backup_path("/tmp/bad;rm").is_err());
+
+    assert!(validate_backup_passphrase("short").is_err());
+    assert!(validate_backup_passphrase("UniCoreBackup99!").is_ok());
+
+    // 5. Bilingual Phase 20B labels
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.subtab_security, ms.subtab_security);
+    assert_ne!(en.hdr_firewall, ms.hdr_firewall);
+    assert_ne!(en.btn_create_backup, ms.btn_create_backup);
+    assert_ne!(en.btn_open_scanner, ms.btn_open_scanner);
+}
+
+#[test]
+fn phase20c_office_store_catalog_and_antigravity_work() {
+    use unicore_center::store::store_icon_meta;
+    use uniload::catalog::{find_catalog_app, parse_catalog_json, validate_sha256_hex, EMBEDDED_CATALOG_JSON};
+
+    // 1. Store monogram icons for Phase 20C catalog apps
+    assert_eq!(store_icon_meta("antigravity", "Google Antigravity", "office").0, "AGY");
+    assert_eq!(store_icon_meta("libreoffice", "LibreOffice Suite", "office").0, "LO");
+    assert_eq!(store_icon_meta("vscodium", "VSCodium Editor", "office").0, "VSC");
+    assert_eq!(store_icon_meta("keepassxc", "KeePassXC Portable", "utilities").0, "KPX");
+    assert_eq!(store_icon_meta("vlc", "VLC Media Player", "utilities").0, "VLC");
+
+    // 2. Embedded catalog includes Google Antigravity 2.35.2 + Office/Utility apps with valid 64-hex SHA-256
+    let catalog = parse_catalog_json(EMBEDDED_CATALOG_JSON).expect("embedded catalog valid");
+    assert!(catalog.apps.len() >= 16);
+
+    let agy = find_catalog_app(&catalog, "antigravity").expect("antigravity in catalog");
+    assert_eq!(agy.version, "2.35.2");
+    assert_eq!(agy.category, "office");
+    assert!(agy.download_url.starts_with("https://"));
+    assert!(validate_sha256_hex(&agy.sha256).is_ok());
+
+    for id in ["libreoffice", "vscodium", "keepassxc", "vlc"] {
+        let entry = find_catalog_app(&catalog, id).expect("phase 20c app in catalog");
+        assert!(entry.download_url.starts_with("https://"));
+        assert!(validate_sha256_hex(&entry.sha256).is_ok());
+    }
+}
+
+#[test]
+fn phase20d_personalization_theme_wallpaper_and_input_work() {
+    use unicore_center::settings::{
+        clamp_pointer_speed, load_personalize_config, parse_personalize_conf,
+        render_personalize_conf, save_and_apply_personalize, validate_kb_layout, validate_theme,
+        validate_wallpaper_path, PersonalizeConfig,
+    };
+
+    // 1. CLI --tab settings:appearance / theme / wallpaper / input
+    for alias in [
+        "settings:appearance",
+        "settings:theme",
+        "settings:wallpaper",
+        "settings:input",
+    ] {
+        let args = vec!["--tab".to_string(), alias.to_string()];
+        let parsed = parse_args(&args).unwrap().unwrap();
+        assert_eq!(parsed.initial_tab, 3);
+        assert_eq!(parsed.initial_settings_subtab, 3);
+    }
+
+    // 2. Validators reject unsafe paths, unknown layouts/themes, and clamp speed
+    assert_eq!(validate_theme("LIGHT").unwrap(), "light");
+    assert!(validate_theme("neon").is_err());
+
+    assert_eq!(
+        validate_wallpaper_path("/usr/share/unicore/wallpaper-light.png").unwrap(),
+        "/usr/share/unicore/wallpaper-light.png"
+    );
+    assert!(validate_wallpaper_path("relative.png").is_err());
+    assert!(validate_wallpaper_path("/tmp/bad.sh").is_err());
+    assert!(validate_wallpaper_path("/tmp/../etc/passwd.png").is_err());
+
+    assert_eq!(validate_kb_layout("MY").unwrap(), "my");
+    assert!(validate_kb_layout("xx").is_err());
+
+    assert_eq!(clamp_pointer_speed(-2.0), -0.8);
+    assert_eq!(clamp_pointer_speed(1.5), 0.8);
+    assert_eq!(clamp_pointer_speed(0.34), 0.3);
+
+    // 3. Config persistence & roundtrip parsing
+    let root = make_temp_dir("personalize");
+    assert_eq!(load_personalize_config(&root), PersonalizeConfig::default());
+
+    let custom = PersonalizeConfig {
+        theme: "light".to_string(),
+        wallpaper: "/usr/share/unicore/wallpaper-light.png".to_string(),
+        kb_layout: "my".to_string(),
+        natural_scroll: false,
+        tap_to_click: true,
+        pointer_speed: 0.4,
+    };
+    let saved = save_and_apply_personalize(&root, &custom).unwrap();
+    assert_eq!(saved, custom);
+    let reloaded = load_personalize_config(&root);
+    assert_eq!(reloaded, custom);
+    let rendered = render_personalize_conf(&custom);
+    assert_eq!(parse_personalize_conf(&rendered), custom);
+    let _ = fs::remove_dir_all(&root);
+
+    // 4. Bilingual labels
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.subtab_display, ms.subtab_display);
+    assert_ne!(en.hdr_personalize, ms.hdr_personalize);
+    assert_ne!(en.btn_apply_personalize, ms.btn_apply_personalize);
+}

@@ -1,0 +1,58 @@
+#!/bin/sh
+set -eu
+
+CLIP_DIR="${UNICORE_CLIP_DIR:-${XDG_RUNTIME_DIR:-/tmp}/unicore-cliphist}"
+
+notify_msg() {
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "UniCore Clipboard" "$1" >/dev/null 2>&1 || true
+    fi
+}
+
+if [ ! -d "${CLIP_DIR}" ]; then
+    notify_msg "Clipboard history is empty."
+    exit 0
+fi
+
+FILES="$(ls -1r "${CLIP_DIR}"/*.clip 2>/dev/null || true)"
+if [ -z "${FILES}" ]; then
+    notify_msg "Clipboard history is empty."
+    exit 0
+fi
+
+LIST_FILE="$(mktemp)"
+MAP_FILE="$(mktemp)"
+trap 'rm -f "${LIST_FILE}" "${MAP_FILE}"' EXIT
+
+IDX=0
+for f in ${FILES}; do
+    [ -f "${f}" ] || continue
+    IDX=$((IDX + 1))
+    PREVIEW="$(tr '\r\n\t' '   ' < "${f}" | sed 's/  */ /g; s/^ //' | cut -c1-80)"
+    [ -n "${PREVIEW}" ] || PREVIEW="(text)"
+    printf '%d | %s\n' "${IDX}" "${PREVIEW}" >> "${LIST_FILE}"
+    printf '%d\t%s\n' "${IDX}" "${f}" >> "${MAP_FILE}"
+done
+
+if [ "${IDX}" -eq 0 ]; then
+    notify_msg "Clipboard history is empty."
+    exit 0
+fi
+
+printf 'CLEAR | [Clear Clipboard History]\n' >> "${LIST_FILE}"
+
+CHOICE="$(fuzzel --dmenu --prompt 'Clipboard (Win+V): ' --lines 12 --width 64 < "${LIST_FILE}" || true)"
+[ -n "${CHOICE}" ] || exit 0
+
+KEY="$(printf '%s' "${CHOICE}" | cut -d'|' -f1 | tr -d ' ')"
+if [ "${KEY}" = "CLEAR" ]; then
+    rm -f "${CLIP_DIR}"/*.clip "${CLIP_DIR}/.seq"
+    notify_msg "Clipboard history cleared."
+    exit 0
+fi
+
+SEL_FILE="$(awk -F '\t' -v k="${KEY}" '$1 == k { print $2; exit }' "${MAP_FILE}")"
+if [ -n "${SEL_FILE}" ] && [ -f "${SEL_FILE}" ]; then
+    wl-copy < "${SEL_FILE}"
+    notify_msg "Copied selected item to clipboard."
+fi

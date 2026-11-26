@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+
+# Detect 2005-2026 hardware tier, enable compressed zram swap, and load GPU DRM drivers.
+mkdir -p /run/unicore
+
+for mod in zram i915 radeon amdgpu nouveau bochs cirrus virtio_gpu; do
+    modprobe "${mod}" 2>/dev/null || true
+done
+
+/usr/bin/uniload hw-profile --env > /run/unicore/hw.env
+chmod 644 /run/unicore/hw.env
+
+# shellcheck disable=SC1091
+. /run/unicore/hw.env
+
+if [ -b /dev/zram0 ] && [ "${UNICORE_ZRAM_MB:-0}" -gt 0 ]; then
+    if ! grep -q '^/dev/zram0' /proc/swaps 2>/dev/null; then
+        if grep -q zstd /sys/block/zram0/comp_algorithm 2>/dev/null && [ "${UNICORE_HW_TIER:-}" != "legacy_ultra" ]; then
+            echo zstd > /sys/block/zram0/comp_algorithm 2>/dev/null || true
+        elif grep -q lz4 /sys/block/zram0/comp_algorithm 2>/dev/null; then
+            echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null || true
+        fi
+        echo "${UNICORE_ZRAM_MB}M" > /sys/block/zram0/disksize 2>/dev/null || true
+        mkswap /dev/zram0 >/dev/null 2>&1 || true
+        swapon -p 100 /dev/zram0 >/dev/null 2>&1 || true
+    fi
+fi
+
+if [ -n "${UNICORE_SWAPPINESS:-}" ] && [ -w /proc/sys/vm/swappiness ]; then
+    echo "${UNICORE_SWAPPINESS}" > /proc/sys/vm/swappiness || true
+fi

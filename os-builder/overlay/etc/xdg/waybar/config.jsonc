@@ -1,0 +1,90 @@
+{
+  "layer": "top",
+  "position": "bottom",
+  "height": 40,
+  "spacing": 4,
+  "modules-left": [
+    "custom/start",
+    "custom/files",
+    "custom/browser",
+    "custom/center",
+    "custom/taskmgr"
+  ],
+  "modules-center": [
+    "wlr/taskbar"
+  ],
+  "modules-right": [
+    "network",
+    "pulseaudio",
+    "battery",
+    "clock",
+    "custom/power",
+    "custom/desktop"
+  ],
+  "custom/start": {
+    "format": "Start",
+    "tooltip-format": "Start Menu (Win)",
+    "on-click": "pkill -x fuzzel || fuzzel"
+  },
+  "custom/files": {
+    "format": "Files",
+    "tooltip-format": "File Explorer (Win+E)",
+    "on-click": "pcmanfm /home/unicore &"
+  },
+  "custom/browser": {
+    "format": "Browser",
+    "tooltip-format": "Web Browser (Win+W)",
+    "on-click": "epiphany &"
+  },
+  "custom/center": {
+    "format": "App Center",
+    "tooltip-format": "UniCore App & Security Center (Win+C)",
+    "on-click": "pgrep -f '/usr/bin/unicore-center' >/dev/null || /usr/bin/unicore-center &"
+  },
+  "custom/taskmgr": {
+    "format": "Tasks",
+    "tooltip-format": "Task Manager (Ctrl+Shift+Esc)",
+    "on-click": "/usr/bin/unicore-center --taskmgr &"
+  },
+  "wlr/taskbar": {
+    "format": "{title:.22}",
+    "tooltip-format": "{title}",
+    "on-click": "activate",
+    "on-click-middle": "close",
+    "all-outputs": true
+  },
+  "network": {
+    "format-wifi": "WiFi {signalStrength}%",
+    "format-ethernet": "Net {ifname}",
+    "format-disconnected": "Offline",
+    "tooltip-format": "Wi-Fi & Network Settings",
+    "on-click": "/usr/bin/unicore-center --tab settings:wifi"
+  },
+  "pulseaudio": {
+    "format": "Vol {volume}%",
+    "format-muted": "Muted",
+    "tooltip-format": "Audio Settings (Scroll: Volume, Right-click: Mute)",
+    "on-click": "/usr/bin/unicore-center --tab settings:audio",
+    "on-click-right": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
+    "on-scroll-up": "pactl set-sink-volume @DEFAULT_SINK@ +5%",
+    "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -5%"
+  },
+  "battery": {
+    "format": "Bat {capacity}%",
+    "tooltip": false
+  },
+  "clock": {
+    "format": "{:%H:%M\n%d/%m/%Y}",
+    "tooltip-format": "{:%A, %d %B %Y}"
+  },
+  "custom/power": {
+    "format": "Power",
+    "tooltip-format": "Power Options (Win+X)",
+    "on-click": "/usr/bin/unicore-center --power"
+  },
+  "custom/desktop": {
+    "format": " ",
+    "tooltip-format": "Show Desktop (Win+D)",
+    "on-click": "wlrctl toplevel minimize"
+  }
+}

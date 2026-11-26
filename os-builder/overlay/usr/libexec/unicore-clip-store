@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+
+CLIP_DIR="${UNICORE_CLIP_DIR:-${XDG_RUNTIME_DIR:-/tmp}/unicore-cliphist}"
+umask 077
+mkdir -p "${CLIP_DIR}"
+
+TMP_FILE="${CLIP_DIR}/.incoming.$$"
+trap 'rm -f "${TMP_FILE}"' EXIT
+
+head -c 65536 > "${TMP_FILE}"
+[ -s "${TMP_FILE}" ] || exit 0
+if ! grep -q '[^[:space:]]' "${TMP_FILE}" 2>/dev/null; then
+    exit 0
+fi
+
+HASH="$(sha256sum "${TMP_FILE}" | awk '{print $1}')"
+for existing in "${CLIP_DIR}"/*.clip; do
+    [ -e "${existing}" ] || continue
+    case "${existing}" in
+        *"_${HASH}.clip") rm -f "${existing}" ;;
+    esac
+done
+
+TS="$(date +%s 2>/dev/null || printf '0')"
+SEQ_FILE="${CLIP_DIR}/.seq"
+SEQ="$(cat "${SEQ_FILE}" 2>/dev/null || printf '0')"
+SEQ=$((SEQ + 1))
+printf '%s\n' "${SEQ}" > "${SEQ_FILE}"
+SEQ_PAD="$(printf '%010d' "${SEQ}")"
+mv "${TMP_FILE}" "${CLIP_DIR}/${SEQ_PAD}_${TS}_${HASH}.clip"
+
+COUNT=0
+for item in $(ls -1r "${CLIP_DIR}"/*.clip 2>/dev/null || true); do
+    COUNT=$((COUNT + 1))
+    if [ "${COUNT}" -gt 30 ]; then
+        rm -f "${item}"
+    fi
+done

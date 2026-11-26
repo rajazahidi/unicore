@@ -1,0 +1,21 @@
+[package]
+name = "unicore-center"
+version = "0.1.0"
+edition = "2021"
+description = "UniCore OS GUI App & Security Center"
+
+[dependencies]
+uniload = { path = "../orchestrator" }
+fontique = { version = "0.12.0", default-features = false, features = ["fontconfig-dlopen"] }
+slint = { version = "1.19.0", default-features = false, features = [
+    "compat-1-2",
+    "std",
+    "renderer-software",
+    "backend-winit",
+    "backend-winit-wayland",
+    "backend-winit-x11",
+    "software-renderer-systemfonts",
+] }
+
+[build-dependencies]
+slint-build = "1.19.0"

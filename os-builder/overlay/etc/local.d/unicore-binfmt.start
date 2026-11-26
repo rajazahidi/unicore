@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+# Register UniCore binfmt_misc handlers on boot.
+if [ ! -d /proc/sys/fs/binfmt_misc ]; then
+    exit 0
+fi
+
+if ! mountpoint -q /proc/sys/fs/binfmt_misc; then
+    mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc || true
+fi
+
+if [ -f /etc/binfmt.d/binfmt-universal.conf ] && [ -w /proc/sys/fs/binfmt_misc/register ]; then
+    while IFS= read -r line; do
+        case "${line}" in
+            ""|\#*) continue ;;
+            *)
+                name="${line#:}"
+                name="${name%%:*}"
+                if [ ! -e "/proc/sys/fs/binfmt_misc/${name}" ]; then
+                    printf '%s' "${line}" > /proc/sys/fs/binfmt_misc/register || true
+                fi
+                ;;
+        esac
+    done < /etc/binfmt.d/binfmt-universal.conf
+fi

@@ -1,0 +1,47 @@
+name: UniCore CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  rust-and-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check LF line endings on Linux scripts and configs
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys
+          bad = []
+          for p in pathlib.Path("os-builder").rglob("*"):
+              if not p.is_file():
+                  continue
+              if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".ico", ".exe", ".apk", ".ps1", ".rs", ".toml", ".py") or "fixtures/target" in p.as_posix():
+                  continue
+              if b"\r" in p.read_bytes():
+                  bad.append(str(p))
+          if bad:
+              print("CRLF detected in Linux scripts/configs:", bad)
+              sys.exit(1)
+          print("All os-builder Linux scripts/configs are clean LF.")
+          PY
+
+      - name: Install Rust toolchains & musl targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+
+      - name: Run clippy with -D warnings
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run workspace unit & integration tests
+        run: cargo test --workspace
+
+      - name: Verify cross-architecture musl checks (x86_64 & aarch64)
+        run: |
+          cargo check --target x86_64-unknown-linux-musl -p uniload
+          cargo check --target aarch64-unknown-linux-musl -p uniload

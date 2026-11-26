@@ -1,0 +1,6 @@
+[workspace]
+members = ["core/orchestrator", "core/center"]
+resolver = "2"
+
+[profile.release]
+strip = true

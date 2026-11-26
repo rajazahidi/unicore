@@ -1,0 +1,85 @@
+name: UniCore OS Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: 'Target architecture (x86_64 or aarch64)'
+        required: true
+        default: 'x86_64'
+      firmware_profile:
+        description: 'Firmware profile (slim or full)'
+        required: true
+        default: 'slim'
+
+jobs:
+  build-os:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64 ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust & musl targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+
+      - name: Install Alpine musl cross tools & test fixtures
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools mingw-w64 python3
+
+      - name: Build static uniload & unicore-center (${{ matrix.arch }})
+        run: |
+          TARGET_ARCH="${{ github.event.inputs.arch || matrix.arch }}"
+          cargo build --release --target "${TARGET_ARCH}-unknown-linux-musl" -p uniload
+          cargo build --release --target "${TARGET_ARCH}-unknown-linux-musl" -p unicore-center
+
+      - name: Build UniCore OS image & signed OTA manifest
+        env:
+          UNICORE_RELEASE_KEY: ${{ secrets.UNICORE_RELEASE_KEY }}
+          UNICORE_RELEASE_PUB: ${{ secrets.UNICORE_RELEASE_PUB }}
+        run: |
+          TARGET_ARCH="${{ github.event.inputs.arch || matrix.arch }}"
+          mkdir -p /tmp/unicore-keys os-builder/out
+          EXTRA_ENV=""
+          if [ -n "${UNICORE_RELEASE_PUB}" ]; then
+            printf '%s\n' "${UNICORE_RELEASE_PUB}" > /tmp/unicore-keys/update.pub
+            EXTRA_ENV="${EXTRA_ENV} -e UPDATE_PUBKEY_OVERRIDE=/work/keys/update.pub"
+          fi
+          if [ -n "${UNICORE_RELEASE_KEY}" ]; then
+            printf '%s\n' "${UNICORE_RELEASE_KEY}" > /tmp/unicore-keys/release.key
+            chmod 600 /tmp/unicore-keys/release.key
+            EXTRA_ENV="${EXTRA_ENV} -e UPDATE_SIGN_KEY_OVERRIDE=/work/keys/release.key"
+          fi
+          docker run --rm --privileged \
+            -v "${PWD}:/work" \
+            -v "/tmp/unicore-keys:/work/keys" \
+            -e "TARGET_ARCH=${TARGET_ARCH}" \
+            -e "FIRMWARE_PROFILE_OVERRIDE=${{ github.event.inputs.firmware_profile || 'slim' }}" \
+            -e "UNILOAD_BIN_OVERRIDE=/work/target/${TARGET_ARCH}-unknown-linux-musl/release/uniload" \
+            -e "UNICORE_CENTER_BIN_OVERRIDE=/work/target/${TARGET_ARCH}-unknown-linux-musl/release/unicore-center" \
+            ${EXTRA_ENV} \
+            alpine:3.20 /bin/sh -c "
+              apk add --no-cache bash squashfs-tools grub grub-bios grub-efi xorriso mtools dosfstools e2fsprogs openssl &&
+              bash /work/os-builder/build-rootfs.sh
+            "
+
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: unicore-os-${{ github.event.inputs.arch || matrix.arch }}
+          path: |
+            os-builder/out/vmlinuz-*
+            os-builder/out/initramfs-*.img
+            os-builder/out/unicore-rootfs-*.squashfs
+            os-builder/out/unicore-os-*.iso
+            os-builder/out/unicore-os-*.iso.sha256
+            os-builder/out/unicore-manifest.json
+            os-builder/out/unicore-manifest.json.sig

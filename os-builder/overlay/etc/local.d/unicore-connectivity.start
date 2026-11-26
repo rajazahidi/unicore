@@ -1,0 +1,84 @@
+#!/bin/sh
+# UniCore OS Phase 6 connectivity persistence and on-demand Bluetooth startup.
+
+set -eu
+
+mkdir -p /data/network /data/bluetooth /data/cups
+chmod 0700 /data/network /data/bluetooth
+chmod 0755 /data/cups
+
+# Ensure FUSE kernel module is loaded for ntfs-3g / gvfs-fuse
+modprobe fuse 2>/dev/null || true
+
+# Persist CUPS printer configuration on /data (service stays stopped until needed)
+if [ ! -f /data/cups/cupsd.conf ] && [ -d /usr/share/unicore/cups-defaults ]; then
+    cp -a /usr/share/unicore/cups-defaults/. /data/cups/ 2>/dev/null || true
+fi
+if [ ! -L /etc/cups ]; then
+    if [ -d /etc/cups ]; then
+        cp -a /etc/cups/. /data/cups/ 2>/dev/null || true
+        rm -rf /etc/cups
+    fi
+    ln -s /data/cups /etc/cups
+fi
+
+# Persist NetworkManager saved Wi-Fi/Ethernet profiles on /data
+mkdir -p /etc/NetworkManager
+if [ ! -L /etc/NetworkManager/system-connections ]; then
+    if [ -d /etc/NetworkManager/system-connections ]; then
+        cp -a /etc/NetworkManager/system-connections/. /data/network/ 2>/dev/null || true
+        rm -rf /etc/NetworkManager/system-connections
+    fi
+    ln -s /data/network /etc/NetworkManager/system-connections
+    if command -v nmcli >/dev/null 2>&1; then
+        nmcli connection reload >/dev/null 2>&1 || true
+    fi
+fi
+
+# Persist BlueZ paired device keys on /data
+mkdir -p /var/lib
+if [ ! -L /var/lib/bluetooth ]; then
+    if [ -d /var/lib/bluetooth ]; then
+        cp -a /var/lib/bluetooth/. /data/bluetooth/ 2>/dev/null || true
+        rm -rf /var/lib/bluetooth
+    fi
+    ln -s /data/bluetooth /var/lib/bluetooth
+fi
+
+# Smart on-demand Bluetooth: start bluetoothd only when a Bluetooth controller exists
+# and the machine is not in ultra-lightweight 2005-2008 mode.
+if [ -r /run/unicore/hw.env ]; then
+    # shellcheck disable=SC1091
+    . /run/unicore/hw.env
+fi
+
+HAS_BT=0
+for dev in /sys/class/bluetooth/hci*; do
+    if [ -e "${dev}" ]; then
+        HAS_BT=1
+        break
+    fi
+done
+
+if [ "${HAS_BT}" -eq 1 ] && [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ] && [ -x /etc/init.d/bluetooth ]; then
+    /etc/init.d/bluetooth start >/dev/null 2>&1 || true
+fi
+
+# Apply persisted stateful nftables firewall (only manages table inet unicore_fw)
+if [ -x /usr/libexec/unicore-firewall ]; then
+    /usr/libexec/unicore-firewall apply >/dev/null 2>&1 || true
+fi
+
+# Re-apply persisted OOBE hostname & timezone on immutable boots
+if [ -r /data/unicore/oobe.conf ]; then
+    # shellcheck disable=SC1091
+    . /data/unicore/oobe.conf
+    if [ -n "${UNICORE_HOSTNAME:-}" ]; then
+        printf '%s\n' "${UNICORE_HOSTNAME}" > /etc/hostname 2>/dev/null || true
+        hostname "${UNICORE_HOSTNAME}" 2>/dev/null || true
+    fi
+    if [ -n "${UNICORE_TIMEZONE:-}" ] && [ -f "/usr/share/zoneinfo/${UNICORE_TIMEZONE}" ]; then
+        printf '%s\n' "${UNICORE_TIMEZONE}" > /etc/timezone 2>/dev/null || true
+        ln -snf "/usr/share/zoneinfo/${UNICORE_TIMEZONE}" /etc/localtime 2>/dev/null || true
+    fi
+fi
