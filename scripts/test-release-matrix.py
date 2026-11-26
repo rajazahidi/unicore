@@ -22,10 +22,13 @@ import time
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_DIR = os.path.join(REPO_ROOT, "os-builder", "out")
 ISO_PATH = os.path.join(OUT_DIR, "unicore-os-x86_64.iso")
+VMLINUZ_PATH = os.path.join(OUT_DIR, "vmlinuz-x86_64")
+INITRD_PATH = os.path.join(OUT_DIR, "initramfs-x86_64.img")
 SHA_PATH = ISO_PATH + ".sha256"
 MANIFEST_PATH = os.path.join(OUT_DIR, "unicore-manifest.json")
 OVMF_BIOS = r"C:\Program Files\qemu\share\edk2-x86_64-code.fd"
 QEMU_BIN = r"C:\Program Files\qemu\qemu-system-x86_64.exe"
+QEMU_IMG_BIN = r"C:\Program Files\qemu\qemu-img.exe"
 SCREENSHOT_DEST = (
     r"C:\Users\WIN11\.gemini\antigravity\brain\1cb0b065-c5bb-4947-a4e4-38afcff688cd\desktop_phase20d.png"
 )
@@ -430,10 +433,110 @@ def gate4_host_artifacts():
     print("    [PASS] Gate 4 passed! ISO SHA-256 & manifest valid.")
 
 
+def gate5_ventoy_usb_xhci():
+    print("\n=== GATE 5: Ventoy USB 3.0 xHCI + Internal NVMe Simulation (exFAT/NTFS3/ISO Loopback) ===")
+    with tempfile.TemporaryDirectory(prefix="unicore_ventoy_qa_") as tmpdir:
+        nvme_img = os.path.join(tmpdir, "nvme_dummy.qcow2")
+        usb_img = os.path.join(tmpdir, "ventoy_usb.qcow2")
+        subprocess.run([QEMU_IMG_BIN, "create", "-f", "qcow2", nvme_img, "128M"], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run([QEMU_IMG_BIN, "create", "-f", "qcow2", usb_img, "2G"], check=True, stdout=subprocess.DEVNULL)
+
+        # Phase 5A: Populate a simulated Ventoy USB stick (MBR FAT32 label=Ventoy with /ISO/unicore-os-x86_64.iso)
+        h_prep = SerialHarness(
+            [
+                "-name", "UniCore-QA-Ventoy-Prep",
+                "-m", "2048",
+                "-smp", "2",
+                "-accel", "tcg",
+                "-vga", "none",
+                "-cdrom", ISO_PATH,
+                "-boot", "d",
+                "-drive", f"file={usb_img},if=virtio,format=qcow2",
+                "-display", "none",
+                "-serial", "stdio",
+                "-monitor", "none",
+                "-no-reboot",
+            ],
+            "Gate5-Ventoy-Prep",
+        )
+        try:
+            wait_for_shell(h_prep, 240)
+            prep_script = r"""#!/bin/sh
+set -eu
+parted -s /dev/vda mklabel msdos mkpart primary fat32 1MiB 100%
+partprobe /dev/vda 2>/dev/null || true
+tries=0
+while [ ! -b /dev/vda1 ] && [ "${tries}" -lt 30 ]; do sleep 0.2; tries=$((tries + 1)); done
+test -b /dev/vda1
+mkfs.vfat -F 32 -n Ventoy /dev/vda1
+mkdir -p /mnt/ventoy_prep
+mount -t vfat /dev/vda1 /mnt/ventoy_prep
+mkdir -p /mnt/ventoy_prep/ISO
+dd if=/dev/sr0 of=/mnt/ventoy_prep/ISO/unicore-os-x86_64.iso bs=4M
+sync
+ls -lh /mnt/ventoy_prep/ISO/unicore-os-x86_64.iso
+umount /mnt/ventoy_prep
+sync
+printf '\n===GATE5_PREP_OK===\n'
+"""
+            h_prep.send_script_b64(prep_script, "/tmp/qa_ventoy_prep.sh")
+            h_prep.wait_for("\n===GATE5_PREP_OK===", 300)
+        finally:
+            h_prep.close()
+
+        # Phase 5B: Boot vmlinuz+initrd directly (as Ventoy GRUB does) with internal NVMe + USB 3.0 xHCI Ventoy drive
+        h_boot = SerialHarness(
+            [
+                "-name", "UniCore-QA-Ventoy-Boot",
+                "-m", "2048",
+                "-smp", "2",
+                "-accel", "tcg",
+                "-vga", "std",
+                "-kernel", VMLINUZ_PATH,
+                "-initrd", INITRD_PATH,
+                "-append", "console=ttyS0",
+                "-drive", f"id=nvme0,file={nvme_img},if=none,format=qcow2",
+                "-device", "nvme,serial=ASUS_NVME,drive=nvme0",
+                "-device", "qemu-xhci,id=xhci",
+                "-drive", f"id=usb0,file={usb_img},if=none,format=qcow2",
+                "-device", "usb-storage,bus=xhci.0,drive=usb0",
+                "-display", "none",
+                "-serial", "stdio",
+                "-monitor", "none",
+                "-no-reboot",
+            ],
+            "Gate5-Ventoy-Boot",
+        )
+        try:
+            wait_for_shell(h_boot, 240)
+            boot_log = h_boot.get_buf()
+            if "can't create /dev/null" in boot_log:
+                raise RuntimeError("Regressed early /dev/null warning in initramfs /init!")
+            verify_script = r"""#!/bin/sh
+set -eu
+cat /mnt/unicore-boot.env
+. /mnt/unicore-boot.env
+[ "${UNICORE_BOOT_MODE}" = "live" ]
+[ "${UNICORE_BOOT_ISO}" = "/ISO/unicore-os-x86_64.iso" ]
+test -f /mnt/unicore-media/unicore/unicore-rootfs-x86_64.squashfs
+test -f /mnt/unicore-media/boot/vmlinuz-x86_64
+test -f /mnt/unicore-iso-host/ISO/unicore-os-x86_64.iso
+test -b /dev/nvme0n1
+grep -qw exfat /proc/filesystems
+grep -qw ntfs3 /proc/filesystems
+printf '\n===GATE5_OK===\n'
+"""
+            h_boot.send_script_b64(verify_script, "/tmp/qa_ventoy_verify.sh")
+            h_boot.wait_for("\n===GATE5_OK===", 90)
+            print("    [PASS] Gate 5 passed! Ventoy USB 3.0 xHCI ISO loopback + internal NVMe + exfat/ntfs3 verified.")
+        finally:
+            h_boot.close()
+
+
 def main():
     if not os.path.isfile(ISO_PATH):
         raise FileNotFoundError(f"Missing ISO: {ISO_PATH}")
-    requested = set(sys.argv[1:]) if len(sys.argv) > 1 else {"1", "2", "3", "4"}
+    requested = set(sys.argv[1:]) if len(sys.argv) > 1 else {"1", "2", "3", "4", "5"}
     if "4" in requested:
         gate4_host_artifacts()
     if "1" in requested:
@@ -442,6 +545,8 @@ def main():
         gate2_uefi_boot()
     if "3" in requested:
         gate3_legacy_2005()
+    if "5" in requested:
+        gate5_ventoy_usb_xhci()
     print("\n============================================================")
     print("ALL REQUESTED RELEASE QA MATRIX GATES PASSED SUCCESSFULLY!")
     print("============================================================")

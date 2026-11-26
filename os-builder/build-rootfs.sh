@@ -524,7 +524,7 @@ copy_bin_with_libs kmod
 copy_bin_with_libs cryptsetup
 copy_bin_with_libs dmsetup
 
-for applet in sh ash grep head cat ls echo sleep mount umount mkdir rmdir rm cp ln chmod sync switch_root blkid modprobe losetup poweroff reboot; do
+for applet in sh ash grep head cat ls echo sleep mount umount mkdir rmdir rm cp ln chmod sync switch_root blkid modprobe losetup poweroff reboot uname basename dirname tr cut sort sed awk find dmesg lsmod printf; do
     if [[ ! -e "${INITRD_DIR}/bin/${applet}" && ! -e "${INITRD_DIR}/sbin/${applet}" ]]; then
         ln -sf /bin/busybox "${INITRD_DIR}/bin/${applet}"
     fi
@@ -535,7 +535,7 @@ elif [[ -e "${INITRD_DIR}/usr/bin/kmod" ]]; then
     ln -sf /usr/bin/kmod "${INITRD_DIR}/sbin/modprobe"
 fi
 
-# Copy essential 2005-2026 storage, USB, CD, zram, and fs kernel modules into initramfs
+# Copy essential 2005-2026 storage, PCI/VMD, MMC, USB, HID keyboard, CD, and fs kernel modules into initramfs
 if [[ -d "${ROOTFS_DIR}/lib/modules/${KVER}" ]]; then
     (
         cd "${ROOTFS_DIR}"
@@ -545,11 +545,22 @@ if [[ -d "${ROOTFS_DIR}/lib/modules/${KVER}" ]]; then
             -path "*/kernel/drivers/ata/*" -o \
             -path "*/kernel/drivers/scsi/*" -o \
             -path "*/kernel/drivers/nvme/*" -o \
+            -path "*/kernel/drivers/pci/controller/*" -o \
+            -path "*/kernel/drivers/mmc/*" -o \
+            -path "*/kernel/drivers/misc/cardreader/*" -o \
             -path "*/kernel/drivers/cdrom/*" -o \
+            -path "*/kernel/drivers/phy/*" -o \
             -path "*/kernel/drivers/usb/common/*" -o \
             -path "*/kernel/drivers/usb/core/*" -o \
             -path "*/kernel/drivers/usb/host/*" -o \
+            -path "*/kernel/drivers/usb/phy/*" -o \
             -path "*/kernel/drivers/usb/storage/*" -o \
+            -path "*/kernel/drivers/hid/hid.ko*" -o \
+            -path "*/kernel/drivers/hid/hid-generic.ko*" -o \
+            -path "*/kernel/drivers/hid/usbhid/*" -o \
+            -path "*/kernel/drivers/hid/i2c-hid/*" -o \
+            -path "*/kernel/drivers/input/serio/*" -o \
+            -path "*/kernel/drivers/input/keyboard/atkbd*" -o \
             -path "*/kernel/drivers/md/*" -o \
             -path "*/kernel/fs/squashfs/*" -o \
             -path "*/kernel/fs/overlayfs/*" -o \
@@ -558,6 +569,8 @@ if [[ -d "${ROOTFS_DIR}/lib/modules/${KVER}" ]]; then
             -path "*/kernel/fs/mbcache*" -o \
             -path "*/kernel/fs/isofs/*" -o \
             -path "*/kernel/fs/fat/*" -o \
+            -path "*/kernel/fs/exfat/*" -o \
+            -path "*/kernel/fs/ntfs3/*" -o \
             -path "*/kernel/fs/nls/*" -o \
             -path "*/kernel/fs/binfmt_misc*" -o \
             -path "*/kernel/fs/crypto/*" -o \
@@ -569,9 +582,9 @@ if [[ -d "${ROOTFS_DIR}/lib/modules/${KVER}" ]]; then
             cp -a "${modrel}" "${INITRD_DIR}/${modrel}"
         done
         # Copy all transitive dependencies listed in the full rootfs modules.dep
-        # (pulls in encrypted-keys, trusted, tpm, tee, hwmon, etc. for dm-crypt & nvme)
+        # (pulls in encrypted-keys, trusted, tpm, tee, hwmon, mfd, etc. for dm-crypt, nvme, cardreaders & hid)
         if [[ -f "lib/modules/${KVER}/modules.dep" ]]; then
-            for _dep_pass in 1 2 3; do
+            for _dep_pass in 1 2 3 4 5; do
                 (cd "${INITRD_DIR}/lib/modules/${KVER}" && find kernel -type f) > "${WORK_DIR}/initrd_mods.list"
                 new_deps="$(awk -F: '
                     NR==FNR { have[$0]=1; next }
@@ -679,12 +692,12 @@ if command -v grub-mkrescue >/dev/null 2>&1 && command -v xorriso >/dev/null 2>&
 set timeout=3
 set default=0
 
-menuentry "UniCore OS 0.1.0 (Universal Desktop - 2005 to Present)" {
+menuentry "UniCore OS ${OS_VERSION} (Universal Desktop - 2005 to Present)" {
     linux /boot/vmlinuz-${ARCH} console=tty1 quiet
     initrd /boot/initramfs-${ARCH}.img
 }
 
-menuentry "UniCore OS 0.1.0 (Safe / Legacy VESA & Serial Debug Mode)" {
+menuentry "UniCore OS ${OS_VERSION} (Safe / Legacy VESA & Serial Debug Mode)" {
     linux /boot/vmlinuz-${ARCH} console=tty1 console=ttyS0 nomodeset
     initrd /boot/initramfs-${ARCH}.img
 }

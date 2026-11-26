@@ -1,44 +1,65 @@
 #!/bin/sh
 set -eu
 
-# UniCore OS Stage-1 universal boot script (2005 BIOS IDE/SATA/USB to modern UEFI NVMe/QEMU):
+# UniCore OS Stage-1 universal boot script (2005 BIOS IDE/SATA/USB to modern UEFI NVMe/Ventoy/QEMU):
 # Supports:
 #   0) Installed A/B slot via kernel parameter `unicore_slot=UNICORE_SYS_A|B`
 #   1) Direct QEMU raw SquashFS drive on /dev/vda
-#   2) Live Hybrid ISO/USB media (never auto-formatting host hard drives)
+#   2) Live Hybrid ISO/USB media (Rufus DD/ISO on iso9660/vfat/exfat/ntfs3/ext4)
+#   3) Ventoy / GRUB2 loopback ISO files on USB/disk partitions (exfat/ntfs3/vfat/ext4)
 
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
-ARCH="$(uname -m 2>/dev/null || echo x86_64)"
 
-mkdir -p /proc /sys /dev /mnt/ro /mnt/media /mnt/data /mnt/sys_overlay /newroot /run/cryptsetup /tmp
+mkdir -p /proc /sys /dev /mnt/ro /mnt/media /mnt/iso_host /mnt/data /mnt/sys_overlay /newroot /run/cryptsetup /tmp
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 
-# Load broad 2005-2026 storage, USB, CD, filesystem, and compression modules.
+ARCH="$(uname -m 2>/dev/null || echo x86_64)"
+
+load_modalias() {
+    for bus_dir in /sys/bus/pci/devices /sys/bus/usb/devices /sys/bus/acpi/devices /sys/bus/mmc/devices /sys/bus/hid/devices; do
+        [ -d "${bus_dir}" ] || continue
+        for dev_dir in "${bus_dir}"/*; do
+            [ -r "${dev_dir}/modalias" ] || continue
+            alias_val="$(cat "${dev_dir}/modalias" 2>/dev/null || true)"
+            if [ -n "${alias_val}" ]; then
+                modprobe -q "${alias_val}" 2>/dev/null || true
+            fi
+        done
+    done
+}
+
+# Load broad 2005-2026 storage, PCI/VMD, MMC, USB, HID keyboard, filesystem, and crypto modules.
 for mod in \
-    virtio_pci virtio_blk \
-    ata_piix ata_generic pata_acpi libahci ahci sd_mod sr_mod \
+    virtio_pci virtio_blk virtio_scsi \
+    vmd ata_piix ata_generic pata_acpi libahci ahci sd_mod sr_mod \
     nvme_core nvme \
-    usb_common usbcore uhci_hcd ohci_hcd ehci_hcd ehci_pci xhci_hcd xhci_pci usb_storage uas \
-    loop isofs iso9660 fat vfat nls_cp437 nls_utf8 \
+    mmc_core mmc_block sdhci sdhci_pci sdhci_acpi rtsx_pci rtsx_pci_sdmmc rtsx_usb rtsx_usb_sdmmc \
+    usb_common usbcore uhci_hcd ohci_hcd ohci_pci ehci_hcd ehci_pci ehci_platform xhci_hcd xhci_pci xhci_pci_renesas xhci_plat_hcd usb_storage uas \
+    i8042 atkbd hid hid_generic usbhid i2c_hid i2c_hid_acpi \
+    loop isofs iso9660 fat vfat exfat ntfs3 nls_cp437 nls_utf8 nls_iso8859_1 nls_ascii \
     dm_mod trusted encrypted_keys dm_crypt aesni_intel aes_generic xts cbc sha256_generic algif_skcipher algif_hash \
     squashfs overlay ext4 binfmt_misc; do
-    modprobe "${mod}" 2>/dev/null || true
+    modprobe -q "${mod}" 2>/dev/null || true
 done
+load_modalias
 
-# Give legacy IDE/USB/VirtIO buses a brief moment to settle.
-tries=0
-while [ ! -b /dev/vda ] && [ ! -b /dev/sda ] && [ ! -b /dev/sr0 ] && [ ! -b /dev/hda ] && [ ! -b /dev/nvme0n1 ] && [ "${tries}" -lt 50 ]; do
-    sleep 0.1
-    tries=$((tries + 1))
-done
+# Brief initial settle for PCI/VirtIO/USB bus probe.
+sleep 0.4
 
 UNICORE_SLOT=""
+FINDISO=""
 for arg in $(cat /proc/cmdline 2>/dev/null || true); do
     case "${arg}" in
         unicore_slot=*)
             UNICORE_SLOT="${arg#unicore_slot=}"
+            ;;
+        findiso=*)
+            FINDISO="${arg#findiso=}"
+            ;;
+        iso-scan/filename=*)
+            FINDISO="${arg#iso-scan/filename=}"
             ;;
     esac
 done
@@ -46,27 +67,170 @@ done
 BOOT_MODE="live"
 BOOT_MEDIA_DEV=""
 BOOT_SLOT=""
+BOOT_ISO_PATH=""
 MEDIA_MOUNTED=0
+ISO_HOST_MOUNTED=0
 
-mount_rootfs_ro() {
-    resolve_squashfs() {
-        base="$1"
-        if [ -f "${base}/unicore/unicore-rootfs-${ARCH}.squashfs" ]; then
-            printf '%s\n' "${base}/unicore/unicore-rootfs-${ARCH}.squashfs"
+resolve_squashfs() {
+    base="$1"
+    if [ -f "${base}/unicore/unicore-rootfs-${ARCH}.squashfs" ]; then
+        printf '%s\n' "${base}/unicore/unicore-rootfs-${ARCH}.squashfs"
+        return 0
+    fi
+    for cand in "${base}"/unicore/unicore-rootfs-*.squashfs; do
+        if [ -f "${cand}" ]; then
+            printf '%s\n' "${cand}"
             return 0
         fi
-        for cand in "${base}"/unicore/unicore-rootfs-*.squashfs; do
-            if [ -f "${cand}" ]; then
-                printf '%s\n' "${cand}"
+    done
+    return 1
+}
+
+mount_dev_ro() {
+    m_dev="$1"
+    m_dir="$2"
+    fs_type="$(blkid -s TYPE -o value "${m_dev}" 2>/dev/null || true)"
+    case "${fs_type}" in
+        swap|crypto_LUKS|BitLocker|LVM2_member)
+            return 1
+            ;;
+        iso9660)
+            if mount -t iso9660 -o ro "${m_dev}" "${m_dir}" 2>/dev/null; then return 0; fi
+            return 1
+            ;;
+        vfat)
+            if mount -t vfat -o ro "${m_dev}" "${m_dir}" 2>/dev/null; then return 0; fi
+            return 1
+            ;;
+        exfat)
+            if mount -t exfat -o ro "${m_dev}" "${m_dir}" 2>/dev/null; then return 0; fi
+            return 1
+            ;;
+        ntfs)
+            if mount -t ntfs3 -o ro "${m_dev}" "${m_dir}" 2>/dev/null; then return 0; fi
+            return 1
+            ;;
+        ext4|ext3|ext2)
+            if mount -t ext4 -o ro "${m_dev}" "${m_dir}" 2>/dev/null; then return 0; fi
+            return 1
+            ;;
+        *)
+            for try_fs in iso9660 vfat exfat ntfs3 ext4; do
+                if mount -t "${try_fs}" -o ro "${m_dev}" "${m_dir}" 2>/dev/null; then
+                    return 0
+                fi
+            done
+            return 1
+            ;;
+    esac
+}
+
+try_mount_iso_file() {
+    iso_cand="$1"
+    host_dev="$2"
+    [ -f "${iso_cand}" ] || return 1
+    if mount -t iso9660 -o loop,ro "${iso_cand}" /mnt/media 2>/dev/null; then
+        if sq_img="$(resolve_squashfs /mnt/media)"; then
+            if mount -t squashfs -o loop,ro "${sq_img}" /mnt/ro 2>/dev/null; then
+                BOOT_MEDIA_DEV="${host_dev}"
+                BOOT_ISO_PATH="${iso_cand#/mnt/iso_host}"
+                BOOT_MODE="live"
+                MEDIA_MOUNTED=1
+                ISO_HOST_MOUNTED=1
                 return 0
             fi
-        done
-        return 1
-    }
+        fi
+        umount -d /mnt/media 2>/dev/null || umount /mnt/media 2>/dev/null || true
+    fi
+    return 1
+}
 
+is_skipped_host_dir() {
+    case "$1" in
+        Windows|WINDOWS|'Program Files'|'Program Files (x86)'|ProgramData|Users|PerfLogs|Recovery|'$Recycle.Bin'|'System Volume Information'|proc|sys|dev|usr|var|etc|lib|lib64|bin|sbin)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+scan_ventoy_isos_on_host() {
+    host_dev="$1"
+    # 1) Explicit kernel cmdline findiso=/path/to.iso
+    if [ -n "${FINDISO}" ]; then
+        if try_mount_iso_file "/mnt/iso_host/${FINDISO#/}" "${host_dev}"; then
+            return 0
+        fi
+    fi
+
+    # 2) Priority pass: *unicore*.iso in /, /*/, and /*/*/ (skipping large OS dirs)
+    for iso_f in /mnt/iso_host/*.[iI][sS][oO]; do
+        [ -f "${iso_f}" ] || continue
+        bn_lc="$(basename "${iso_f}" | tr 'A-Z' 'a-z')"
+        case "${bn_lc}" in
+            *unicore*)
+                if try_mount_iso_file "${iso_f}" "${host_dev}"; then return 0; fi
+                ;;
+        esac
+    done
+
+    for d1 in /mnt/iso_host/*; do
+        [ -d "${d1}" ] || continue
+        is_skipped_host_dir "$(basename "${d1}")" && continue
+        for iso_f in "${d1}"/*.[iI][sS][oO]; do
+            [ -f "${iso_f}" ] || continue
+            bn_lc="$(basename "${iso_f}" | tr 'A-Z' 'a-z')"
+            case "${bn_lc}" in
+                *unicore*)
+                    if try_mount_iso_file "${iso_f}" "${host_dev}"; then return 0; fi
+                    ;;
+            esac
+        done
+        for d2 in "${d1}"/*; do
+            [ -d "${d2}" ] || continue
+            is_skipped_host_dir "$(basename "${d2}")" && continue
+            for iso_f in "${d2}"/*.[iI][sS][oO]; do
+                [ -f "${iso_f}" ] || continue
+                bn_lc="$(basename "${iso_f}" | tr 'A-Z' 'a-z')"
+                case "${bn_lc}" in
+                    *unicore*)
+                        if try_mount_iso_file "${iso_f}" "${host_dev}"; then return 0; fi
+                        ;;
+                esac
+            done
+        done
+    done
+
+    # 3) Fallback pass on USB/MMC/Ventoy partitions: any renamed *.iso in / or /*/
+    lbl_lc="$(blkid -s LABEL -o value "${host_dev}" 2>/dev/null | tr 'A-Z' 'a-z' || true)"
+    allow_any=0
+    case "${lbl_lc}" in
+        *ventoy*) allow_any=1 ;;
+    esac
+    case "${host_dev}" in
+        /dev/sd*|/dev/mmcblk*|/dev/vd*) allow_any=1 ;;
+    esac
+    if [ "${allow_any}" = "1" ]; then
+        for iso_f in /mnt/iso_host/*.[iI][sS][oO]; do
+            [ -f "${iso_f}" ] || continue
+            if try_mount_iso_file "${iso_f}" "${host_dev}"; then return 0; fi
+        done
+        for d1 in /mnt/iso_host/*; do
+            [ -d "${d1}" ] || continue
+            is_skipped_host_dir "$(basename "${d1}")" && continue
+            for iso_f in "${d1}"/*.[iI][sS][oO]; do
+                [ -f "${iso_f}" ] || continue
+                if try_mount_iso_file "${iso_f}" "${host_dev}"; then return 0; fi
+            done
+        done
+    fi
+    return 1
+}
+
+mount_rootfs_ro() {
     # 0. Explicit bare-metal A/B slot passed by GRUB (`unicore_slot=UNICORE_SYS_A|B`)
     if [ -n "${UNICORE_SLOT}" ]; then
-        for wait_pass in 1 2 3 4 5 6 7 8 9 10; do
+        for wait_pass in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
             slot_dev="$(blkid -t "LABEL=${UNICORE_SLOT}" -o device 2>/dev/null | head -n1 || true)"
             if [ -n "${slot_dev}" ] && mount -t ext4 -o ro "${slot_dev}" /mnt/media 2>/dev/null; then
                 if sq_img="$(resolve_squashfs /mnt/media)"; then
@@ -92,40 +256,70 @@ mount_rootfs_ro() {
         return 0
     fi
 
-    # 2. Scan ISO/USB/SATA/IDE/NVMe/MMC media containing /unicore/unicore-rootfs-${ARCH}.squashfs
-    for wait_pass in 1 2 3 4 5; do
-        for dev in /dev/sr* /dev/sd* /dev/hd* /dev/nvme* /dev/vd* /dev/mmcblk*; do
+    # 2. Scan ISO/USB/Ventoy/SATA/IDE/NVMe/MMC media (waits up to ~15s for slow USB 3.0 drives)
+    wait_pass=1
+    while [ "${wait_pass}" -le 30 ]; do
+        case "${wait_pass}" in
+            4|10|20) load_modalias ;;
+        esac
+        case "${wait_pass}" in
+            4|10|16|22) echo "==> Waiting for UniCore boot media (USB/Ventoy/ISO/SSD)..." ;;
+        esac
+
+        # 2a) Direct media containing /unicore/unicore-rootfs-*.squashfs
+        for dev in /dev/mapper/* /dev/dm-* /dev/sr* /dev/sd* /dev/mmcblk* /dev/hd* /dev/vd* /dev/nvme*; do
             [ -b "${dev}" ] || continue
-            for fstype in iso9660 vfat ext4; do
-                if mount -t "${fstype}" -o ro "${dev}" /mnt/media 2>/dev/null; then
-                    if sq_img="$(resolve_squashfs /mnt/media)"; then
-                        if mount -t squashfs -o loop,ro "${sq_img}" /mnt/ro 2>/dev/null; then
-                            BOOT_MEDIA_DEV="${dev}"
-                            MEDIA_MOUNTED=1
-                            lbl="$(blkid -s LABEL -o value "${dev}" 2>/dev/null || true)"
-                            case "${lbl}" in
-                                UNICORE_SYS_A|UNICORE_SYS_B)
-                                    BOOT_MODE="installed"
-                                    BOOT_SLOT="${lbl}"
-                                    ;;
-                                *)
-                                    BOOT_MODE="live"
-                                    ;;
-                            esac
-                            return 0
-                        fi
+            if mount_dev_ro "${dev}" /mnt/media; then
+                if sq_img="$(resolve_squashfs /mnt/media)"; then
+                    if mount -t squashfs -o loop,ro "${sq_img}" /mnt/ro 2>/dev/null; then
+                        BOOT_MEDIA_DEV="${dev}"
+                        MEDIA_MOUNTED=1
+                        lbl="$(blkid -s LABEL -o value "${dev}" 2>/dev/null || true)"
+                        case "${lbl}" in
+                            UNICORE_SYS_A|UNICORE_SYS_B)
+                                BOOT_MODE="installed"
+                                BOOT_SLOT="${lbl}"
+                                ;;
+                            *)
+                                BOOT_MODE="live"
+                                ;;
+                        esac
+                        return 0
                     fi
-                    umount /mnt/media 2>/dev/null || true
                 fi
-            done
+                umount /mnt/media 2>/dev/null || true
+            fi
         done
+
+        # 2b) Ventoy / GRUB2 loopback ISO files on USB/MMC/Disk partitions (USB prioritized over internal NVMe)
+        for dev in /dev/sd* /dev/mmcblk* /dev/vd* /dev/hd* /dev/nvme*; do
+            [ -b "${dev}" ] || continue
+            # Skip whole disk when partitions exist
+            if [ -b "${dev}1" ] || [ -b "${dev}p1" ]; then
+                continue
+            fi
+            if mount_dev_ro "${dev}" /mnt/iso_host; then
+                if scan_ventoy_isos_on_host "${dev}"; then
+                    return 0
+                fi
+                umount /mnt/iso_host 2>/dev/null || true
+            fi
+        done
+
         sleep 0.5
+        wait_pass=$((wait_pass + 1))
     done
     return 1
 }
 
 if ! mount_rootfs_ro; then
-    echo "[PANIC] Immutable UniCore RootFS not found on Slot A/B, VirtIO, ISO, USB, IDE, SATA, or NVMe!"
+    echo "[PANIC] Immutable UniCore RootFS not found on Slot A/B, Ventoy, VirtIO, ISO, USB, IDE, SATA, MMC, or NVMe!"
+    echo "--- Detected block devices ---"
+    ls -la /dev/sd* /dev/sr* /dev/nvme* /dev/mmcblk* /dev/hd* /dev/vd* /dev/dm-* /dev/mapper/* 2>/dev/null || true
+    echo "--- blkid ---"
+    blkid 2>/dev/null || true
+    echo "--- Loaded filesystems ---"
+    grep -E 'iso9660|vfat|exfat|ntfs|ext4|squashfs' /proc/filesystems 2>/dev/null || true
     exec /bin/sh
 fi
 
@@ -212,11 +406,16 @@ mkdir -p /newroot/mnt/unicore-media
 if [ "${MEDIA_MOUNTED}" = "1" ]; then
     mount --move /mnt/media /newroot/mnt/unicore-media
 fi
+if [ "${ISO_HOST_MOUNTED}" = "1" ]; then
+    mkdir -p /newroot/mnt/unicore-iso-host
+    mount --move /mnt/iso_host /newroot/mnt/unicore-iso-host
+fi
 
 cat <<EOF > /newroot/mnt/unicore-boot.env
 UNICORE_BOOT_MODE=${BOOT_MODE}
 UNICORE_BOOT_MEDIA=${BOOT_MEDIA_DEV}
 UNICORE_BOOT_SLOT=${BOOT_SLOT}
+UNICORE_BOOT_ISO=${BOOT_ISO_PATH}
 UNICORE_DATA_ENCRYPTED=${DATA_ENCRYPTED}
 EOF
 
