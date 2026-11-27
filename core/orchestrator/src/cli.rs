@@ -80,6 +80,8 @@ COMMANDS:
   update <status|check|generate-manifest|verify-manifest|verify-file|grubenv|keygen|sign-manifest>
                                        Inspect, sign, verify, and manage A/B OS updates & grubenv
   hw-profile [--env]                   Inspect hardware tier (2005 legacy to modern)
+  gamepad-map [--profile P] [--device /dev/input/js0] [--dry-run]
+                                       Map USB/BT gamepad to keyboard/mouse (wasd_mouse|arrows_space|dos_classic)
   permissions <APP_ID> [--allow P] [--deny P]
                                        Update per-app sandbox permissions
   bwrap-args <APP_ID>                  Inspect bubblewrap confinement flags for an app
@@ -239,6 +241,32 @@ pub fn run_cli(args: &[String]) -> Result<String, String> {
         } else {
             profile.to_json_string()
         });
+    }
+
+    if cmd == "gamepad-map" {
+        let mut profile = crate::gamepad_map::GamepadProfile::WasdMouse;
+        let mut device = "/dev/input/js0".to_string();
+        let mut dry_run = false;
+        let mut idx = 0usize;
+        while idx < rest.len() {
+            match rest[idx].as_str() {
+                "--profile" => {
+                    let raw = next_flag_value(rest, &mut idx, "--profile")?;
+                    profile = crate::gamepad_map::GamepadProfile::parse(&raw)?;
+                }
+                "--device" => {
+                    device = next_flag_value(rest, &mut idx, "--device")?;
+                }
+                "--dry-run" => dry_run = true,
+                other => return Err(format!("Unexpected argument for gamepad-map: {other}")),
+            }
+            idx += 1;
+        }
+        if dry_run {
+            return Ok(crate::gamepad_map::describe_plan_json(profile, &device));
+        }
+        crate::gamepad_map::run_gamepad_mapper(profile, &device)?;
+        return Ok("{\"status\":\"stopped\"}".to_string());
     }
 
     let idle_timeout = std::env::var("UNILOAD_IDLE_TIMEOUT")

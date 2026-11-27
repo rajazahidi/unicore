@@ -1601,3 +1601,97 @@ fn v080_ecosystem_phone_cloud_migrate_drivers_and_bilingual_work() {
     assert_ne!(en.eco_tab_migrate, ms.eco_tab_migrate);
     assert_ne!(en.eco_tab_drivers, ms.eco_tab_drivers);
 }
+
+#[test]
+fn v090_unified_gamehub_gamepad_and_cloud_saves_work() {
+    use unicore_center::gamehub::{
+        discover_unified_games, filter_games, format_playtime, load_favorites,
+        mapper_profile_from_index, mapper_profile_to_index, parse_gamepad_status,
+        parse_gamesave_status, parse_playtime_tsv, parse_steam_acf, toggle_favorite,
+    };
+    use unicore_center::start_emoji::builtin_gamehub_apps;
+
+    // 1. CLI flags --games, --gamepad, --saves
+    assert_eq!(
+        parse_args(&["--games".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::GameHub(0)
+    );
+    assert_eq!(
+        parse_args(&["--gamepad".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::GameHub(1)
+    );
+    assert_eq!(
+        parse_args(&["--saves".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::GameHub(2)
+    );
+
+    // 2. Steam ACF parser (skips Proton / Steamworks redistributables)
+    let acf_ok = "\"AppState\"\n{\n\t\"appid\"\t\t\"220\"\n\t\"name\"\t\t\"Half-Life 2\"\n}\n";
+    assert_eq!(
+        parse_steam_acf(acf_ok),
+        Some(("220".to_string(), "Half-Life 2".to_string()))
+    );
+    let acf_proton = "\"AppState\"\n{\n\t\"appid\"\t\t\"1493710\"\n\t\"name\"\t\t\"Proton Experimental\"\n}\n";
+    assert!(parse_steam_acf(acf_proton).is_none());
+
+    // 3. Playtime formatter, favorites persistence & unified discovery
+    assert_eq!(format_playtime(20), "New");
+    assert_eq!(format_playtime(1800), "30m played");
+    assert_eq!(format_playtime(8100), "2h 15m");
+    let pt = parse_playtime_tsv("steam-220\t8100\nra2\t3600\n");
+    assert_eq!(pt.get("steam-220"), Some(&8100));
+
+    let root = make_temp_dir("v090_gamehub");
+    let steam_dir = root.join("steamapps");
+    let conf_dir = root.join("conf");
+    fs::create_dir_all(&steam_dir).unwrap();
+    fs::create_dir_all(&conf_dir).unwrap();
+    fs::write(steam_dir.join("appmanifest_220.acf"), acf_ok).unwrap();
+    fs::write(conf_dir.join("playtime.tsv"), "steam-220\t8100\n").unwrap();
+
+    assert!(toggle_favorite(&conf_dir, "steam-220").unwrap());
+    assert!(load_favorites(&conf_dir).contains("steam-220"));
+
+    let games = discover_unified_games(&[], &[steam_dir.as_path()], &conf_dir);
+    assert_eq!(games.len(), 1);
+    assert_eq!(games[0].name, "Half-Life 2");
+    assert_eq!(games[0].platform_badge, "Steam");
+    assert!(games[0].favorite);
+    assert_eq!(games[0].playtime_label, "2h 15m");
+    assert_eq!(filter_games(&games, "favorites", "half").len(), 1);
+    assert_eq!(filter_games(&games, "classic", "").len(), 0);
+    let _ = fs::remove_dir_all(&root);
+
+    // 4. Gamepad & Save Backup parsers
+    assert_eq!(mapper_profile_from_index(1), "arrows_space");
+    assert_eq!(mapper_profile_to_index("dos_classic"), 2);
+    let gp = parse_gamepad_status(
+        "evtest_available=1\nuinput_ready=1\nmapper_running=1\nmapper_profile=wasd_mouse\ncontrollers=/dev/input/js0|Xbox Wireless Controller|Xbox|85%\n",
+    );
+    assert!(gp.evtest_available && gp.uinput_ready && gp.mapper_running);
+    assert_eq!(gp.controllers.len(), 1);
+    assert_eq!(gp.controllers[0].vendor_kind, "Xbox");
+    assert_eq!(gp.controllers[0].battery, "85%");
+
+    let sv = parse_gamesave_status(
+        "backup_dir=/home/unicore/Backups/GameSaves\nauto_backup=1\ncloud_remote=GoogleDrive\nbackup_count=2\nbackups=ra2-20261128.tar.gz|512|/home/unicore/Backups/GameSaves/ra2-20261128.tar.gz\n",
+    );
+    assert!(sv.auto_backup);
+    assert_eq!(sv.cloud_remote, "GoogleDrive");
+    assert_eq!(sv.backups.len(), 1);
+    assert_eq!(sv.backups[0].size_kb, 512);
+
+    // 5. Start Menu Game Hub entry + bilingual labels
+    let gh_en = builtin_gamehub_apps(UiLang::En);
+    let gh_ms = builtin_gamehub_apps(UiLang::Ms);
+    assert_eq!(gh_en.len(), 1);
+    assert_ne!(gh_en[0].name, gh_ms[0].name);
+
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.title_gamehub, ms.title_gamehub);
+    assert_ne!(en.gh_tab_library, ms.gh_tab_library);
+    assert_ne!(en.gh_tab_gamepad, ms.gh_tab_gamepad);
+    assert_ne!(en.gh_tab_saves, ms.gh_tab_saves);
+    assert_ne!(en.btn_sync_cloud, ms.btn_sync_cloud);
+}

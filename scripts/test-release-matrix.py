@@ -317,6 +317,13 @@ grep -q '1714-1764' /usr/libexec/unicore-firewall
 /usr/libexec/unicore-phone status | grep -q '^scrcpy_installed=1$'
 /usr/libexec/unicore-cloud status | grep -q '^rclone_installed=1$'
 /usr/libexec/unicore-hw-mgr status | grep -q '^fwupd_available=1$'
+echo "Checking v0.9.0 Unified Game Hub, Gamepad uinput Mapper & Save Cloud Backup..."
+test -x /usr/libexec/unicore-gamepad
+test -x /usr/libexec/unicore-gamesave
+command -v evtest
+uniload gamepad-map --profile wasd_mouse --dry-run | grep -q '"profile": "wasd_mouse"'
+/usr/libexec/unicore-gamepad status | grep -q '^evtest_available=1$'
+/usr/libexec/unicore-gamesave status | grep -q '^backup_dir='
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_dll Library dplayx.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
@@ -404,6 +411,11 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --phone >/tmp/center_eco.log 2>&1 &
     sleep 3
     grim /tmp/v080_ecosystem.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --games >/tmp/center_games.log 2>&1 &
+    sleep 3
+    grim /tmp/v090_games.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
@@ -411,6 +423,7 @@ test -s /tmp/v050_capture.png
 test -s /tmp/v060_start.png
 test -s /tmp/v070_retro.png
 test -s /tmp/v080_ecosystem.png
+test -s /tmp/v090_games.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -430,6 +443,9 @@ echo "===PNG_RETRO_B64_END==="
 echo "===PNG_ECO_B64_START==="
 base64 /tmp/v080_ecosystem.png
 echo "===PNG_ECO_B64_END==="
+echo "===PNG_GAMES_B64_START==="
+base64 /tmp/v090_games.png
+echo "===PNG_GAMES_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -510,7 +526,13 @@ printf '\n===GATE1_OK===\n'
         eco_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v080_ecosystem.png")
         with open(eco_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", eco_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}")
+        games_m = re.search(r"===PNG_GAMES_B64_START===\s*(.*?)\s*===PNG_GAMES_B64_END===", out, re.DOTALL)
+        if not games_m:
+            raise RuntimeError("Missing v0.9.0 Unified Game Hub screenshot payload in Gate 1 output")
+        games_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v090_games.png")
+        with open(games_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", games_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}")
     finally:
         h.close()
 

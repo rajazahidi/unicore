@@ -1,8 +1,13 @@
-# UniCore OS (`0.8.0`)
+# UniCore OS (`0.9.0`)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern x86_64 & ARM64 PCs**.
 
 ## Key Capabilities
+
+* **Unified Game Hub & Controller Edition (`v0.9.0`)**:
+  * **Unified Game Library (`--games`)**: Automatically gathers **Win98/XP/DOS**, **Steam (`appmanifest_*.acf`)**, **Heroic (Epic/GOG)**, **Lutris**, **Prism (Minecraft)**, **RetroArch**, and **Android (`.apk`)** games in one visual hub with platform badges, Favorites, local Playtime tracking, instant search, Game Mode & MangoHud FPS toggles, and 1-click Play.
+  * **Gamepad Controller Manager & Pure-Rust `uinput` Mapper (`--gamepad`, `uniload gamepad-map`)**: Auto-detects USB & Bluetooth Xbox, PlayStation, Nintendo Switch & 8BitDo controllers with battery readout, live `evtest` tester, and a 0-MB-idle pure-Rust Gamepad → Keyboard/Mouse mapper (`wasd_mouse`, `arrows_space`, `dos_classic`) for vintage 98/XP/DOS games.
+  * **Automatic Save Game Backups & Cloud Drive Sync (`--saves`, `unicore-gamesave`)**: Auto-backs up game saves on clean exit (keeping latest 5 snapshots in `~/Backups/GameSaves/`) with optional 1-click sync to any connected `v0.8.0` Cloud Drive (`~/Cloud/<Drive>/UniCore-GameSaves/`).
 
 * **Ecosystem, Phone Link, Cloud Drives & Windows Migration Edition (`v0.8.0`)**:
   * **Full Phone Link (`--phone`, `KDE Connect` + `scrcpy` + `adb`)**: Built-in KDE Connect (`0 MB` idle RAM when off, auto-allowed on `Home/LAN` firewall ports `1714–1764` and blocked on `Public Wi-Fi`) for phone notifications, SMS, Wi-Fi clipboard & file sharing, PLUS 1-click **Android Screen Mirroring (`scrcpy`)** over USB or Wi-Fi ADB with screen-off control.

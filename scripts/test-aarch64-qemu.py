@@ -150,6 +150,10 @@ command -v fwupdmgr >/dev/null
 /usr/libexec/unicore-phone status | grep -q '^kdeconnect_installed=1$'
 /usr/libexec/unicore-cloud status | grep -q '^rclone_installed=1$'
 /usr/libexec/unicore-hw-mgr status | grep -q '^fwupd_available=1$'
+test -x /usr/libexec/unicore-gamepad
+test -x /usr/libexec/unicore-gamesave
+command -v evtest >/dev/null
+uniload gamepad-map --profile dos_classic --dry-run | grep -q '"profile": "dos_classic"'
 
 echo "[ARM64-QA] 2/4 Verifying Box64 + Wine 11.0 WoW64 binaries..."
 test -x /usr/share/unicore/arm64-win32/run-wine-box64.sh

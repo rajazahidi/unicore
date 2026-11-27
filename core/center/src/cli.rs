@@ -24,6 +24,7 @@ pub enum LaunchMode {
     RepairDialog(String),
     RetroTargetPicker(String),
     EcosystemHub(i32),
+    GameHub(i32),
     CheckOnly(Option<PathBuf>),
 }
 
@@ -61,6 +62,9 @@ OPTIONS:
   --cloud                Open 1-Click Cloud Drives hub (Google Drive / OneDrive / Dropbox / Nextcloud)
   --migrate              Open Read-Only Windows Migration Wizard (Files, Bookmarks, Fonts & Store Match)
   --drivers              Open Hardware & Driver Health Manager + LVFS Firmware Updater
+  --games                Open Unified Game Hub (98/XP, DOS, Steam, Heroic, Lutris, RetroArch & Android)
+  --gamepad              Open Gamepad Controller Manager & Classic Keyboard/Mouse Mapper
+  --saves                Open Game Save Auto-Backup & Cloud Sync Manager
   --tab <NAME>           Open initial tab: apps | store[:retro] | dev | ai | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security|power|users|ecosystem]
   --state-dir <DIR>      Override sandbox registry root (default: /data/uniload or .uniload_state)
   --apps-dir <DIR>       Override .desktop applications folder (default: ~/.local/share/applications)
@@ -153,6 +157,15 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
             }
             "--drivers" => {
                 mode = LaunchMode::EcosystemHub(3);
+            }
+            "--games" => {
+                mode = LaunchMode::GameHub(0);
+            }
+            "--gamepad" => {
+                mode = LaunchMode::GameHub(1);
+            }
+            "--saves" => {
+                mode = LaunchMode::GameHub(2);
             }
             "--tab" => {
                 let raw = next_value(args, &mut idx, "--tab")?;

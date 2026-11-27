@@ -2,6 +2,7 @@
 
 pub mod catalog;
 pub mod cli;
+pub mod gamepad_map;
 pub mod hw_profile;
 pub mod inspector;
 pub mod json_codec;

@@ -382,6 +382,22 @@ pub fn builtin_ecosystem_apps(lang: UiLang) -> Vec<DesktopAppItem> {
     ]
 }
 
+pub fn builtin_gamehub_apps(lang: UiLang) -> Vec<DesktopAppItem> {
+    let ms = lang == UiLang::Ms;
+    vec![
+        DesktopAppItem {
+            id: "unicore-gamehub".to_string(),
+            name: if ms { "Hab Permainan (Game Hub)" } else { "Unified Game Hub" }.to_string(),
+            comment: if ms { "Semua game 98/XP, DOS, Steam, Heroic, Android + Gamepad & Cloud Save" } else { "All 98/XP, DOS, Steam, Heroic, Android games + Gamepad & Cloud Saves" }.to_string(),
+            category: "gaming".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --games".to_string(),
+            badge: "GH".to_string(),
+            accent_hex: "#7c3aed".to_string(),
+            pinned: false,
+        },
+    ]
+}
+
 pub fn discover_start_menu_apps(
     scan_dirs: &[&Path],
     sandbox_apps: &[AppSandbox],
@@ -389,6 +405,7 @@ pub fn discover_start_menu_apps(
 ) -> Vec<DesktopAppItem> {
     let mut items = builtin_pinned_apps(lang);
     items.extend(builtin_ecosystem_apps(lang));
+    items.extend(builtin_gamehub_apps(lang));
     let mut seen_names: HashSet<String> = items
         .iter()
         .map(|i| i.name.to_ascii_lowercase())

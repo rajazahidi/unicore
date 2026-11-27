@@ -126,6 +126,31 @@ export struct CloudRemoteRow {
     mount-dir: string,
 }
 
+export struct GameHubCard {
+    id: string,
+    name: string,
+    platform-badge: string,
+    exec-cmd: string,
+    sandbox-app-id: string,
+    badge-text: string,
+    accent-color: color,
+    favorite: bool,
+    playtime-label: string,
+}
+
+export struct GamepadRow {
+    dev-path: string,
+    name: string,
+    vendor-kind: string,
+    battery: string,
+}
+
+export struct GameSaveRow {
+    filename: string,
+    size-label: string,
+    full-path: string,
+}
+
 export struct UiText {
     title-center: string,
     title-open: string,
@@ -334,6 +359,18 @@ export struct UiText {
     btn-migrate-start: string,
     btn-hw-reset-audio: string,
     btn-hw-fw-check: string,
+    title-gamehub: string,
+    gh-tab-library: string,
+    gh-tab-gamepad: string,
+    gh-tab-saves: string,
+    gh-search-hint: string,
+    btn-play-game: string,
+    btn-start-mapper: string,
+    btn-stop-mapper: string,
+    btn-test-gamepad: string,
+    btn-backup-now: string,
+    btn-sync-cloud: string,
+    chk-auto-backup: string,
 }
 
 export global UiTheme {
@@ -633,14 +670,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))));
-    preferred-width: root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))));
-    preferred-height: root.ecosystem-dialog-only ? 590px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))));
+    title: root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center))))))))))))));
+    preferred-width: root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px)))))))))))));
+    preferred-height: root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 590px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px)))))))))))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -675,6 +712,8 @@ export component MainWindow inherits Window {
     in-out property <bool> retro-pick-only: false;
     in-out property <bool> ecosystem-dialog-only: false;
     in-out property <int> eco-subtab: 0; // 0:Phone, 1:Cloud, 2:Migration, 3:Drivers
+    in-out property <bool> gamehub-dialog-only: false;
+    in-out property <int> gh-subtab: 0; // 0:Library, 1:Gamepad, 2:Saves
     in-out property <bool> oobe-dialog-only: false;
     in-out property <bool> taskmgr-dialog-only: false;
     in-out property <bool> picker-open: false;
@@ -685,7 +724,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v0.8.0";
+    in-out property <string> login-clock-text: "UniCore OS v0.9.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1045,6 +1084,23 @@ export component MainWindow inherits Window {
     in-out property <bool> eco-hw-fwupd-ok: false;
     in-out property <string> eco-hw-fw-log: "";
 
+    // v0.9.0 Unified Game Hub, Gamepad Manager & Save Cloud Backup
+    in-out property <bool> gh-busy: false;
+    in-out property <string> gh-status: "";
+    in-out property <string> gh-search-query: "";
+    in-out property <string> gh-category: "all";
+    in-out property <[GameHubCard]> gh-games: [];
+    in-out property <bool> gh-evtest-ok: false;
+    in-out property <bool> gh-uinput-ok: false;
+    in-out property <bool> gh-mapper-running: false;
+    in-out property <string> gh-mapper-profile-str: "off";
+    in-out property <int> gh-mapper-profile-idx: 0;
+    in-out property <[GamepadRow]> gh-controllers: [];
+    in-out property <string> gh-save-dir: "/home/unicore/Backups/GameSaves";
+    in-out property <bool> gh-save-auto: false;
+    in-out property <string> gh-save-cloud-remote: "";
+    in-out property <[GameSaveRow]> gh-save-archives: [];
+
     // App Catalog / Store state (Tab 4)
     in-out property <[StoreEntry]> store-entries: [];
     in-out property <[StoreRow]> store-rows: [];
@@ -1141,6 +1197,16 @@ export component MainWindow inherits Window {
     callback eco-hw-set-wifi-ps(bool);
     callback eco-hw-reset-audio-bt();
     callback eco-hw-fw-action(string);
+    callback gh-refresh();
+    callback gh-filter-changed(string, string);
+    callback gh-play-game(string, string);
+    callback gh-toggle-fav(string);
+    callback gh-backup-game(string);
+    callback gh-start-mapper(int);
+    callback gh-stop-mapper();
+    callback gh-open-tester();
+    callback gh-save-policy(bool, string);
+    callback gh-sync-cloud();
     callback audio-profile-selected(int);
     callback toggle-dnd(bool);
     callback dismiss-all-notifications();
@@ -1224,7 +1290,7 @@ export component MainWindow inherits Window {
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -2839,7 +2905,7 @@ export component MainWindow inherits Window {
                                 font-weight: 700;
                             }
                             InfoRow {
-                                label: "Detected ADB Devices:";
+                                label: "ADB Devices:";
                                 value: root.eco-adb-summary;
                                 value-color: UiTheme.text-accent;
                             }
@@ -3254,6 +3320,451 @@ export component MainWindow inherits Window {
                     text: root.tr.btn-open-center;
                     clicked => {
                         root.ecosystem-dialog-only = false;
+                        root.switch-to-full-center();
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // v0.9.0 Unified Game Hub, Gamepad Controller Manager & Save Cloud Backup
+        if root.gamehub-dialog-only && !root.picker-open : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 62px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #581c87 0%, #7e22ce 55%, #be185d 100%);
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 14px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        Text {
+                            text: root.tr.title-gamehub;
+                            color: #ffffff;
+                            font-size: 16px;
+                            font-weight: 800;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: "Win98/XP • MS-DOS • Steam • Heroic • Lutris • RetroArch • Android • Gamepad Mapper • Cloud Saves";
+                            color: #fae8ff;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+                    TabPill {
+                        label: root.lang-badge;
+                        active: false;
+                        clicked => { root.toggle-language(); }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 6px;
+                TabPill {
+                    label: root.tr.gh-tab-library;
+                    active: root.gh-subtab == 0;
+                    clicked => { root.gh-subtab = 0; root.gh-refresh(); }
+                }
+                TabPill {
+                    label: root.tr.gh-tab-gamepad;
+                    active: root.gh-subtab == 1;
+                    clicked => { root.gh-subtab = 1; root.gh-refresh(); }
+                }
+                TabPill {
+                    label: root.tr.gh-tab-saves;
+                    active: root.gh-subtab == 2;
+                    clicked => { root.gh-subtab = 2; root.gh-refresh(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-add-retro;
+                    primary: true;
+                    clicked => {
+                        root.gamehub-dialog-only = false;
+                        root.retro-wizard-only = true;
+                    }
+                }
+                Button {
+                    text: root.tr.btn-refresh;
+                    enabled: !root.gh-busy;
+                    clicked => { root.gh-refresh(); }
+                }
+            }
+
+            // Tab 0: Unified Game Library
+            if root.gh-subtab == 0 : VerticalLayout {
+                vertical-stretch: 1;
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    LineEdit {
+                        text <=> root.gh-search-query;
+                        placeholder-text: root.tr.gh-search-hint;
+                        horizontal-stretch: 1;
+                        edited(val) => { root.gh-filter-changed(root.gh-category, val); }
+                    }
+                    Switch {
+                        text: "Game Mode";
+                        checked: root.gaming-mode-enabled;
+                        toggled => { root.toggle-game-mode(self.checked); }
+                    }
+                    Switch {
+                        text: "FPS HUD";
+                        checked: root.gaming-fps-enabled;
+                        toggled => { root.toggle-show-fps(self.checked); }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    TabPill { label: "All"; active: root.gh-category == "all"; clicked => { root.gh-category = "all"; root.gh-filter-changed("all", root.gh-search-query); } }
+                    TabPill { label: "Favorites"; active: root.gh-category == "favorites"; clicked => { root.gh-category = "favorites"; root.gh-filter-changed("favorites", root.gh-search-query); } }
+                    TabPill { label: "98/XP & DOS"; active: root.gh-category == "classic"; clicked => { root.gh-category = "classic"; root.gh-filter-changed("classic", root.gh-search-query); } }
+                    TabPill { label: "Steam & Modern"; active: root.gh-category == "modern"; clicked => { root.gh-category = "modern"; root.gh-filter-changed("modern", root.gh-search-query); } }
+                    TabPill { label: "Android"; active: root.gh-category == "android"; clicked => { root.gh-category = "android"; root.gh-filter-changed("android", root.gh-search-query); } }
+                    Rectangle { horizontal-stretch: 1; }
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 8px;
+                        alignment: start;
+
+                        if root.gh-games.length == 0 : Card {
+                            VerticalLayout {
+                                padding: 18px;
+                                spacing: 10px;
+                                Text {
+                                    text: "Your Unified Game Library is ready!";
+                                    color: UiTheme.text-primary;
+                                    font-size: 14px;
+                                    font-weight: 700;
+                                }
+                                Text {
+                                    text: "Add any Windows 98/XP/DOS .exe, CD .iso, or .zip game in 1 click, or install Steam / Heroic / RetroArch / freeware classics from UniCore Store.";
+                                    color: UiTheme.text-muted;
+                                    font-size: 12px;
+                                    wrap: word-wrap;
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Button {
+                                        text: root.tr.btn-add-retro;
+                                        primary: true;
+                                        clicked => {
+                                            root.gamehub-dialog-only = false;
+                                            root.retro-wizard-only = true;
+                                        }
+                                    }
+                                    Button {
+                                        text: "Open Gaming Store";
+                                        clicked => {
+                                            root.gamehub-dialog-only = false;
+                                            root.active-tab = 4;
+                                            root.store-category = "gaming";
+                                            root.store-filter-changed("gaming", "");
+                                        }
+                                    }
+                                    Rectangle { horizontal-stretch: 1; }
+                                }
+                            }
+                        }
+
+                        for g in root.gh-games : Card {
+                            height: 60px;
+                            HorizontalLayout {
+                                padding: 8px;
+                                spacing: 10px;
+                                Rectangle {
+                                    width: 44px;
+                                    height: 44px;
+                                    border-radius: 10px;
+                                    background: g.accent-color;
+                                    Text {
+                                        text: g.badge-text;
+                                        color: #ffffff;
+                                        font-size: 15px;
+                                        font-weight: 800;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+                                    spacing: 2px;
+                                    Text {
+                                        text: (g.favorite ? "★ " : "") + g.name;
+                                        color: UiTheme.text-primary;
+                                        font-size: 13px;
+                                        font-weight: 700;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: g.platform-badge + "  •  " + g.playtime-label;
+                                        color: UiTheme.text-accent;
+                                        font-size: 11px;
+                                        overflow: elide;
+                                    }
+                                }
+                                Button {
+                                    text: g.favorite ? "★" : "☆";
+                                    clicked => { root.gh-toggle-fav(g.id); }
+                                }
+                                if g.sandbox-app-id != "" : Button {
+                                    text: "Save";
+                                    enabled: !root.gh-busy;
+                                    clicked => { root.gh-backup-game(g.sandbox-app-id); }
+                                }
+                                Button {
+                                    text: root.tr.btn-play-game;
+                                    primary: true;
+                                    clicked => { root.gh-play-game(g.id, g.exec-cmd); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Tab 1: Gamepad & Pure-Rust uinput Classic Keyboard/Mouse Mapper
+            if root.gh-subtab == 1 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: "Connected Controllers (Xbox / PlayStation / Switch / 8BitDo — USB & Bluetooth)";
+                                color: UiTheme.text-primary;
+                                font-size: 13px;
+                                font-weight: 700;
+                            }
+                            if root.gh-controllers.length == 0 : Text {
+                                text: "No USB or Bluetooth gamepad connected. Plug in a controller or pair via Bluetooth Settings.";
+                                color: UiTheme.text-muted;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                            for ctrl in root.gh-controllers : Rectangle {
+                                height: 36px;
+                                border-radius: 6px;
+                                background: UiTheme.surface-subtle;
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    Text {
+                                        text: "[" + ctrl.vendor-kind + "] " + ctrl.name + "  (" + ctrl.dev-path + ")  •  Battery: " + ctrl.battery;
+                                        color: UiTheme.text-primary;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-test-gamepad;
+                                    enabled: root.gh-evtest-ok;
+                                    clicked => { root.gh-open-tester(); }
+                                }
+                                Button {
+                                    text: "Pair Bluetooth Controller";
+                                    clicked => {
+                                        root.gamehub-dialog-only = false;
+                                        root.active-tab = 3;
+                                        root.settings-subtab = 1;
+                                        root.refresh-settings();
+                                    }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: "Classic Gamepad -> Keyboard/Mouse Mapper (Pure-Rust uinput, 0 MB Idle)";
+                                color: UiTheme.text-primary;
+                                font-size: 13px;
+                                font-weight: 700;
+                            }
+                            InfoRow {
+                                label: "Mapper Status:";
+                                value: root.gh-mapper-running ? ("Active (" + root.gh-mapper-profile-str + ")") : (root.gh-uinput-ok ? "Ready / Idle (0 MB RAM)" : "Waiting for /dev/uinput");
+                                value-color: root.gh-mapper-running ? UiTheme.text-ok : UiTheme.text-accent;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                ComboBox {
+                                    model: [
+                                        "Classic 3D FPS/TPS (Left=WASD, Right=Mouse, A=Space)",
+                                        "Classic 2D / RTS (Arrows + Right Stick Mouse, A=Enter)",
+                                        "90s MS-DOS (Arrows, A=Ctrl, B=Alt, X=Space, Y=Enter)"
+                                    ];
+                                    current-index <=> root.gh-mapper-profile-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-start-mapper;
+                                    primary: true;
+                                    enabled: !root.gh-busy;
+                                    clicked => { root.gh-start-mapper(root.gh-mapper-profile-idx); }
+                                }
+                                Button {
+                                    text: root.tr.btn-stop-mapper;
+                                    enabled: root.gh-mapper-running;
+                                    clicked => { root.gh-stop-mapper(); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Tab 2: Save Game Auto-Backup & Cloud Sync
+            if root.gh-subtab == 2 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: "Automatic Save Game Backups & Cloud Drive Sync";
+                                color: UiTheme.text-primary;
+                                font-size: 13px;
+                                font-weight: 700;
+                            }
+                            InfoRow { label: "Local Vault:"; value: root.gh-save-dir; }
+                            Switch {
+                                text: root.tr.chk-auto-backup;
+                                checked <=> root.gh-save-auto;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: "Cloud Drive:";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                }
+                                LineEdit {
+                                    text <=> root.gh-save-cloud-remote;
+                                    placeholder-text: "Optional v0.8.0 Cloud Drive name (e.g. GoogleDrive)";
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: "Save Policy";
+                                    clicked => { root.gh-save-policy(root.gh-save-auto, root.gh-save-cloud-remote); }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-sync-cloud;
+                                    primary: true;
+                                    enabled: !root.gh-busy && root.gh-save-cloud-remote != "";
+                                    clicked => { root.gh-sync-cloud(); }
+                                }
+                                Button {
+                                    text: "Open Saves Folder";
+                                    clicked => { root.eco-cloud-open-dir(root.gh-save-dir); }
+                                }
+                                Button {
+                                    text: "Configure Cloud Drive";
+                                    clicked => {
+                                        root.gamehub-dialog-only = false;
+                                        root.eco-subtab = 1;
+                                        root.ecosystem-dialog-only = true;
+                                        root.eco-refresh();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            Text {
+                                text: "Saved Snapshots (Latest 5 Kept Per Game)";
+                                color: UiTheme.text-primary;
+                                font-size: 13px;
+                                font-weight: 700;
+                            }
+                            if root.gh-save-archives.length == 0 : Text {
+                                text: "No save snapshots yet. Click 'Save' on any sandbox game in Game Library or enable Auto-Backup above.";
+                                color: UiTheme.text-muted;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                            for arc in root.gh-save-archives : Rectangle {
+                                height: 32px;
+                                border-radius: 6px;
+                                background: UiTheme.surface-subtle;
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    Text {
+                                        text: arc.filename + "  (" + arc.size-label + ")";
+                                        color: UiTheme.text-primary;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.gh-status != "" : Text {
+                text: root.gh-status;
+                color: UiTheme.text-accent;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.tr.btn-open-center;
+                    clicked => {
+                        root.gamehub-dialog-only = false;
                         root.switch-to-full-center();
                     }
                 }

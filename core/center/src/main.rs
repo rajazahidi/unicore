@@ -30,6 +30,12 @@ use unicore_center::ecosystem::{
     phone_set_autostart, read_cloud_overview, read_hw_overview, read_phone_overview,
     run_windows_migration, scan_windows_partitions, WindowsPartition,
 };
+use unicore_center::gamehub::{
+    default_gamehub_conf_dir, discover_unified_games, filter_games, gamepad_open_tester,
+    gamepad_start_mapper, gamepad_stop_mapper, gamesave_backup_app, gamesave_set_config,
+    gamesave_sync_cloud, mapper_profile_from_index, mapper_profile_to_index,
+    read_gamepad_overview, read_gamesave_overview, toggle_favorite, GameHubEntry,
+};
 use unicore_center::gaming::{
     apply_cpu_governor, default_gaming_dir, load_gaming_config, read_host_cpu_governor,
     save_gaming_config, GamingConfig,
@@ -324,6 +330,18 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         btn_migrate_start: l.btn_migrate_start.into(),
         btn_hw_reset_audio: l.btn_hw_reset_audio.into(),
         btn_hw_fw_check: l.btn_hw_fw_check.into(),
+        title_gamehub: l.title_gamehub.into(),
+        gh_tab_library: l.gh_tab_library.into(),
+        gh_tab_gamepad: l.gh_tab_gamepad.into(),
+        gh_tab_saves: l.gh_tab_saves.into(),
+        gh_search_hint: l.gh_search_hint.into(),
+        btn_play_game: l.btn_play_game.into(),
+        btn_start_mapper: l.btn_start_mapper.into(),
+        btn_stop_mapper: l.btn_stop_mapper.into(),
+        btn_test_gamepad: l.btn_test_gamepad.into(),
+        btn_backup_now: l.btn_backup_now.into(),
+        btn_sync_cloud: l.btn_sync_cloud.into(),
+        chk_auto_backup: l.chk_auto_backup.into(),
     });
 }
 
@@ -918,6 +936,74 @@ fn refresh_ecosystem(ui: &MainWindow) {
     ui.set_eco_hw_fwupd_ok(hw.fwupd_available);
 }
 
+fn render_gamehub_cards(ui: &MainWindow, all: &[GameHubEntry], category: &str, query: &str) {
+    let filtered = filter_games(all, category, query);
+    let rows: Vec<GameHubCard> = filtered
+        .iter()
+        .map(|g| GameHubCard {
+            id: SharedString::from(g.id.as_str()),
+            name: SharedString::from(g.name.as_str()),
+            platform_badge: SharedString::from(g.platform_badge.as_str()),
+            exec_cmd: SharedString::from(g.exec_cmd.as_str()),
+            sandbox_app_id: SharedString::from(g.sandbox_app_id.as_str()),
+            badge_text: SharedString::from(g.badge_text.as_str()),
+            accent_color: parse_hex_color(&g.accent_hex),
+            favorite: g.favorite,
+            playtime_label: SharedString::from(g.playtime_label.as_str()),
+        })
+        .collect();
+    ui.set_gh_games(ModelRc::new(VecModel::from(rows)));
+}
+
+fn refresh_gamehub(ui: &MainWindow, sandbox_apps: &[AppSandbox], cache: &mut Vec<GameHubEntry>) {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/unicore".to_string());
+    let steam_a = std::path::PathBuf::from(&home).join(".local/share/Steam/steamapps");
+    let steam_b = std::path::PathBuf::from(&home)
+        .join(".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps");
+    let steam_dirs = [steam_a.as_path(), steam_b.as_path()];
+    let conf_dir = default_gamehub_conf_dir();
+    let discovered = discover_unified_games(sandbox_apps, &steam_dirs, &conf_dir);
+    let cat = ui.get_gh_category().to_string();
+    let q = ui.get_gh_search_query().to_string();
+    render_gamehub_cards(ui, &discovered, &cat, &q);
+    *cache = discovered;
+
+    let gp = read_gamepad_overview();
+    ui.set_gh_evtest_ok(gp.evtest_available);
+    ui.set_gh_uinput_ok(gp.uinput_ready);
+    ui.set_gh_mapper_running(gp.mapper_running);
+    ui.set_gh_mapper_profile_str(SharedString::from(gp.mapper_profile.as_str()));
+    if gp.mapper_running {
+        ui.set_gh_mapper_profile_idx(mapper_profile_to_index(&gp.mapper_profile));
+    }
+    let ctrl_rows: Vec<GamepadRow> = gp
+        .controllers
+        .iter()
+        .map(|c| GamepadRow {
+            dev_path: SharedString::from(c.dev_path.as_str()),
+            name: SharedString::from(c.name.as_str()),
+            vendor_kind: SharedString::from(c.vendor_kind.as_str()),
+            battery: SharedString::from(c.battery.as_str()),
+        })
+        .collect();
+    ui.set_gh_controllers(ModelRc::new(VecModel::from(ctrl_rows)));
+
+    let sv = read_gamesave_overview();
+    ui.set_gh_save_dir(SharedString::from(sv.backup_dir.as_str()));
+    ui.set_gh_save_auto(sv.auto_backup);
+    ui.set_gh_save_cloud_remote(SharedString::from(sv.cloud_remote.as_str()));
+    let arc_rows: Vec<GameSaveRow> = sv
+        .backups
+        .iter()
+        .map(|a| GameSaveRow {
+            filename: SharedString::from(a.filename.as_str()),
+            size_label: SharedString::from(format!("{} KB", a.size_kb)),
+            full_path: SharedString::from(a.full_path.as_str()),
+        })
+        .collect();
+    ui.set_gh_save_archives(ModelRc::new(VecModel::from(arc_rows)));
+}
+
 fn refresh_gaming_store_banners(ui: &MainWindow) {
     let fp = read_flatpak_overview();
     let fp_summary = if fp.installed {
@@ -1429,6 +1515,7 @@ fn main() {
 
     let start_apps_cache: Rc<RefCell<Vec<DesktopAppItem>>> = Rc::new(RefCell::new(Vec::new()));
     let win_parts_cache: Rc<RefCell<Vec<WindowsPartition>>> = Rc::new(RefCell::new(Vec::new()));
+    let gamehub_cache: Rc<RefCell<Vec<GameHubEntry>>> = Rc::new(RefCell::new(Vec::new()));
 
     {
         let b = backend.borrow();
@@ -1536,6 +1623,11 @@ fn main() {
                 ui.set_ecosystem_dialog_only(true);
                 ui.set_eco_subtab(*sub);
                 refresh_ecosystem(&ui);
+            }
+            LaunchMode::GameHub(sub) => {
+                ui.set_gamehub_dialog_only(true);
+                ui.set_gh_subtab(*sub);
+                refresh_gamehub(&ui, &apps_cache.borrow(), &mut gamehub_cache.borrow_mut());
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -4924,6 +5016,192 @@ fn main() {
                             }
                             Err(err) => {
                                 ui.set_eco_hw_fw_log(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    // === v0.9.0 Unified Game Hub, Gamepad Manager & Save Cloud Backup ===
+    {
+        let ui_weak = ui.as_weak();
+        let apps_rc = Rc::clone(&apps_cache);
+        let gh_rc = Rc::clone(&gamehub_cache);
+        ui.on_gh_refresh(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_gamehub(&ui, &apps_rc.borrow(), &mut gh_rc.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let gh_rc = Rc::clone(&gamehub_cache);
+        ui.on_gh_filter_changed(move |cat, q| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            render_gamehub_cards(&ui, &gh_rc.borrow(), cat.as_str(), q.as_str());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_gh_play_game(move |game_id, exec_cmd| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let res = if exec_cmd.starts_with("/usr/libexec/unicore-app-runner ") {
+                b.borrow().spawn_app_detached(game_id.as_str())
+            } else {
+                launch_desktop_command(exec_cmd.as_str()).map(|_| ())
+            };
+            match res {
+                Ok(()) => {
+                    let msg = format!("Launching '{game_id}'...");
+                    ui.set_gh_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_gh_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let apps_rc = Rc::clone(&apps_cache);
+        let gh_rc = Rc::clone(&gamehub_cache);
+        ui.on_gh_toggle_fav(move |game_id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let conf = default_gamehub_conf_dir();
+            match toggle_favorite(&conf, game_id.as_str()) {
+                Ok(_) => refresh_gamehub(&ui, &apps_rc.borrow(), &mut gh_rc.borrow_mut()),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let apps_rc = Rc::clone(&apps_cache);
+        let gh_rc = Rc::clone(&gamehub_cache);
+        ui.on_gh_backup_game(move |app_id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let id_s = app_id.to_string();
+            ui.set_gh_busy(true);
+            ui.set_gh_status(SharedString::from(format!("Backing up save data for '{id_s}'...")));
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = gamesave_backup_app(&id_s);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_gh_busy(false);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_gh_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_gh_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+            refresh_gamehub(&ui, &apps_rc.borrow(), &mut gh_rc.borrow_mut());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let apps_rc = Rc::clone(&apps_cache);
+        let gh_rc = Rc::clone(&gamehub_cache);
+        ui.on_gh_start_mapper(move |prof_idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let prof = mapper_profile_from_index(prof_idx);
+            match gamepad_start_mapper(prof, "/dev/input/js0") {
+                Ok(msg) => {
+                    refresh_gamehub(&ui, &apps_rc.borrow(), &mut gh_rc.borrow_mut());
+                    ui.set_gh_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_gh_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let apps_rc = Rc::clone(&apps_cache);
+        let gh_rc = Rc::clone(&gamehub_cache);
+        ui.on_gh_stop_mapper(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match gamepad_stop_mapper() {
+                Ok(msg) => {
+                    refresh_gamehub(&ui, &apps_rc.borrow(), &mut gh_rc.borrow_mut());
+                    ui.set_gh_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_gh_open_tester(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match gamepad_open_tester() {
+                Ok(_) => set_status(&ui, "Opened live gamepad button tester (evtest).", false),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_gh_save_policy(move |auto_on, remote| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match gamesave_set_config(auto_on, remote.as_str()) {
+                Ok(_) => {
+                    let msg = format!(
+                        "Save backup policy updated (auto={}, cloud='{}').",
+                        if auto_on { "on" } else { "off" },
+                        remote.trim()
+                    );
+                    ui.set_gh_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_gh_sync_cloud(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_gh_busy(true);
+            ui.set_gh_status(SharedString::from("Syncing Game Saves to Cloud Drive..."));
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = gamesave_sync_cloud();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_gh_busy(false);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_gh_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_gh_status(SharedString::from(err.as_str()));
                                 set_status(&ui, err, true);
                             }
                         }

@@ -1,0 +1,121 @@
+#!/bin/sh
+# UniCore OS Gamepad & Controller Manager (USB/Bluetooth Xbox/PS/Switch/8BitDo + Rust uinput Mapper)
+set -eu
+
+PID_FILE="/tmp/unicore-gamepad-map.pid"
+PROF_FILE="/tmp/unicore-gamepad-map.profile"
+
+classify_vendor() {
+    nm="$(printf '%s' "$1" | tr 'A-Z' 'a-z')"
+    case "${nm}" in
+        *xbox*|*microsoft*|*x-box*) echo "Xbox" ;;
+        *dualsense*|*dualshock*|*sony*|*playstation*|*wireless\ controller*) echo "PlayStation" ;;
+        *nintendo*|*pro\ controller*|*joy-con*) echo "Nintendo" ;;
+        *8bitdo*) echo "8BitDo" ;;
+        *logitech*) echo "Logitech" ;;
+        *) echo "Gamepad" ;;
+    esac
+}
+
+find_controller_battery() {
+    # Check /sys/class/power_supply for joystick/gamepad batteries (sony_controller_battery, xpad, nintendo, etc.)
+    for ps in /sys/class/power_supply/*; do
+        [ -d "${ps}" ] || continue
+        bn="$(basename "${ps}" | tr 'A-Z' 'a-z')"
+        case "${bn}" in
+            *controller*|*gamepad*|*dualshock*|*dualsense*|*sony*|*nintendo*|*xbox*|*hid-*)
+                if [ -r "${ps}/capacity" ]; then
+                    cap="$(cat "${ps}/capacity" 2>/dev/null | tr -d ' \r\n')"
+                    [ -n "${cap}" ] && printf '%s%%\n' "${cap}" && return 0
+                fi
+                ;;
+        esac
+    done
+    echo "Wired / N/A"
+}
+
+is_mapper_running() {
+    [ -r "${PID_FILE}" ] || return 1
+    pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+    [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null
+}
+
+list_controllers() {
+    out=""
+    bat_default="$(find_controller_battery)"
+    for js in /sys/class/input/js*; do
+        [ -e "${js}" ] || continue
+        dev_name="$(basename "${js}")"
+        name="USB Gamepad"
+        if [ -r "${js}/device/name" ]; then
+            name="$(cat "${js}/device/name" 2>/dev/null | tr '|;\t\r\n' '     ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        fi
+        vtype="$(classify_vendor "${name}")"
+        entry="/dev/input/${dev_name}|${name}|${vtype}|${bat_default}"
+        if [ -n "${out}" ]; then out="${out};${entry}"; else out="${entry}"; fi
+    done
+    printf '%s\n' "${out}"
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        evtest_ok=0
+        command -v evtest >/dev/null 2>&1 && evtest_ok=1
+        uinput_ok=0
+        [ -c /dev/uinput ] && uinput_ok=1
+        map_run=0
+        map_prof="off"
+        if is_mapper_running; then
+            map_run=1
+            map_prof="$(cat "${PROF_FILE}" 2>/dev/null || echo wasd_mouse)"
+        fi
+        ctrls="$(list_controllers || true)"
+        printf 'evtest_available=%s\nuinput_ready=%s\nmapper_running=%s\nmapper_profile=%s\ncontrollers=%s\n' \
+            "${evtest_ok}" "${uinput_ok}" "${map_run}" "${map_prof}" "${ctrls}"
+        ;;
+    start-map)
+        prof="${1:-wasd_mouse}"
+        dev="${2:-/dev/input/js0}"
+        case "${prof}" in
+            wasd_mouse|arrows_space|dos_classic) ;;
+            *) echo "Invalid mapper profile: ${prof}" >&2; exit 2 ;;
+        esac
+        printf '%s' "${dev}" | grep -Eq '^/dev/input/js[0-9]+$' || {
+            echo "Invalid joystick device: ${dev}" >&2
+            exit 2
+        }
+        [ -e "${dev}" ] || { echo "No controller found at ${dev}. Plug in or pair a gamepad first." >&2; exit 1; }
+        if is_mapper_running; then
+            kill "$(cat "${PID_FILE}")" 2>/dev/null || true
+            rm -f "${PID_FILE}" "${PROF_FILE}"
+        fi
+        nohup /usr/bin/uniload gamepad-map --profile "${prof}" --device "${dev}" >/tmp/unicore-gamepad-map.log 2>&1 </dev/null &
+        echo "$!" > "${PID_FILE}"
+        printf '%s\n' "${prof}" > "${PROF_FILE}"
+        echo "mapper_started=${prof}:${dev}"
+        ;;
+    stop-map)
+        if is_mapper_running; then
+            kill "$(cat "${PID_FILE}")" 2>/dev/null || true
+        fi
+        rm -f "${PID_FILE}" "${PROF_FILE}"
+        echo "mapper_stopped"
+        ;;
+    open-tester)
+        command -v evtest >/dev/null 2>&1 || { echo "evtest not installed" >&2; exit 1; }
+        if command -v foot >/dev/null 2>&1; then
+            nohup foot -T "UniCore Gamepad Tester" -e sh -c 'evtest; echo ""; echo "Press Enter to close..."; read _' >/dev/null 2>&1 </dev/null &
+            echo "tester_launched"
+        else
+            echo "Terminal (foot) not available" >&2
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Usage: unicore-gamepad <status|start-map <wasd_mouse|arrows_space|dos_classic> [/dev/input/js0]|stop-map|open-tester>" >&2
+        exit 2
+        ;;
+esac

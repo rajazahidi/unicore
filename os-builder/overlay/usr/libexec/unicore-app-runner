@@ -56,6 +56,14 @@ ELAPSED=$((END_TS - START_TS))
 
 printf '=== Exited with code %s (elapsed=%ss) ===\n' "${rc}" "${ELAPSED}" >> "${LOG_FILE}"
 
+# 0. Record local playtime & optional auto-backup save game on clean exit
+if [ "${ELAPSED}" -ge 5 ] && [ -x /usr/libexec/unicore-gamesave ]; then
+    /usr/libexec/unicore-gamesave record-play "${APP_ID}" "${ELAPSED}" >/dev/null 2>&1 || true
+    if [ "${rc}" -eq 0 ]; then
+        /usr/libexec/unicore-gamesave auto-backup "${APP_ID}" >/dev/null 2>&1 &
+    fi
+fi
+
 # 1. Smart Post-Install Game Scanner: if user just ran Setup.exe / installer, auto-prompt to switch shortcut to the real game .exe!
 if [ "${rc}" -eq 0 ] && [ -x "${UNILOAD_BIN}" ] && [ -n "${WAYLAND_DISPLAY:-}" ] && [ -x /usr/bin/unicore-center ]; then
     scan_json="$("${UNILOAD_BIN}" --state-dir "${STATE_DIR}" scan-game-exe "${APP_ID}" 2>/dev/null || true)"

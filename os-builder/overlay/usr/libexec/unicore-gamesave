@@ -1,0 +1,159 @@
+#!/bin/sh
+# UniCore OS Game Save Auto-Backup, Playtime Tracker & Cloud Drive Sync Helper
+set -eu
+
+USER_HOME="${HOME:-/home/unicore}"
+CONF_DIR="${UNICORE_GAMESAVE_CONF_DIR:-${USER_HOME}/.config/unicore}"
+CONF_FILE="${CONF_DIR}/gamesave.conf"
+PLAYTIME_FILE="${CONF_DIR}/playtime.tsv"
+BACKUP_DIR="${UNICORE_GAMESAVE_DIR:-${USER_HOME}/Backups/GameSaves}"
+CLOUD_BASE="${UNICORE_CLOUD_MOUNT_BASE:-${USER_HOME}/Cloud}"
+STATE_DIR="${UNILOAD_STATE_DIR:-/data/uniload}"
+
+AUTO_BACKUP=0
+CLOUD_REMOTE=""
+
+load_conf() {
+    AUTO_BACKUP=0
+    CLOUD_REMOTE=""
+    if [ -r "${CONF_FILE}" ]; then
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                AUTO_BACKUP)
+                    case "${v}" in 1|yes|true|on) AUTO_BACKUP=1 ;; *) AUTO_BACKUP=0 ;; esac
+                    ;;
+                CLOUD_REMOTE) CLOUD_REMOTE="${v}" ;;
+            esac
+        done < "${CONF_FILE}"
+    fi
+}
+
+save_conf() {
+    mkdir -p "${CONF_DIR}"
+    printf 'AUTO_BACKUP=%s\nCLOUD_REMOTE=%s\n' "${AUTO_BACKUP}" "${CLOUD_REMOTE}" > "${CONF_FILE}"
+}
+
+is_safe_id() {
+    printf '%s' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+}
+
+sync_to_cloud() {
+    load_conf
+    [ -n "${CLOUD_REMOTE}" ] || return 0
+    is_safe_id "${CLOUD_REMOTE}" || return 0
+    mkdir -p "${BACKUP_DIR}"
+    mdir="${CLOUD_BASE}/${CLOUD_REMOTE}"
+    if [ -d "${mdir}" ] && [ -r /proc/mounts ] && awk -v t="${mdir}" '$2 == t { found=1 } END { exit !found }' /proc/mounts; then
+        dst="${mdir}/UniCore-GameSaves"
+        mkdir -p "${dst}"
+        cp -u "${BACKUP_DIR}"/*.tar.gz "${dst}/" 2>/dev/null || cp -f "${BACKUP_DIR}"/*.tar.gz "${dst}/" 2>/dev/null || true
+        echo "cloud_synced=${dst}"
+        return 0
+    fi
+    if command -v rclone >/dev/null 2>&1 && [ -r "${USER_HOME}/.config/rclone/rclone.conf" ]; then
+        rclone --config "${USER_HOME}/.config/rclone/rclone.conf" copy "${BACKUP_DIR}" "${CLOUD_REMOTE}:UniCore-GameSaves" >/dev/null 2>&1 || true
+        echo "cloud_synced=${CLOUD_REMOTE}:UniCore-GameSaves"
+        return 0
+    fi
+    echo "cloud_not_mounted=${CLOUD_REMOTE}"
+    return 1
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        load_conf
+        mkdir -p "${BACKUP_DIR}" 2>/dev/null || true
+        count=0
+        list=""
+        for f in "${BACKUP_DIR}"/*.tar.gz; do
+            [ -f "${f}" ] || continue
+            count=$((count + 1))
+            bn="$(basename "${f}")"
+            sz="$(du -k "${f}" 2>/dev/null | awk '{print $1}' || echo 0)"
+            if [ "${count}" -le 12 ]; then
+                entry="${bn}|${sz}|${f}"
+                if [ -n "${list}" ]; then list="${list};${entry}"; else list="${entry}"; fi
+            fi
+        done
+        printf 'backup_dir=%s\nauto_backup=%s\ncloud_remote=%s\nbackup_count=%s\nbackups=%s\n' \
+            "${BACKUP_DIR}" "${AUTO_BACKUP}" "${CLOUD_REMOTE}" "${count}" "${list}"
+        ;;
+    set-config)
+        auto_val="${1:-0}"
+        remote_val="${2:-}"
+        case "${auto_val}" in
+            1|yes|true|on) AUTO_BACKUP=1 ;;
+            0|no|false|off) AUTO_BACKUP=0 ;;
+            *) echo "Invalid auto_backup value: ${auto_val}" >&2; exit 2 ;;
+        esac
+        if [ -n "${remote_val}" ]; then
+            is_safe_id "${remote_val}" || { echo "Invalid cloud remote name: ${remote_val}" >&2; exit 2; }
+        fi
+        CLOUD_REMOTE="${remote_val}"
+        save_conf
+        echo "saved=1"
+        ;;
+    backup)
+        app_id="${1:-}"
+        is_safe_id "${app_id}" || { echo "Invalid app_id: ${app_id}" >&2; exit 2; }
+        mkdir -p "${BACKUP_DIR}"
+        ts="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo latest)"
+        dest="${BACKUP_DIR}/${app_id}-${ts}.tar.gz"
+        /usr/bin/uniload --state-dir "${STATE_DIR}" save-backup "${app_id}" "${dest}" >/dev/null
+        # Prune older snapshots beyond latest 5 for this app
+        old_idx=0
+        for old in $(ls -1t "${BACKUP_DIR}/${app_id}-"*.tar.gz 2>/dev/null || true); do
+            old_idx=$((old_idx + 1))
+            if [ "${old_idx}" -gt 5 ]; then
+                rm -f "${old}" || true
+            fi
+        done
+        sync_to_cloud >/dev/null 2>&1 || true
+        echo "backed_up=${dest}"
+        ;;
+    auto-backup)
+        app_id="${1:-}"
+        load_conf
+        [ "${AUTO_BACKUP}" -eq 1 ] || exit 0
+        is_safe_id "${app_id}" || exit 0
+        "$0" backup "${app_id}" >/dev/null 2>&1 || true
+        ;;
+    restore)
+        app_id="${1:-}"
+        archive="${2:-}"
+        is_safe_id "${app_id}" || { echo "Invalid app_id: ${app_id}" >&2; exit 2; }
+        [ -f "${archive}" ] || { echo "Backup archive not found: ${archive}" >&2; exit 1; }
+        /usr/bin/uniload --state-dir "${STATE_DIR}" save-restore "${app_id}" "${archive}" >/dev/null
+        echo "restored=${app_id}"
+        ;;
+    sync-cloud)
+        sync_to_cloud
+        ;;
+    record-play)
+        game_id="${1:-}"
+        secs="${2:-0}"
+        is_safe_id "${game_id}" || exit 0
+        printf '%s' "${secs}" | grep -Eq '^[0-9]+$' || exit 0
+        [ "${secs}" -gt 0 ] || exit 0
+        mkdir -p "${CONF_DIR}"
+        prev=0
+        if [ -r "${PLAYTIME_FILE}" ]; then
+            prev="$(awk -F'\t' -v id="${game_id}" '$1==id{print $2; exit}' "${PLAYTIME_FILE}" 2>/dev/null || echo 0)"
+            [ -n "${prev}" ] || prev=0
+        fi
+        total=$((prev + secs))
+        tmp_pt="$(mktemp)"
+        if [ -r "${PLAYTIME_FILE}" ]; then
+            awk -F'\t' -v id="${game_id}" '$1!=id{print}' "${PLAYTIME_FILE}" > "${tmp_pt}" 2>/dev/null || true
+        fi
+        printf '%s\t%s\n' "${game_id}" "${total}" >> "${tmp_pt}"
+        mv "${tmp_pt}" "${PLAYTIME_FILE}"
+        ;;
+    *)
+        echo "Usage: unicore-gamesave <status|set-config <0|1> [cloud_remote]|backup <app_id>|auto-backup <app_id>|restore <app_id> <archive>|sync-cloud|record-play <id> <secs>>" >&2
+        exit 2
+        ;;
+esac

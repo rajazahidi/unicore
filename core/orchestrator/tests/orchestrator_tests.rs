@@ -1593,3 +1593,36 @@ fn v070_retro_scanner_target_switch_and_classic_diag_work() {
     assert!(diag.matched_patterns.contains(&"glide".to_string()));
     assert!(diag.summary_ms.contains("DirectPlay"));
 }
+
+#[test]
+fn v090_gamepad_mapper_cli_dry_run_and_profiles_work() {
+    for (prof, mouse) in [
+        ("wasd_mouse", true),
+        ("arrows_space", true),
+        ("dos_classic", false),
+    ] {
+        let out = run_cli(&[
+            "gamepad-map".to_string(),
+            "--profile".to_string(),
+            prof.to_string(),
+            "--device".to_string(),
+            "/dev/input/js0".to_string(),
+            "--dry-run".to_string(),
+        ])
+        .unwrap();
+        let parsed = parse_json(&out).unwrap();
+        let obj = parsed.as_object().unwrap();
+        assert_eq!(obj.get("profile").and_then(JsonValue::as_str), Some(prof));
+        assert_eq!(
+            obj.get("supports_mouse_stick").and_then(JsonValue::as_bool),
+            Some(mouse)
+        );
+    }
+    assert!(run_cli(&[
+        "gamepad-map".to_string(),
+        "--profile".to_string(),
+        "unknown".to_string(),
+        "--dry-run".to_string(),
+    ])
+    .is_err());
+}
