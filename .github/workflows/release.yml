@@ -155,6 +155,8 @@ jobs:
 
               echo "==> Compiling Box64 v0.4.4 (ARM64 Dynarec, isolated glibc PT_INTERP + DT_RPATH)"
               curl -fsSL https://github.com/ptitSeb/box64/archive/refs/tags/v0.4.4.tar.gz | tar -xz -C /tmp/box64-src --strip-components=1
+              # Upstream Wine 11+ fix (box64 main): 64KB-align low prereserve (0x10000:0x10000) to satisfy ntdll granularity_mask
+              sed -i "s/0x00008000/0x00010000/g" /tmp/box64-src/src/tools/wine_tools.c
               LINK_FLAGS="-Wl,--dynamic-linker=/usr/share/unicore/arm64-win32/sysroot/lib/ld-linux-aarch64.so.1 -Wl,-rpath,/usr/share/unicore/arm64-win32/sysroot/lib/aarch64-linux-gnu -Wl,--disable-new-dtags"
               LDFLAGS="${LINK_FLAGS}" cmake -S /tmp/box64-src -B /tmp/box64-src/build \
                 -DARM_DYNAREC=ON \
@@ -172,8 +174,8 @@ jobs:
               fi
               ls -la /stage/sysroot/usr/lib/x86_64-linux-gnu/
 
-              echo "==> Fetching Kron4ek Wine 11.22 WoW64 (amd64+x86 Windows support)"
-              curl -fsSL -o /tmp/wine.tar.xz https://github.com/Kron4ek/Wine-Builds/releases/download/11.22/wine-11.22-amd64-wow64.tar.xz
+              echo "==> Fetching Kron4ek Wine 11.0 Stable WoW64 (amd64+x86 Windows support)"
+              curl -fsSL -o /tmp/wine.tar.xz https://github.com/Kron4ek/Wine-Builds/releases/download/11.0/wine-11.0-amd64-wow64.tar.xz
               tar -xJf /tmp/wine.tar.xz -C /stage/opt/wine --strip-components=1
               readelf -d /stage/opt/wine/lib/wine/x86_64-unix/ntdll.so | grep NEEDED || true
 
