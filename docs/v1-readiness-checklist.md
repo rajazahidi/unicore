@@ -52,14 +52,16 @@ Collect a real diagnostic bundle on each target machine (`unicore-diag --save-us
 ## 3. Production Security, OTA Hosting & Release Infrastructure
 
 - [x] **GitHub Remote + CI Active:** Push repository to GitHub (`rajazahidi/unicore`) so `.github/workflows/ci.yml` and `.github/workflows/release.yml` run automatically on every commit and tag.
-- [x] **Production Ed25519 Release Signing:**
+- [x] **Production Ed25519 Release Signing & Signed Online Catalog (`v0.3.0`):**
   - Generate offline Ed25519 keypair (`.\scripts\sign-release.ps1 -GenerateKey` or `uniload update keygen --private release.key --public update.pub`).
   - Store `release.key` and `update.pub` in GitHub Repository Secrets (`UNICORE_RELEASE_KEY`, `UNICORE_RELEASE_PUB`) — never commit private keys to Git.
-  - Set `UPDATE_URL` in `/etc/unicore/update.conf` to `https://github.com/rajazahidi/unicore/releases/latest/download/unicore-manifest.json` (`REQUIRE_SIGNATURE=1` is automatically enforced when `update.pub` is embedded at build time).
+  - Per-arch OTA manifests (`unicore-manifest-x86_64.json`, `unicore-manifest-aarch64.json`, plus backward-compatible `unicore-manifest.json` alias) and online Store catalog (`unicore-catalog.json`) are signed and verified with `REQUIRE_SIGNATURE=1`.
+- [x] **UEFI Secure Boot Support (`v0.3.0`):**
+  - Upstream Microsoft-signed `shimx64.efi`/`shimaa64.efi` + `MokManager` (`mmx64.efi`/`mmaa64.efi`) + UniCore MOK-signed standalone GRUB & Linux kernel (`vmlinuz-*`), plus `ENROLL_UNICORE_MOK.cer` and GUI enrollment panel in `unicore-center`.
+- [x] **Dual-Architecture Releases (`x86_64` + `aarch64`, `v0.3.0`):**
+  - Simultaneous signed ISOs for `x86_64` (BIOS/UEFI hybrid) and `aarch64` (UEFI + embedded isolated Box64 + Wine 11.0 WoW64 runtime).
 - [ ] **Over-the-Network A/B OTA Test on Real Hardware:**
   - Serve a new build with `.\scripts\unicore-env.ps1 ota-serve` and apply an A/B Slot B update + rollback test on a real installed PC over Wi-Fi/LAN.
-- [ ] **UEFI Secure Boot Support (Target `v0.3.0` / `v1.0.0`):**
-  - Integrate signed `shim` + MOK enrollment or document Secure Boot MOK setup so UEFI laptops no longer require disabling Secure Boot.
 
 ---
 
