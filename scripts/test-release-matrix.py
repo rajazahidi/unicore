@@ -275,7 +275,7 @@ command -v wf-recorder
 command -v espeak-ng
 command -v sshfs
 test -d /usr/lib/spa-0.2/bluez5
-test -e /usr/libexec/gvfsd-smb || test -e /usr/lib/gvfs/gvfsd-smb
+test -e /usr/libexec/gvfs/gvfsd-smb || test -e /usr/libexec/gvfsd-smb || test -e /usr/lib/gvfs/gvfsd-smb
 /usr/libexec/unicore-capture status | grep -q '^wf_recorder=1$'
 /usr/libexec/unicore-capture waybar-status | grep -q '"class":"idle"'
 /usr/libexec/unicore-notify status | grep -q '^dnd='
