@@ -11,8 +11,11 @@ Verifies the built hybrid ISO across:
 import base64
 import glob
 import gzip
+import hashlib
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,10 +28,40 @@ ISO_PATH = os.path.join(OUT_DIR, "unicore-os-x86_64.iso")
 VMLINUZ_PATH = os.path.join(OUT_DIR, "vmlinuz-x86_64")
 INITRD_PATH = os.path.join(OUT_DIR, "initramfs-x86_64.img")
 SHA_PATH = ISO_PATH + ".sha256"
-MANIFEST_PATH = os.path.join(OUT_DIR, "unicore-manifest.json")
-OVMF_BIOS = r"C:\Program Files\qemu\share\edk2-x86_64-code.fd"
-QEMU_BIN = r"C:\Program Files\qemu\qemu-system-x86_64.exe"
-QEMU_IMG_BIN = r"C:\Program Files\qemu\qemu-img.exe"
+MANIFEST_PATH = os.path.join(OUT_DIR, "unicore-manifest-x86_64.json")
+if not os.path.isfile(MANIFEST_PATH):
+    MANIFEST_PATH = os.path.join(OUT_DIR, "unicore-manifest.json")
+
+
+def _find_first(candidates):
+    for p in candidates:
+        if p and os.path.isfile(p):
+            return p
+    return candidates[0] if candidates else ""
+
+
+if os.name == "nt":
+    OVMF_BIOS = r"C:\Program Files\qemu\share\edk2-x86_64-code.fd"
+    OVMF_VARS = r"C:\Program Files\qemu\share\edk2-i386-vars.fd"
+    QEMU_BIN = r"C:\Program Files\qemu\qemu-system-x86_64.exe"
+    QEMU_IMG_BIN = r"C:\Program Files\qemu\qemu-img.exe"
+    DEFAULT_ACCEL = "tcg"
+else:
+    OVMF_BIOS = _find_first([
+        "/usr/share/OVMF/OVMF_CODE_4M.fd",
+        "/usr/share/OVMF/OVMF_CODE.fd",
+        "/usr/share/edk2/x64/OVMF_CODE.fd",
+        "/usr/share/qemu/OVMF.fd",
+    ])
+    OVMF_VARS = _find_first([
+        "/usr/share/OVMF/OVMF_VARS_4M.fd",
+        "/usr/share/OVMF/OVMF_VARS.fd",
+        "/usr/share/edk2/x64/OVMF_VARS.fd",
+    ])
+    QEMU_BIN = shutil.which("qemu-system-x86_64") or "/usr/bin/qemu-system-x86_64"
+    QEMU_IMG_BIN = shutil.which("qemu-img") or "/usr/bin/qemu-img"
+    DEFAULT_ACCEL = "kvm" if os.access("/dev/kvm", os.R_OK | os.W_OK) else "tcg"
+
 SCREENSHOT_DIR = os.environ.get(
     "UNICORE_QA_SCREENSHOT_DIR",
     os.path.join(OUT_DIR, "qa-screenshots"),
@@ -160,8 +193,8 @@ def gate1_bios_phase20d_and_ed25519():
             "-name", "UniCore-QA-BIOS-20D",
             "-m", "3072",
             "-smp", "2",
-            "-cpu", "qemu64,+sse4.2,+avx",
-            "-accel", "tcg",
+            "-cpu", "host" if DEFAULT_ACCEL == "kvm" else "qemu64,+sse4.2,+avx",
+            "-accel", DEFAULT_ACCEL,
             "-vga", "std",
             "-cdrom", ISO_PATH,
             "-boot", "d",
@@ -206,7 +239,24 @@ command -v smartctl
 /usr/libexec/unicore-devbox status | grep -q '^projects_dir=/data/dev/projects$'
 /usr/libexec/unicore-ai status | grep -q '^endpoint=http://127.0.0.1:11434$'
 modinfo ath9k forcedeth nouveau sata_nv snd_hda_intel >/dev/null
-echo "Verified all v0.2.0 Phase 23/24 CLI helpers & dx2355/TL-WN851ND drivers OK"
+echo "Checking v0.3.0 Secure Boot MOK, Auto-OTA, Browser Manager, Win32 Diagnoser & Desktop Actions..."
+test -f /etc/unicore/update.pub
+test -f /etc/unicore/mok.der
+grep -q 'unicore-manifest-x86_64.json' /etc/unicore/update.conf
+grep -q '^AUTO_CHECK=1' /etc/unicore/update.conf
+grep -q '^REQUIRE_SIGNATURE=1' /etc/unicore/update.conf
+test -x /usr/libexec/unicore-update-check
+test -x /usr/libexec/unicore-secureboot
+test -x /usr/libexec/unicore-browser-mgr
+test -x /usr/bin/unicore-browser
+test -f /usr/share/file-manager/actions/unicore-open-sandbox.desktop
+/usr/libexec/unicore-secureboot status | grep -q '^mok_cert_present=yes$'
+/usr/libexec/unicore-browser-mgr status | grep -q '^default='
+/usr/libexec/unicore-update-check --waybar | grep -q '"text"'
+printf 'err:module:import_dll Library MSVCP140.dll not found\n' > /tmp/fake_win32.log
+uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
+rm -f /tmp/fake_win32.log
+echo "Verified all v0.2.0-v0.3.0 helpers, Secure Boot MOK, Win32 auto-diagnoser & dx2355/TL-WN851ND drivers OK"
 
 echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
 mkdir -p /data/unicore
@@ -332,16 +382,22 @@ printf '\n===GATE1_OK===\n'
 
 
 def gate2_uefi_boot():
-    print("\n=== GATE 2: UEFI Firmware ISO Boot (EDK2 OVMF) ===")
+    print("\n=== GATE 2: UEFI Firmware ISO Boot (EDK2 OVMF + Shim/MOK-Signed GRUB) ===")
     if not os.path.isfile(OVMF_BIOS):
         raise FileNotFoundError(f"EDK2 UEFI firmware not found: {OVMF_BIOS}")
-    h = SerialHarness(
-        [
+    with tempfile.TemporaryDirectory(prefix="unicore_uefi_qa_") as tmpdir:
+        uefi_args = [
             "-name", "UniCore-QA-UEFI",
             "-drive", f"if=pflash,format=raw,readonly=on,file={OVMF_BIOS}",
+        ]
+        if os.name != "nt" and OVMF_VARS and os.path.isfile(OVMF_VARS):
+            vars_copy = os.path.join(tmpdir, "OVMF_VARS.fd")
+            shutil.copyfile(OVMF_VARS, vars_copy)
+            uefi_args += ["-drive", f"if=pflash,format=raw,file={vars_copy}"]
+        uefi_args += [
             "-m", "2048",
             "-smp", "2",
-            "-accel", "tcg",
+            "-accel", DEFAULT_ACCEL,
             "-vga", "std",
             "-cdrom", ISO_PATH,
             "-boot", "d",
@@ -349,24 +405,27 @@ def gate2_uefi_boot():
             "-serial", "stdio",
             "-monitor", "none",
             "-no-reboot",
-        ],
-        "Gate2-UEFI",
-    )
-    try:
-        wait_for_shell(h, 240)
-        script = r"""#!/bin/sh
+        ]
+        h = SerialHarness(uefi_args, "Gate2-UEFI")
+        try:
+            wait_for_shell(h, 240)
+            script = r"""#!/bin/sh
 set -eu
 test -d /sys/firmware/efi
 . /mnt/unicore-boot.env
 [ "${UNICORE_BOOT_MODE}" = "live" ]
+test -f /mnt/unicore-media/ENROLL_UNICORE_MOK.cer
+test -f /mnt/unicore-media/EFI/BOOT/BOOTX64.EFI
+test -f /mnt/unicore-media/EFI/BOOT/grubx64.efi
+/usr/libexec/unicore-secureboot status | grep -q '^uefi=yes$'
 uname -r
 printf '\n===GATE2_OK===\n'
 """
-        h.send_script_b64(script, "/tmp/qa_uefi.sh")
-        h.wait_for("\n===GATE2_OK===", 90)
-        print("    [PASS] Gate 2 passed! UEFI EDK2 boot verified (/sys/firmware/efi active).")
-    finally:
-        h.close()
+            h.send_script_b64(script, "/tmp/qa_uefi.sh")
+            h.wait_for("\n===GATE2_OK===", 90)
+            print("    [PASS] Gate 2 passed! UEFI EDK2 + shim + MOK-signed GRUB boot verified (/sys/firmware/efi active).")
+        finally:
+            h.close()
 
 
 def gate3_legacy_2005():
@@ -408,46 +467,61 @@ printf '\n===GATE3_OK===\n'
 
 def gate4_host_artifacts():
     print("\n=== GATE 4: Host ISO SHA-256, Manifest Validity & USB Flasher Helper ===")
-    ps_res = subprocess.run(
-        [
-            "powershell",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            os.path.join(REPO_ROOT, "scripts", "write-usb-windows.ps1"),
-            "-VerifyOnly",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if ps_res.returncode != 0:
-        raise RuntimeError(f"write-usb-windows.ps1 failed:\n{ps_res.stdout}\n{ps_res.stderr}")
-    print(ps_res.stdout.strip())
+    if os.name == "nt":
+        ps_res = subprocess.run(
+            [
+                "powershell",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                os.path.join(REPO_ROOT, "scripts", "write-usb-windows.ps1"),
+                "-VerifyOnly",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if ps_res.returncode != 0:
+            raise RuntimeError(f"write-usb-windows.ps1 failed:\n{ps_res.stdout}\n{ps_res.stderr}")
+        print(ps_res.stdout.strip())
 
-    # Verify manifest JSON schema via cargo-dev run uniload
-    man_res = subprocess.run(
-        [
-            "powershell",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            os.path.join(REPO_ROOT, "scripts", "cargo-dev.ps1"),
-            "run",
-            "-q",
-            "-p",
-            "uniload",
-            "--",
-            "update",
-            "verify-manifest",
-            MANIFEST_PATH,
-            "--allow-unsigned",
-        ],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if man_res.returncode != 0 or '"valid": true' not in man_res.stdout:
-        raise RuntimeError(f"Manifest check failed:\n{man_res.stdout}\n{man_res.stderr}")
+        man_res = subprocess.run(
+            [
+                "powershell",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                os.path.join(REPO_ROOT, "scripts", "cargo-dev.ps1"),
+                "run",
+                "-q",
+                "-p",
+                "uniload",
+                "--",
+                "update",
+                "verify-manifest",
+                MANIFEST_PATH,
+                "--allow-unsigned",
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if man_res.returncode != 0 or '"valid": true' not in man_res.stdout:
+            raise RuntimeError(f"Manifest check failed:\n{man_res.stdout}\n{man_res.stderr}")
+    else:
+        with open(SHA_PATH, "r", encoding="utf-8") as f:
+            expected_sha = f.read().strip().split()[0].lower()
+        h = hashlib.sha256()
+        with open(ISO_PATH, "rb") as f:
+            for chunk in iter(lambda: f.read(1048576), b""):
+                h.update(chunk)
+        actual_sha = h.hexdigest().lower()
+        if actual_sha != expected_sha:
+            raise RuntimeError(f"ISO SHA-256 mismatch: {actual_sha} != {expected_sha}")
+        with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
+            man = json.load(f)
+        if man.get("version") != EXPECTED_OS_VERSION or man.get("arch") != "x86_64":
+            raise RuntimeError(f"Unexpected manifest metadata: {man}")
+        print(f"    Verified ISO SHA-256 ({actual_sha}) & manifest v{man['version']} ({man['arch']})")
     print("    [PASS] Gate 4 passed! ISO SHA-256 & manifest valid.")
 
 
@@ -465,7 +539,7 @@ def gate5_ventoy_usb_xhci():
                 "-name", "UniCore-QA-Ventoy-Prep",
                 "-m", "2048",
                 "-smp", "2",
-                "-accel", "tcg",
+                "-accel", DEFAULT_ACCEL,
                 "-vga", "none",
                 "-cdrom", ISO_PATH,
                 "-boot", "d",
@@ -508,7 +582,7 @@ printf '\n===GATE5_PREP_OK===\n'
                 "-name", "UniCore-QA-Ventoy-Boot",
                 "-m", "2048",
                 "-smp", "2",
-                "-accel", "tcg",
+                "-accel", DEFAULT_ACCEL,
                 "-vga", "std",
                 "-kernel", VMLINUZ_PATH,
                 "-initrd", INITRD_PATH,

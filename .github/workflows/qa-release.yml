@@ -1,0 +1,79 @@
+name: UniCore OS Release QEMU QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to verify (e.g. v0.3.0)'
+        required: true
+        default: 'v0.3.0'
+
+permissions:
+  contents: read
+
+jobs:
+  qa-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install QEMU & OVMF UEFI firmware (x86_64)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf
+          ls -lh /usr/share/OVMF/
+
+      - name: Download published x86_64 release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p os-builder/out
+          gh release download "${{ inputs.tag }}" --dir os-builder/out --clobber \
+            -p "unicore-os-x86_64.iso" \
+            -p "unicore-os-x86_64.iso.sha256" \
+            -p "vmlinuz-x86_64" \
+            -p "initramfs-x86_64.img" \
+            -p "unicore-manifest-x86_64.json" \
+            -p "unicore-manifest-x86_64.json.sig"
+          ls -lh os-builder/out/
+
+      - name: Run full 5-Gate x86_64 QEMU QA Matrix (BIOS, UEFI Shim/MOK, 2005 512MB, SHA/Manifest, Ventoy USB3+NVMe)
+        run: |
+          python3 scripts/test-release-matrix.py
+
+      - name: Upload live Wayland desktop screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: qa-screenshots-${{ inputs.tag }}-x86_64
+          retention-days: 7
+          path: os-builder/out/qa-screenshots/*.png
+
+  qa-aarch64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install QEMU & AAVMF ARM64 UEFI firmware (aarch64)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-arm qemu-efi-aarch64
+          ls -lh /usr/share/AAVMF/ || true
+
+      - name: Download & verify published aarch64 release ISO
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p os-builder/out
+          gh release download "${{ inputs.tag }}" --dir os-builder/out --clobber \
+            -p "unicore-os-aarch64.iso" \
+            -p "unicore-os-aarch64.iso.sha256" \
+            -p "unicore-manifest-aarch64.json" \
+            -p "unicore-manifest-aarch64.json.sig"
+          (cd os-builder/out && sha256sum -c unicore-os-aarch64.iso.sha256)
+          ls -lh os-builder/out/
+
+      - name: Run ARM64 UEFI + Shim/MOK + Box64/Wine live cmd.exe QEMU QA
+        run: |
+          python3 scripts/test-aarch64-qemu.py
