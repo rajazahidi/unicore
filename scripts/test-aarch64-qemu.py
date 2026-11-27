@@ -101,68 +101,93 @@ def main():
                     tail = "".join(buf)[-2000:]
                 raise TimeoutError(f"Timed out waiting for ARM64 shell:\n{tail}")
 
-            check_cmd = (
-                "\nset -e\n"
-                "uname -m | grep -q '^aarch64$'\n"
-                "test -d /sys/firmware/efi\n"
-                "test -f /etc/unicore/update.pub\n"
-                "test -f /etc/unicore/mok.der\n"
-                "test -f /mnt/unicore-media/ENROLL_UNICORE_MOK.cer\n"
-                "test -f /mnt/unicore-media/EFI/BOOT/BOOTAA64.EFI\n"
-                "test -f /mnt/unicore-media/EFI/BOOT/grubaa64.efi\n"
-                "grep -q 'unicore-manifest-aarch64.json' /etc/unicore/update.conf\n"
-                "grep -q '^AUTO_CHECK=1' /etc/unicore/update.conf\n"
-                "/usr/libexec/unicore-secureboot status | grep -q '^uefi=1$'\n"
-                "/usr/libexec/unicore-secureboot status | grep -q '^shim_bundled=1$'\n"
-                "/usr/libexec/unicore-browser-mgr status | grep -q '^default_browser=epiphany$'\n"
-                "/usr/libexec/unicore-flatpak status | grep -q '^installed=1$'\n"
-                "/usr/libexec/unicore-proton status | grep -q '^dir=/data/gaming/proton-ge$'\n"
-                "/usr/libexec/unicore-ai status | grep -q '^provider=ollama$'\n"
-                "/usr/libexec/unicore-ai context | grep -q 'UniCore OS Live Read-Only System Diagnostics'\n"
-                "test -f /etc/udev/rules.d/60-unicore-gamepads.rules\n"
-                "test -d /usr/share/icons/Papirus-Dark\n"
-                "test -s /usr/share/unicore/splash.ppm\n"
-                "/usr/libexec/unicore-capture status | grep -q '^wf_recorder=1$'\n"
-                "/usr/libexec/unicore-notify status | grep -q '^dnd='\n"
-                "/usr/libexec/unicore-a11y status | grep -q '^tts_available=1$'\n"
-                "test -d /usr/lib/spa-0.2/bluez5\n"
-                "test -f /etc/xdg/labwc/menu.xml\n"
-                "test -f /etc/fonts/local.conf\n"
-                "test -x /usr/libexec/unicore-osd\n"
-                "command -v udiskie >/dev/null\n"
-                "command -v wob >/dev/null\n"
-                "command -v wtype >/dev/null\n"
-                "command -v tlp >/dev/null\n"
-                "test -x /usr/libexec/unicore-retro-media\n"
-                "command -v taskset >/dev/null\n"
-                "command -v archivemount >/dev/null\n"
-                "/usr/libexec/unicore-retro-media status | grep -q '^taskset=1$'\n"
-                "test -x /usr/share/unicore/arm64-win32/run-wine-box64.sh\n"
-                "/usr/share/unicore/arm64-win32/bin/box64 --version\n"
-                "/usr/share/unicore/arm64-win32/run-wine-box64.sh --version\n"
-                "mkdir -p /tmp/xdg_qa && chmod 700 /tmp/xdg_qa\n"
-                "BOX64_DYNAREC_STRONGMEM=1 XDG_RUNTIME_DIR=/tmp/xdg_qa WINEDEBUG=-all WINEDLLOVERRIDES='mscoree,mshtml,winemenubuilder.exe=' WINEPREFIX=/tmp/qa_pfx timeout 240 /usr/share/unicore/arm64-win32/run-wine-box64.sh cmd /c 'echo UNICORE_ARM64_LIVE_WIN32_OK' >/tmp/win32_qa.log 2>&1 || { cat /tmp/win32_qa.log; exit 1; }\n"
-                "cat /tmp/win32_qa.log\n"
-                "grep -q 'UNICORE_ARM64_LIVE_WIN32_OK' /tmp/win32_qa.log\n"
-                "/usr/bin/unicore-center --check\n"
-                "echo ===ARM64_QA_OK===\n"
-                "poweroff -f\n"
-            )
-            proc.stdin.write(check_cmd.encode("utf-8"))
-            proc.stdin.flush()
+            check_script = """#!/bin/sh
+set -eu
+echo "[ARM64-QA] 1/4 Verifying UEFI, Secure Boot MOK, OTA & v0.4.0-v0.7.0 helpers..."
+uname -m | grep -q '^aarch64$'
+test -d /sys/firmware/efi
+test -f /etc/unicore/update.pub
+test -f /etc/unicore/mok.der
+test -f /mnt/unicore-media/ENROLL_UNICORE_MOK.cer
+test -f /mnt/unicore-media/EFI/BOOT/BOOTAA64.EFI
+test -f /mnt/unicore-media/EFI/BOOT/grubaa64.efi
+grep -q 'unicore-manifest-aarch64.json' /etc/unicore/update.conf
+grep -q '^AUTO_CHECK=1' /etc/unicore/update.conf
+/usr/libexec/unicore-secureboot status | grep -q '^uefi=1$'
+/usr/libexec/unicore-secureboot status | grep -q '^shim_bundled=1$'
+/usr/libexec/unicore-browser-mgr status | grep -q '^default_browser=epiphany$'
+/usr/libexec/unicore-flatpak status | grep -q '^installed=1$'
+/usr/libexec/unicore-proton status | grep -q '^dir=/data/gaming/proton-ge$'
+/usr/libexec/unicore-ai status | grep -q '^provider=ollama$'
+/usr/libexec/unicore-ai context | grep -q 'UniCore OS Live Read-Only System Diagnostics'
+test -f /etc/udev/rules.d/60-unicore-gamepads.rules
+test -d /usr/share/icons/Papirus-Dark
+test -s /usr/share/unicore/splash.ppm
+/usr/libexec/unicore-capture status | grep -q '^wf_recorder=1$'
+/usr/libexec/unicore-notify status | grep -q '^dnd='
+/usr/libexec/unicore-a11y status | grep -q '^tts_available=1$'
+test -d /usr/lib/spa-0.2/bluez5
+test -f /etc/xdg/labwc/menu.xml
+test -f /etc/fonts/local.conf
+test -x /usr/libexec/unicore-osd
+command -v udiskie >/dev/null
+command -v wob >/dev/null
+command -v wtype >/dev/null
+command -v tlp >/dev/null
+test -x /usr/libexec/unicore-retro-media
+command -v taskset >/dev/null
+command -v archivemount >/dev/null
+/usr/libexec/unicore-retro-media status | grep -q '^taskset=1$'
 
-            deadline = time.time() + 360
+echo "[ARM64-QA] 2/4 Verifying Box64 + Wine 11.0 WoW64 binaries..."
+test -x /usr/share/unicore/arm64-win32/run-wine-box64.sh
+/usr/share/unicore/arm64-win32/bin/box64 --version
+/usr/share/unicore/arm64-win32/run-wine-box64.sh --version
+
+echo "[ARM64-QA] 3/4 Running live Win32 PE cmd.exe via Box64 + Wine 11.0 WoW64..."
+mkdir -p /tmp/xdg_qa && chmod 700 /tmp/xdg_qa
+rc=0
+BOX64_DYNAREC_STRONGMEM=1 XDG_RUNTIME_DIR=/tmp/xdg_qa DISPLAY= WAYLAND_DISPLAY= \
+  WINEDEBUG=-all WINEDLLOVERRIDES='mscoree,mshtml,winemenubuilder.exe,winewayland.drv,winex11.drv=' \
+  WINEPREFIX=/tmp/qa_pfx \
+  timeout -s KILL 420 /usr/share/unicore/arm64-win32/run-wine-box64.sh \
+  cmd /c 'echo UNICORE_ARM64_LIVE_WIN32_OK' >/tmp/win32_qa.log 2>&1 || rc=$?
+echo "--- /tmp/win32_qa.log (rc=${rc}) ---"
+cat /tmp/win32_qa.log || true
+echo "--- end log ---"
+[ "${rc}" -eq 0 ]
+grep -q 'UNICORE_ARM64_LIVE_WIN32_OK' /tmp/win32_qa.log
+
+echo "[ARM64-QA] 4/4 Verifying unicore-center --check..."
+/usr/bin/unicore-center --check
+echo ===ARM64_QA_OK===
+poweroff -f
+"""
+            payload = (
+                "\ncat <<'EOF_ARM64_QA' > /tmp/qa_arm64.sh\n"
+                + check_script
+                + "EOF_ARM64_QA\n"
+                + "chmod +x /tmp/qa_arm64.sh && sh /tmp/qa_arm64.sh || { echo ===ARM64_QA_FAIL===; poweroff -f; }\n"
+            )
+            for line in payload.splitlines(True):
+                proc.stdin.write(line.encode("utf-8"))
+                proc.stdin.flush()
+                time.sleep(0.02)
+
+            deadline = time.time() + 540
             while time.time() < deadline:
                 with lock:
                     text = "".join(buf)
                 if "===ARM64_QA_OK===" in text:
                     print("[PASS] ARM64 UEFI ISO + Shim/MOK GRUB + Box64/Wine 11.0 WoW64 live cmd.exe + unicore-center verified!")
                     return
+                if "===ARM64_QA_FAIL===" in text:
+                    raise RuntimeError(f"ARM64 QA script reported failure:\n{text[-3500:]}")
                 if proc.poll() is not None:
-                    raise RuntimeError(f"ARM64 QA failed before marker:\n{text[-2500:]}")
+                    raise RuntimeError(f"ARM64 QA failed before marker:\n{text[-3500:]}")
                 time.sleep(0.5)
             with lock:
-                tail = "".join(buf)[-2500:]
+                tail = "".join(buf)[-3500:]
             raise TimeoutError(f"Timed out waiting for ===ARM64_QA_OK===:\n{tail}")
         finally:
             if proc.poll() is None:
