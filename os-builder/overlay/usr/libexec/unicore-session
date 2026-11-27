@@ -56,7 +56,17 @@ if [ "${NEED_GREETER}" = "1" ] && [ -x /usr/bin/unicore-center ] && [ ! -f /run/
     su -s /bin/sh unicore -c "
         export HOME=/home/unicore XDG_CONFIG_HOME=/home/unicore/.config XDG_RUNTIME_DIR=${GREET_RT} WLR_RENDERER_ALLOW_SOFTWARE=1
         ${WLR_RENDERER:+export WLR_RENDERER=${WLR_RENDERER}}
-        labwc -s '/usr/bin/unicore-center --login && labwc --exit' >/tmp/unicore-greeter.log 2>&1 || true
+        if [ \"\${WLR_RENDERER:-}\" = 'pixman' ]; then
+            export WLR_NO_HARDWARE_CURSORS=1 LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
+        fi
+        t0=\$(date +%s)
+        labwc -s '/usr/bin/unicore-center --login && labwc --exit' >/tmp/unicore-greeter.log 2>&1
+        rc=\$?
+        t1=\$(date +%s)
+        if [ \"\${rc}\" -ne 0 ] && [ \$((t1 - t0)) -lt 5 ] && [ \"\${WLR_RENDERER:-}\" != 'pixman' ]; then
+            export WLR_RENDERER=pixman WLR_NO_HARDWARE_CURSORS=1 LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
+            labwc -s '/usr/bin/unicore-center --login && labwc --exit' >>/tmp/unicore-greeter.log 2>&1 || true
+        fi
     " || true
     if [ -r /run/unicore/active-user ]; then
         CAND_USER="$(cat /run/unicore/active-user 2>/dev/null | tr -d '\r\n' || true)"
@@ -135,6 +145,9 @@ fi
 ENV_PASS="HOME=${USER_HOME} USER=${LOGIN_USER} XDG_CONFIG_HOME=${XDG_CONFIG_HOME} XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} XDG_CURRENT_DESKTOP=labwc WLR_RENDERER_ALLOW_SOFTWARE=1 UNILOAD_STATE_DIR=/data/uniload"
 [ -n "${LANG:-}" ] && ENV_PASS="${ENV_PASS} LANG=${LANG}"
 [ -n "${WLR_RENDERER:-}" ] && ENV_PASS="${ENV_PASS} WLR_RENDERER=${WLR_RENDERER}"
+if [ "${WLR_RENDERER:-}" = "pixman" ]; then
+    ENV_PASS="${ENV_PASS} WLR_NO_HARDWARE_CURSORS=1 LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1"
+fi
 [ -n "${UNICORE_HW_TIER:-}" ] && ENV_PASS="${ENV_PASS} UNICORE_HW_TIER=${UNICORE_HW_TIER} UNICORE_RAM_MB=${UNICORE_RAM_MB:-0} UNICORE_ZRAM_MB=${UNICORE_ZRAM_MB:-0} UNICORE_LIGHTWEIGHT_SHELL=${UNICORE_LIGHTWEIGHT_SHELL:-0} UNILOAD_HW_WIN32_MODE=${UNILOAD_HW_WIN32_MODE:-} UNILOAD_HW_ANDROID_GRAPHICS=${UNILOAD_HW_ANDROID_GRAPHICS:-} UNILOAD_IDLE_TIMEOUT=${UNILOAD_IDLE_TIMEOUT:-30}"
 
-exec su -s /bin/sh "${LOGIN_USER}" -c "export ${ENV_PASS}; DBUS_PID=''; if command -v dbus-daemon >/dev/null 2>&1; then rm -f '${XDG_RUNTIME_DIR}/bus'; dbus-daemon --session --address='unix:path=${XDG_RUNTIME_DIR}/bus' --nofork --nopidfile >/tmp/unicore-dbus.log 2>&1 & DBUS_PID=\$!; for i in \$(seq 1 20); do [ -S '${XDG_RUNTIME_DIR}/bus' ] && break; sleep 0.1; done; export DBUS_SESSION_BUS_ADDRESS='unix:path=${XDG_RUNTIME_DIR}/bus'; fi; labwc; rc=\$?; [ -n \"\${DBUS_PID}\" ] && kill \"\${DBUS_PID}\" 2>/dev/null || true; exit \${rc}"
+exec su -s /bin/sh "${LOGIN_USER}" -c "export ${ENV_PASS}; DBUS_PID=''; if command -v dbus-daemon >/dev/null 2>&1; then rm -f '${XDG_RUNTIME_DIR}/bus'; dbus-daemon --session --address='unix:path=${XDG_RUNTIME_DIR}/bus' --nofork --nopidfile >/tmp/unicore-dbus.log 2>&1 & DBUS_PID=\$!; for i in \$(seq 1 20); do [ -S '${XDG_RUNTIME_DIR}/bus' ] && break; sleep 0.1; done; export DBUS_SESSION_BUS_ADDRESS='unix:path=${XDG_RUNTIME_DIR}/bus'; fi; t0=\$(date +%s); labwc >/tmp/unicore-labwc.log 2>&1; rc=\$?; t1=\$(date +%s); if [ \"\${rc}\" -ne 0 ] && [ \$((t1 - t0)) -lt 5 ] && [ \"\${WLR_RENDERER:-}\" != 'pixman' ]; then echo '==> Retrying Wayland session with software pixman fallback' >>/tmp/unicore-labwc.log; export WLR_RENDERER=pixman WLR_NO_HARDWARE_CURSORS=1 LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1; labwc >>/tmp/unicore-labwc.log 2>&1; rc=\$?; fi; [ -n \"\${DBUS_PID}\" ] && kill \"\${DBUS_PID}\" 2>/dev/null || true; exit \${rc}"

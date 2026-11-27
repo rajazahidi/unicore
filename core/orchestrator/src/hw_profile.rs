@@ -56,9 +56,9 @@ pub struct HardwareProfile {
 
 /// Classify raw hardware specifications into an adaptive UniCore runtime profile.
 pub fn classify_hardware(specs: &HardwareSpecs) -> HardwareProfile {
-    let tier = if specs.ram_mb < 1536 || (!specs.has_sse42 && specs.ram_mb < 2048) {
+    let tier = if specs.ram_mb < 1536 {
         HardwareTier::LegacyUltra
-    } else if specs.ram_mb < 3584 || !specs.has_vulkan {
+    } else if specs.ram_mb < 3584 || !specs.has_vulkan || !specs.has_sse42 {
         HardwareTier::LegacyMid
     } else {
         HardwareTier::Modern
@@ -86,8 +86,16 @@ pub fn classify_hardware(specs: &HardwareSpecs) -> HardwareProfile {
             zram_mb: (specs.ram_mb / 2).max(512),
             swappiness: 80,
             idle_hibernate_sec: 15.0,
-            wlr_renderer: if specs.has_drm_3d { "gles2" } else { "pixman" },
-            win32_backend_mode: "wined3d-opengl",
+            wlr_renderer: if specs.has_drm_3d && specs.has_sse42 {
+                "gles2"
+            } else {
+                "pixman"
+            },
+            win32_backend_mode: if specs.has_drm_3d {
+                "wined3d-opengl"
+            } else {
+                "gdi-legacy"
+            },
             android_graphics: if specs.has_vulkan {
                 "vulkan-dma-buf"
             } else {
@@ -151,31 +159,145 @@ fn parse_cpuinfo(raw: &str) -> (usize, String, bool, bool) {
     (cores, model, has_sse42, has_avx)
 }
 
-fn detect_drm_and_vulkan() -> (bool, bool) {
-    let mut has_drm_3d = false;
+/// Classify a single DRM GPU device into `(has_safe_gles2_3d, has_hardware_vulkan)`.
+/// Prevents pre-GLES2/legacy GPUs (such as NVIDIA GeForce 6150SE / NV44 `0x10de:0x03d0`
+/// on `nouveau` or pre-SSE4.2 Intel/ATI IGPs) from triggering broken Wayland GLES2 or
+/// false-positive Vulkan profiles when Mesa ICD JSON files are pre-installed on disk.
+pub fn classify_drm_gpu(
+    vendor: &str,
+    device: &str,
+    driver: &str,
+    has_sse42: bool,
+    has_intel_icd: bool,
+    has_amd_icd: bool,
+) -> (bool, bool) {
+    let vendor_lc = vendor.trim().to_ascii_lowercase();
+    let driver_lc = driver.trim().to_ascii_lowercase();
+    let dev_id = u16::from_str_radix(
+        device
+            .trim()
+            .trim_start_matches("0x")
+            .trim_start_matches("0X"),
+        16,
+    )
+    .ok();
+
+    match driver_lc.as_str() {
+        "bochs-drm" | "cirrus" | "simpledrm" | "vesadrm" | "efidrm" | "qxl" | "mga" | "ast"
+        | "udl" | "vkms" => return (false, false),
+        _ => {}
+    }
+
+    match vendor_lc.as_str() {
+        // NVIDIA (GeForce / nForce / Quadro)
+        "0x10de" => {
+            if driver_lc == "nvidia" {
+                return (true, has_sse42);
+            }
+            // Legacy NV3x/NV4x/MCP61/C51/C61/C67/C68/C73/C77/C79 (e.g. GeForce 6150SE 0x03d0)
+            // use Mesa nv30/legacy nouveau where wlroots gles2 frequently black-screens.
+            let is_legacy_nv = !has_sse42
+                || matches!(
+                    dev_id,
+                    Some(0x0000..=0x03ff) | Some(0x0530..=0x053f) | Some(0x07e0..=0x07ef)
+                );
+            if is_legacy_nv {
+                (false, false)
+            } else {
+                (true, false)
+            }
+        }
+        // Intel integrated/discrete GPUs
+        "0x8086" => {
+            if driver_lc == "i915" || driver_lc == "xe" {
+                (has_sse42, has_sse42 && has_intel_icd)
+            } else {
+                (false, false)
+            }
+        }
+        // AMD / ATI Radeon
+        "0x1002" => {
+            if driver_lc == "amdgpu" {
+                (true, has_amd_icd)
+            } else if driver_lc == "radeon" {
+                (has_sse42, false)
+            } else {
+                (false, false)
+            }
+        }
+        _ => (has_sse42, false),
+    }
+}
+
+fn detect_drm_and_vulkan(has_sse42: bool) -> (bool, bool) {
+    let mut has_render_node = false;
     if let Ok(entries) = fs::read_dir("/sys/class/drm") {
         for entry in entries.flatten() {
             let name = entry.file_name();
             if name.to_string_lossy().starts_with("renderD") {
-                has_drm_3d = true;
+                has_render_node = true;
                 break;
             }
         }
     }
+    if !has_render_node {
+        return (false, false);
+    }
 
-    let mut has_vulkan = false;
-    if has_drm_3d {
-        if let Ok(entries) = fs::read_dir("/usr/share/vulkan/icd.d") {
-            for entry in entries.flatten() {
-                let fname = entry.file_name().to_string_lossy().to_string();
-                if fname.ends_with(".json") && !fname.contains("lvp_icd") {
-                    has_vulkan = true;
-                    break;
+    let mut has_intel_icd = false;
+    let mut has_amd_icd = false;
+    if let Ok(entries) = fs::read_dir("/usr/share/vulkan/icd.d") {
+        for entry in entries.flatten() {
+            let fname = entry.file_name().to_string_lossy().to_ascii_lowercase();
+            if fname.ends_with(".json") && !fname.contains("lvp_icd") {
+                if fname.contains("intel") {
+                    has_intel_icd = true;
+                }
+                if fname.contains("radeon") || fname.contains("amd") {
+                    has_amd_icd = true;
                 }
             }
         }
     }
-    (has_drm_3d, has_vulkan)
+
+    let mut any_card = false;
+    let mut best_3d = false;
+    let mut best_vk = false;
+    if let Ok(entries) = fs::read_dir("/sys/class/drm") {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.starts_with("card") || name.contains('-') {
+                continue;
+            }
+            let dev_dir = entry.path().join("device");
+            let vendor = fs::read_to_string(dev_dir.join("vendor")).unwrap_or_default();
+            let device = fs::read_to_string(dev_dir.join("device")).unwrap_or_default();
+            let driver = fs::read_link(dev_dir.join("driver"))
+                .ok()
+                .and_then(|p| p.file_name().map(|f| f.to_string_lossy().to_string()))
+                .unwrap_or_default();
+            if vendor.trim().is_empty() && driver.is_empty() {
+                continue;
+            }
+            any_card = true;
+            let (d3d, vk) = classify_drm_gpu(
+                &vendor,
+                &device,
+                &driver,
+                has_sse42,
+                has_intel_icd,
+                has_amd_icd,
+            );
+            best_3d |= d3d;
+            best_vk |= vk;
+        }
+    }
+
+    if any_card {
+        (best_3d, best_vk)
+    } else {
+        (has_render_node && has_sse42, false)
+    }
 }
 
 /// Detect the current host hardware capabilities.
@@ -189,7 +311,7 @@ pub fn detect_host_hardware() -> HardwareSpecs {
             .ok()
             .map(|s| parse_cpuinfo(&s))
             .unwrap_or((1, "unknown".to_string(), false, false));
-        let (has_drm_3d, has_vulkan) = detect_drm_and_vulkan();
+        let (has_drm_3d, has_vulkan) = detect_drm_and_vulkan(has_sse42);
         let firmware = if Path::new("/sys/firmware/efi").exists() {
             "uefi"
         } else {
@@ -372,5 +494,41 @@ mod tests {
         assert_eq!(prof_modern.wlr_renderer, "auto");
         assert_eq!(prof_modern.win32_backend_mode, "dxvk+vkd3d");
         assert_eq!(prof_modern.android_graphics, "vulkan-dma-buf");
+    }
+
+    #[test]
+    fn classifies_hp_dx2355_geforce_6150se_2gb_safely() {
+        // HP Compaq dx2355: 2 GB DDR2 (1856 MB usable after UMA VRAM), AMD Athlon 64 X2
+        // (no SSE4.2), NVIDIA GeForce 6150SE (0x10de:0x03d0, nouveau), even with Intel/AMD ICDs installed.
+        let (drm_3d, vk) = classify_drm_gpu("0x10de", "0x03d0", "nouveau", false, true, true);
+        assert!(!drm_3d);
+        assert!(!vk);
+
+        let dx2355 = HardwareSpecs {
+            ram_mb: 1856,
+            cpu_cores: 2,
+            cpu_model: "AMD Athlon(tm) 64 X2 Dual Core Processor 5200+".to_string(),
+            has_sse42: false,
+            has_avx: false,
+            has_vulkan: vk,
+            has_drm_3d: drm_3d,
+            firmware: "bios".to_string(),
+        };
+        let prof = classify_hardware(&dx2355);
+        assert_eq!(prof.tier, HardwareTier::LegacyMid);
+        assert!(!prof.lightweight_shell);
+        assert_eq!(prof.wlr_renderer, "pixman");
+        assert_eq!(prof.win32_backend_mode, "gdi-legacy");
+        assert_eq!(prof.zram_mb, 928);
+
+        // Modern AMD amdgpu + Intel i915 still get Vulkan when ICD is present.
+        assert_eq!(
+            classify_drm_gpu("0x1002", "0x73df", "amdgpu", true, true, true),
+            (true, true)
+        );
+        assert_eq!(
+            classify_drm_gpu("0x8086", "0x9a49", "i915", true, true, true),
+            (true, true)
+        );
     }
 }

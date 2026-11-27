@@ -189,7 +189,8 @@ command -v smartctl
 /usr/libexec/unicore-users list | grep -q '^unicore'
 /usr/libexec/unicore-devbox status | grep -q '^projects_dir=/data/dev/projects$'
 /usr/libexec/unicore-ai status | grep -q '^endpoint=http://127.0.0.1:11434$'
-echo "Verified all v0.2.0 Phase 23/24 CLI helpers OK"
+modinfo ath9k forcedeth nouveau sata_nv snd_hda_intel >/dev/null
+echo "Verified all v0.2.0 Phase 23/24 CLI helpers & dx2355/TL-WN851ND drivers OK"
 
 echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
 mkdir -p /data/unicore

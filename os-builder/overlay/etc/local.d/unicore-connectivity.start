@@ -7,8 +7,10 @@ mkdir -p /data/network /data/bluetooth /data/cups
 chmod 0700 /data/network /data/bluetooth
 chmod 0755 /data/cups
 
-# Ensure FUSE kernel module is loaded for ntfs-3g / gvfs-fuse
-modprobe fuse 2>/dev/null || true
+# Ensure FUSE and common desktop/legacy Wi-Fi, LAN & HD Audio kernel modules are loaded
+for kmod_name in fuse ath9k forcedeth r8169 e1000e snd_hda_intel; do
+    modprobe "${kmod_name}" 2>/dev/null || true
+done
 
 # Persist CUPS printer configuration on /data (service stays stopped until needed)
 if [ ! -f /data/cups/cupsd.conf ] && [ -d /usr/share/unicore/cups-defaults ]; then
