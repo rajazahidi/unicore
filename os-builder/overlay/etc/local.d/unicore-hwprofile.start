@@ -42,3 +42,8 @@ if command -v tlp >/dev/null 2>&1; then
         fi
     done
 fi
+
+# Re-apply persisted Hardware Manager Wi-Fi power-save override (e.g. fix Realtek/Intel drops)
+if [ -r /data/unicore/hw-overrides.conf ] && [ -x /usr/libexec/unicore-hw-mgr ]; then
+    /usr/libexec/unicore-hw-mgr apply-boot >/dev/null 2>&1 || true
+fi

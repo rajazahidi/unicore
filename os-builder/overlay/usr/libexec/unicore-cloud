@@ -1,0 +1,226 @@
+#!/bin/sh
+# UniCore OS 1-Click Cloud Drive Manager (rclone VFS mount -> ~/Cloud/<Name>)
+set -eu
+
+USER_HOME="${HOME:-/home/unicore}"
+RCLONE_DIR="${USER_HOME}/.config/rclone"
+RCLONE_CONF="${UNICORE_RCLONE_CONF:-${RCLONE_DIR}/rclone.conf}"
+AUTO_DIR="${USER_HOME}/.config/unicore"
+AUTO_LIST="${UNICORE_CLOUD_AUTOLIST:-${AUTO_DIR}/cloud-autostart.list}"
+MOUNT_BASE="${UNICORE_CLOUD_MOUNT_BASE:-${USER_HOME}/Cloud}"
+
+is_safe_name() {
+    printf '%s' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$'
+}
+
+is_mounted() {
+    target="$1"
+    if [ -r /proc/mounts ]; then
+        awk -v t="${target}" '$2 == t { found=1 } END { exit !found }' /proc/mounts
+    else
+        return 1
+    fi
+}
+
+is_autostart() {
+    name="$1"
+    [ -r "${AUTO_LIST}" ] && grep -Fxq "${name}" "${AUTO_LIST}" 2>/dev/null
+}
+
+ensure_conf_perms() {
+    mkdir -p "${RCLONE_DIR}" "${AUTO_DIR}" "${MOUNT_BASE}"
+    chmod 0700 "${RCLONE_DIR}" 2>/dev/null || true
+    [ -f "${RCLONE_CONF}" ] && chmod 0600 "${RCLONE_CONF}" 2>/dev/null || true
+}
+
+list_remotes_formatted() {
+    [ -r "${RCLONE_CONF}" ] || return 0
+    out=""
+    cur_name=""
+    cur_type=""
+    flush_entry() {
+        [ -n "${cur_name}" ] || return 0
+        mdir="${MOUNT_BASE}/${cur_name}"
+        mflag=0
+        is_mounted "${mdir}" && mflag=1
+        aflag=0
+        is_autostart "${cur_name}" && aflag=1
+        entry="${cur_name}|${cur_type:-unknown}|${mflag}|${aflag}|${mdir}"
+        if [ -n "${out}" ]; then
+            out="${out};${entry}"
+        else
+            out="${entry}"
+        fi
+    }
+    while IFS= read -r line || [ -n "${line}" ]; do
+        trimmed="$(printf '%s' "${line}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        case "${trimmed}" in
+            \[*\])
+                flush_entry
+                cur_name="$(printf '%s' "${trimmed}" | sed 's/^\[//;s/\]$//')"
+                cur_type=""
+                ;;
+            type\ =*|type=*)
+                cur_type="$(printf '%s' "${trimmed#*=}" | sed 's/^[[:space:]]*//')"
+                ;;
+        esac
+    done < "${RCLONE_CONF}"
+    flush_entry
+    printf '%s\n' "${out}"
+}
+
+mount_remote() {
+    name="$1"
+    is_safe_name "${name}" || { echo "Invalid remote name: ${name}" >&2; exit 2; }
+    command -v rclone >/dev/null 2>&1 || { echo "rclone not installed" >&2; exit 1; }
+    ensure_conf_perms
+    mdir="${MOUNT_BASE}/${name}"
+    mkdir -p "${mdir}"
+    if is_mounted "${mdir}"; then
+        echo "already_mounted=${mdir}"
+        return 0
+    fi
+    rclone --config "${RCLONE_CONF}" mount "${name}:" "${mdir}" \
+        --vfs-cache-mode writes \
+        --vfs-cache-max-age 24h \
+        --vfs-cache-max-size 1G \
+        --dir-cache-time 5m \
+        --daemon \
+        --daemon-timeout 15s >/tmp/unicore-cloud-"${name}".log 2>&1
+    tries=0
+    while ! is_mounted "${mdir}" && [ "${tries}" -lt 20 ]; do
+        sleep 0.25
+        tries=$((tries + 1))
+    done
+    if is_mounted "${mdir}"; then
+        echo "mounted=${mdir}"
+    else
+        echo "Failed to mount cloud drive '${name}'. Check login token or internet connection." >&2
+        exit 1
+    fi
+}
+
+unmount_remote() {
+    name="$1"
+    is_safe_name "${name}" || { echo "Invalid remote name: ${name}" >&2; exit 2; }
+    mdir="${MOUNT_BASE}/${name}"
+    if ! is_mounted "${mdir}"; then
+        echo "not_mounted"
+        return 0
+    fi
+    if command -v fusermount3 >/dev/null 2>&1; then
+        fusermount3 -u "${mdir}" 2>/dev/null || fusermount3 -uz "${mdir}" 2>/dev/null || true
+    elif command -v fusermount >/dev/null 2>&1; then
+        fusermount -u "${mdir}" 2>/dev/null || fusermount -uz "${mdir}" 2>/dev/null || true
+    else
+        umount "${mdir}" 2>/dev/null || true
+    fi
+    echo "unmounted=${mdir}"
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        r_inst=0
+        command -v rclone >/dev/null 2>&1 && r_inst=1
+        remotes="$(list_remotes_formatted || true)"
+        printf 'rclone_installed=%s\nmount_base=%s\nremotes=%s\n' "${r_inst}" "${MOUNT_BASE}" "${remotes}"
+        ;;
+    connect)
+        provider="${1:-}"
+        name="${2:-}"
+        is_safe_name "${name}" || { echo "Invalid cloud drive name (use letters/digits/-/_): ${name}" >&2; exit 2; }
+        command -v rclone >/dev/null 2>&1 || { echo "rclone not installed" >&2; exit 1; }
+        ensure_conf_perms
+        case "${provider}" in
+            gdrive|drive)
+                rclone --config "${RCLONE_CONF}" config create "${name}" drive
+                ;;
+            onedrive)
+                rclone --config "${RCLONE_CONF}" config create "${name}" onedrive
+                ;;
+            dropbox)
+                rclone --config "${RCLONE_CONF}" config create "${name}" dropbox
+                ;;
+            mega)
+                user="${3:-}"
+                [ -n "${user}" ] || { echo "MEGA requires email/username" >&2; exit 2; }
+                IFS= read -r pass_plain || pass_plain=""
+                [ -n "${pass_plain}" ] || { echo "MEGA requires password via stdin" >&2; exit 2; }
+                pass_obs="$(rclone obscure "${pass_plain}")"
+                unset pass_plain
+                rclone --config "${RCLONE_CONF}" config create "${name}" mega "user=${user}" "pass=${pass_obs}"
+                ;;
+            nextcloud|webdav)
+                url="${3:-}"
+                user="${4:-}"
+                printf '%s' "${url}" | grep -Eq '^https?://[^[:space:]"'\''$`\\;<>|&]+$' || {
+                    echo "Invalid WebDAV/Nextcloud URL: ${url}" >&2
+                    exit 2
+                }
+                [ -n "${user}" ] || { echo "Nextcloud/WebDAV requires username" >&2; exit 2; }
+                IFS= read -r pass_plain || pass_plain=""
+                [ -n "${pass_plain}" ] || { echo "Nextcloud/WebDAV requires password via stdin" >&2; exit 2; }
+                pass_obs="$(rclone obscure "${pass_plain}")"
+                unset pass_plain
+                rclone --config "${RCLONE_CONF}" config create "${name}" webdav "url=${url}" vendor=nextcloud "user=${user}" "pass=${pass_obs}"
+                ;;
+            *)
+                echo "Unsupported cloud provider: ${provider}" >&2
+                exit 2
+                ;;
+        esac
+        chmod 0600 "${RCLONE_CONF}" 2>/dev/null || true
+        mount_remote "${name}" || true
+        ;;
+    mount)
+        mount_remote "${1:-}"
+        ;;
+    unmount)
+        unmount_remote "${1:-}"
+        ;;
+    set-autostart)
+        name="${1:-}"
+        flag="${2:-0}"
+        is_safe_name "${name}" || { echo "Invalid remote name: ${name}" >&2; exit 2; }
+        ensure_conf_perms
+        tmp_auto="$(mktemp)"
+        if [ -r "${AUTO_LIST}" ]; then
+            grep -Fxv "${name}" "${AUTO_LIST}" > "${tmp_auto}" 2>/dev/null || true
+        fi
+        case "${flag}" in
+            1|yes|true|on) printf '%s\n' "${name}" >> "${tmp_auto}" ;;
+        esac
+        mv "${tmp_auto}" "${AUTO_LIST}"
+        echo "autostart_updated=${name}:${flag}"
+        ;;
+    remove)
+        name="${1:-}"
+        is_safe_name "${name}" || { echo "Invalid remote name: ${name}" >&2; exit 2; }
+        unmount_remote "${name}" >/dev/null 2>&1 || true
+        if [ -r "${AUTO_LIST}" ]; then
+            tmp_auto="$(mktemp)"
+            grep -Fxv "${name}" "${AUTO_LIST}" > "${tmp_auto}" 2>/dev/null || true
+            mv "${tmp_auto}" "${AUTO_LIST}"
+        fi
+        if command -v rclone >/dev/null 2>&1 && [ -f "${RCLONE_CONF}" ]; then
+            rclone --config "${RCLONE_CONF}" config delete "${name}" >/dev/null 2>&1 || true
+        fi
+        rmdir "${MOUNT_BASE}/${name}" 2>/dev/null || true
+        echo "removed=${name}"
+        ;;
+    autostart-hook)
+        [ -r "${AUTO_LIST}" ] || exit 0
+        while IFS= read -r rname || [ -n "${rname}" ]; do
+            [ -n "${rname}" ] || continue
+            is_safe_name "${rname}" || continue
+            mount_remote "${rname}" >/dev/null 2>&1 || true
+        done < "${AUTO_LIST}"
+        ;;
+    *)
+        echo "Usage: unicore-cloud <status|connect <provider> <name> [url/user]|mount <name>|unmount <name>|set-autostart <name> <0|1>|remove <name>|autostart-hook>" >&2
+        exit 2
+        ;;
+esac

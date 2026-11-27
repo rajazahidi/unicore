@@ -1,8 +1,14 @@
-# UniCore OS (`0.7.0`)
+# UniCore OS (`0.8.0`)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern x86_64 & ARM64 PCs**.
 
 ## Key Capabilities
+
+* **Ecosystem, Phone Link, Cloud Drives & Windows Migration Edition (`v0.8.0`)**:
+  * **Full Phone Link (`--phone`, `KDE Connect` + `scrcpy` + `adb`)**: Built-in KDE Connect (`0 MB` idle RAM when off, auto-allowed on `Home/LAN` firewall ports `1714–1764` and blocked on `Public Wi-Fi`) for phone notifications, SMS, Wi-Fi clipboard & file sharing, PLUS 1-click **Android Screen Mirroring (`scrcpy`)** over USB or Wi-Fi ADB with screen-off control.
+  * **1-Click Cloud Drives (`--cloud`, `rclone mount` VFS → `~/Cloud`)**: Connect **Google Drive**, **Microsoft OneDrive**, **Dropbox**, **MEGA**, or **Nextcloud/WebDAV** via OAuth/credentials (`chmod 600`) and browse them directly in File Explorer (`~/Cloud/<Name>`) with on-demand VFS streaming and optional Auto-Mount on login.
+  * **Safe Windows Migration Wizard (`--migrate`, Read-Only NTFS)**: Auto-detects Windows NTFS partitions (strictly mounted `ro`), safely copies *Documents, Pictures, Desktop, Music, Videos, Game Saves*, converts Chrome/Edge bookmarks into importable HTML, imports official Windows fonts (`C:\Windows\Fonts`), and matches `Program Files` against the UniCore Store.
+  * **Hardware & Driver Health Manager + LVFS Firmware (`--drivers`, `unicore-hw-mgr` + `fwupd`)**: Plain-language GPU/Vulkan/Wi-Fi/Audio/USB status & missing firmware detector, 1-click **Safe Software GPU Mode (`Pixman`)**, **Wi-Fi Power-Save fix** (stops Realtek/Intel Wi-Fi drops), **1-Click Reset Audio & Bluetooth**, and on-demand official LVFS BIOS/UEFI/SSD firmware checks (`0 MB` idle RAM).
 
 * **Classic 98/XP Gaming Edition (`v0.7.0`)**:
   * **1-Click Classic 98/XP Game Launcher (`--retro-game`, pinned in Start Menu & `+ 98/XP Game`)**: Pick any `.exe`, `.msi`, **Game CD `.iso`**, **`.zip`/`.7z` portable archive**, or game folder and choose from 3 plain-language presets: **Classic 2D (Win98/XP `cnc-ddraw` with crisp 4:3 scaling)**, **Classic 3D (WinXP DXVK D3D8/D3D9 with automatic OpenGL fallback on legacy GPUs)**, or **DOS / Win16 (90s)**.

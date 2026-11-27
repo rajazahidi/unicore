@@ -1,0 +1,192 @@
+#!/bin/sh
+# UniCore OS Safe Read-Only Windows Migration Helper (NTFS RO -> /data/home)
+set -eu
+
+DATA_HOME="${UNICORE_MIGRATE_HOME:-/data/home}"
+TMP_MNT=""
+
+cleanup_mount() {
+    if [ -n "${TMP_MNT}" ] && [ -d "${TMP_MNT}" ]; then
+        umount "${TMP_MNT}" 2>/dev/null || umount -l "${TMP_MNT}" 2>/dev/null || true
+        rmdir "${TMP_MNT}" 2>/dev/null || true
+    fi
+}
+trap cleanup_mount EXIT INT TERM
+
+mount_ntfs_ro() {
+    dev="$1"
+    TMP_MNT="$(mktemp -d /tmp/unicore-win-ro.XXXXXX)"
+    if mount -t ntfs3 -o ro "${dev}" "${TMP_MNT}" 2>/dev/null; then
+        return 0
+    fi
+    if command -v ntfs-3g >/dev/null 2>&1 && ntfs-3g -o ro "${dev}" "${TMP_MNT}" 2>/dev/null; then
+        return 0
+    fi
+    if mount -o ro "${dev}" "${TMP_MNT}" 2>/dev/null; then
+        return 0
+    fi
+    rmdir "${TMP_MNT}" 2>/dev/null || true
+    TMP_MNT=""
+    return 1
+}
+
+list_win_users() {
+    mnt="$1"
+    out=""
+    [ -d "${mnt}/Users" ] || return 0
+    for d in "${mnt}/Users"/*; do
+        [ -d "${d}" ] || continue
+        base="$(basename "${d}")"
+        case "${base}" in
+            Public|Default|"Default User"|"All Users"|defaultuser0|WDAGUtilityAccount) continue ;;
+        esac
+        if [ -d "${d}/Documents" ] || [ -d "${d}/Desktop" ] || [ -d "${d}/Pictures" ]; then
+            if [ -n "${out}" ]; then out="${out},${base}"; else out="${base}"; fi
+        fi
+    done
+    printf '%s\n' "${out}"
+}
+
+free_data_mb() {
+    df -Pm "${DATA_HOME}" 2>/dev/null | awk 'NR==2{print $4; exit}' || echo 0
+}
+
+cmd="${1:-scan}"
+shift || true
+
+case "${cmd}" in
+    scan)
+        free_mb="$(free_data_mb)"
+        command -v lsblk >/dev/null 2>&1 || exit 0
+        lsblk -rnpo NAME,FSTYPE,SIZE,LABEL 2>/dev/null | while IFS=' ' read -r dev fstype size label; do
+            [ "${fstype}" = "ntfs" ] || continue
+            [ -b "${dev}" ] || continue
+            if mount_ntfs_ro "${dev}"; then
+                if [ -d "${TMP_MNT}/Windows" ] && [ -d "${TMP_MNT}/Users" ]; then
+                    users="$(list_win_users "${TMP_MNT}")"
+                    if [ -n "${users}" ]; then
+                        lbl="${label:-Windows}"
+                        printf '%s\t%s\t%s\t%s\t%s\n' "${dev}" "${lbl}" "${size}" "${users}" "${free_mb}"
+                    fi
+                fi
+                cleanup_mount
+                TMP_MNT=""
+            fi
+        done
+        ;;
+    inspect)
+        dev="${1:-}"
+        [ -b "${dev}" ] || { echo "Partition not found: ${dev}" >&2; exit 1; }
+        mount_ntfs_ro "${dev}" || { echo "Failed to mount ${dev} read-only" >&2; exit 1; }
+        users="$(list_win_users "${TMP_MNT}")"
+        free_mb="$(free_data_mb)"
+        fonts_count=0
+        if [ -d "${TMP_MNT}/Windows/Fonts" ]; then
+            fonts_count="$(find "${TMP_MNT}/Windows/Fonts" -maxdepth 1 -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) 2>/dev/null | wc -l | tr -d ' ')"
+        fi
+        bmarks=""
+        first_user="$(printf '%s' "${users}" | cut -d',' -f1)"
+        if [ -n "${first_user}" ]; then
+            [ -f "${TMP_MNT}/Users/${first_user}/AppData/Local/Google/Chrome/User Data/Default/Bookmarks" ] && bmarks="${bmarks:+${bmarks},}chrome"
+            [ -f "${TMP_MNT}/Users/${first_user}/AppData/Local/Microsoft/Edge/User Data/Default/Bookmarks" ] && bmarks="${bmarks:+${bmarks},}edge"
+        fi
+        prog_dirs=""
+        for pdir in "${TMP_MNT}/Program Files" "${TMP_MNT}/Program Files (x86)"; do
+            [ -d "${pdir}" ] || continue
+            for sub in "${pdir}"/*; do
+                [ -d "${sub}" ] || continue
+                bn="$(basename "${sub}" | tr '|;\t\n' '    ')"
+                if [ -n "${prog_dirs}" ]; then prog_dirs="${prog_dirs}|${bn}"; else prog_dirs="${bn}"; fi
+            done
+        done
+        printf 'device=%s\nusers=%s\nfree_data_mb=%s\nfonts_count=%s\nbookmarks_found=%s\nprogram_dirs=%s\n' \
+            "${dev}" "${users}" "${free_mb}" "${fonts_count}" "${bmarks}" "${prog_dirs}"
+        ;;
+    import)
+        dev="${1:-}"
+        win_user="${2:-}"
+        flags="${3:-docs,pics,desktop}"
+        [ -b "${dev}" ] || { echo "Partition not found: ${dev}" >&2; exit 1; }
+        mount_ntfs_ro "${dev}" || { echo "Failed to mount ${dev} read-only" >&2; exit 1; }
+        user_root="${TMP_MNT}/Users/${win_user}"
+        [ -d "${user_root}" ] || { echo "Windows user profile not found: ${win_user}" >&2; exit 1; }
+
+        copied_summary=""
+        copy_folder() {
+            src="$1"
+            dst="$2"
+            tag="$3"
+            if [ -d "${src}" ]; then
+                mkdir -p "${dst}"
+                cp -rn "${src}/." "${dst}/" 2>/dev/null || cp -r "${src}/." "${dst}/" 2>/dev/null || true
+                copied_summary="${copied_summary:+${copied_summary}, }${tag}"
+            fi
+        }
+
+        has_flag() {
+            printf ',%s,' "${flags}" | grep -q ",$1,"
+        }
+
+        has_flag docs    && copy_folder "${user_root}/Documents" "${DATA_HOME}/Documents/From-Windows" "Documents"
+        has_flag pics    && copy_folder "${user_root}/Pictures"  "${DATA_HOME}/Pictures/From-Windows"  "Pictures"
+        has_flag desktop && copy_folder "${user_root}/Desktop"   "${DATA_HOME}/Desktop/From-Windows"   "Desktop"
+        has_flag music   && copy_folder "${user_root}/Music"     "${DATA_HOME}/Music/From-Windows"     "Music"
+        has_flag videos  && copy_folder "${user_root}/Videos"    "${DATA_HOME}/Videos/From-Windows"    "Videos"
+        if has_flag saves; then
+            copy_folder "${user_root}/Saved Games" "${DATA_HOME}/Documents/Windows-Game-Saves/SavedGames" "SavedGames"
+            copy_folder "${user_root}/Documents/My Games" "${DATA_HOME}/Documents/Windows-Game-Saves/MyGames" "MyGames"
+        fi
+        if has_flag fonts && [ -d "${TMP_MNT}/Windows/Fonts" ]; then
+            font_dst="${DATA_HOME}/.local/share/fonts/Windows"
+            mkdir -p "${font_dst}"
+            find "${TMP_MNT}/Windows/Fonts" -maxdepth 1 -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) -exec cp -n {} "${font_dst}/" \; 2>/dev/null || true
+            command -v fc-cache >/dev/null 2>&1 && fc-cache -f "${font_dst}" >/dev/null 2>&1 || true
+            copied_summary="${copied_summary:+${copied_summary}, }WindowsFonts"
+        fi
+        if has_flag bookmarks; then
+            bm_dst="${DATA_HOME}/Documents/Windows-Migration"
+            mkdir -p "${bm_dst}"
+            chrome_bm="${user_root}/AppData/Local/Google/Chrome/User Data/Default/Bookmarks"
+            edge_bm="${user_root}/AppData/Local/Microsoft/Edge/User Data/Default/Bookmarks"
+            [ -f "${chrome_bm}" ] && cp -f "${chrome_bm}" "${bm_dst}/chrome-bookmarks.json" 2>/dev/null || true
+            [ -f "${edge_bm}" ] && cp -f "${edge_bm}" "${bm_dst}/edge-bookmarks.json" 2>/dev/null || true
+            if command -v python3 >/dev/null 2>&1; then
+                python3 - "${bm_dst}" <<'PY' || true
+import html, json, os, sys
+dst = sys.argv[1]
+items = []
+def walk(node):
+    if isinstance(node, dict):
+        if node.get("type") == "url" and node.get("url"):
+            items.append((node.get("name", node["url"]), node["url"]))
+        for ch in node.get("children", []):
+            walk(ch)
+for fn in ("chrome-bookmarks.json", "edge-bookmarks.json"):
+    p = os.path.join(dst, fn)
+    if os.path.isfile(p):
+        try:
+            data = json.load(open(p, "r", encoding="utf-8", errors="replace"))
+            for root in data.get("roots", {}).values():
+                walk(root)
+        except Exception:
+            pass
+if items:
+    out_p = os.path.join(dst, "windows-bookmarks.html")
+    with open(out_p, "w", encoding="utf-8") as f:
+        f.write("<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<TITLE>Windows Bookmarks</TITLE>\n<H1>Imported from Windows</H1>\n<DL><p>\n")
+        for name, url in items:
+            f.write(f'  <DT><A HREF="{html.escape(url, quote=True)}">{html.escape(name)}</A>\n')
+        f.write("</DL><p>\n")
+PY
+            fi
+            copied_summary="${copied_summary:+${copied_summary}, }Bookmarks"
+        fi
+
+        chown -R 1000:1000 "${DATA_HOME}/Documents" "${DATA_HOME}/Pictures" "${DATA_HOME}/Desktop" "${DATA_HOME}/Music" "${DATA_HOME}/Videos" "${DATA_HOME}/.local" 2>/dev/null || true
+        printf 'imported=%s\n' "${copied_summary:-none}"
+        ;;
+    *)
+        echo "Usage: unicore-migrate <scan|inspect <dev>|import <dev> <win_user> <flags_csv>>" >&2
+        exit 2
+        ;;
+esac

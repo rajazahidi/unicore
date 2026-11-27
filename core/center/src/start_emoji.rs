@@ -336,12 +336,59 @@ pub fn parse_desktop_file(raw: &str, id_hint: &str) -> Option<DesktopAppItem> {
     })
 }
 
+pub fn builtin_ecosystem_apps(lang: UiLang) -> Vec<DesktopAppItem> {
+    let ms = lang == UiLang::Ms;
+    vec![
+        DesktopAppItem {
+            id: "unicore-phone".to_string(),
+            name: if ms { "Sambung Telefon" } else { "Phone Link" }.to_string(),
+            comment: if ms { "KDE Connect notifikasi/SMS & cermin skrin Android (scrcpy)" } else { "KDE Connect notifications/SMS & Android screen mirror (scrcpy)" }.to_string(),
+            category: "internet".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --phone".to_string(),
+            badge: "PH".to_string(),
+            accent_hex: "#0284c7".to_string(),
+            pinned: false,
+        },
+        DesktopAppItem {
+            id: "unicore-cloud".to_string(),
+            name: if ms { "Pemacu Awan (Cloud)" } else { "Cloud Drives" }.to_string(),
+            comment: if ms { "Lekap Google Drive, OneDrive, Dropbox & Nextcloud ke ~/Cloud" } else { "Mount Google Drive, OneDrive, Dropbox & Nextcloud in ~/Cloud" }.to_string(),
+            category: "internet".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --cloud".to_string(),
+            badge: "CL".to_string(),
+            accent_hex: "#2563eb".to_string(),
+            pinned: false,
+        },
+        DesktopAppItem {
+            id: "unicore-migrate".to_string(),
+            name: if ms { "Migrasi Windows" } else { "Windows Migration" }.to_string(),
+            comment: if ms { "Import selamat fail, penanda buku & fon dari partisyen Windows" } else { "Safely import files, bookmarks & fonts from Windows drives" }.to_string(),
+            category: "system".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --migrate".to_string(),
+            badge: "WM".to_string(),
+            accent_hex: "#059669".to_string(),
+            pinned: false,
+        },
+        DesktopAppItem {
+            id: "unicore-drivers".to_string(),
+            name: if ms { "Perkakasan & Pemacu" } else { "Hardware & Drivers" }.to_string(),
+            comment: if ms { "Status GPU/Wi-Fi/USB, baiki audio/BT & firmware LVFS" } else { "GPU/Wi-Fi/USB status, audio/BT fix & LVFS firmware updates" }.to_string(),
+            category: "system".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --drivers".to_string(),
+            badge: "HW".to_string(),
+            accent_hex: "#d97706".to_string(),
+            pinned: false,
+        },
+    ]
+}
+
 pub fn discover_start_menu_apps(
     scan_dirs: &[&Path],
     sandbox_apps: &[AppSandbox],
     lang: UiLang,
 ) -> Vec<DesktopAppItem> {
     let mut items = builtin_pinned_apps(lang);
+    items.extend(builtin_ecosystem_apps(lang));
     let mut seen_names: HashSet<String> = items
         .iter()
         .map(|i| i.name.to_ascii_lowercase())

@@ -22,6 +22,14 @@ use unicore_center::dev_ai::{
     remove_devbox, run_ai_action, run_ai_copilot, run_devbox_create, save_ai_provider,
     spawn_devbox_shell, validate_ai_model_name, PickerEntry, DEVBOX_TEMPLATES,
 };
+use unicore_center::ecosystem::{
+    build_migrate_flags_csv, cloud_connect, cloud_provider_from_index, cloud_remote_action,
+    cloud_set_autostart, gpu_mode_from_index, gpu_mode_to_index, hw_fw_check, hw_fw_update,
+    hw_reset_audio_bt, hw_set_gpu_mode, hw_set_wifi_powersave, inspect_windows_partition,
+    phone_connect_adb_wifi, phone_device_action, phone_mirror_android, phone_service_action,
+    phone_set_autostart, read_cloud_overview, read_hw_overview, read_phone_overview,
+    run_windows_migration, scan_windows_partitions, WindowsPartition,
+};
 use unicore_center::gaming::{
     apply_cpu_governor, default_gaming_dir, load_gaming_config, read_host_cpu_governor,
     save_gaming_config, GamingConfig,
@@ -300,6 +308,22 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         btn_retro_install_play: l.btn_retro_install_play.into(),
         btn_repair_retry: l.btn_repair_retry.into(),
         btn_use_game_exe: l.btn_use_game_exe.into(),
+        subtab_ecosystem: l.subtab_ecosystem.into(),
+        title_ecosystem: l.title_ecosystem.into(),
+        eco_tab_phone: l.eco_tab_phone.into(),
+        eco_tab_cloud: l.eco_tab_cloud.into(),
+        eco_tab_migrate: l.eco_tab_migrate.into(),
+        eco_tab_drivers: l.eco_tab_drivers.into(),
+        hdr_phone_link: l.hdr_phone_link.into(),
+        hdr_cloud_drives: l.hdr_cloud_drives.into(),
+        hdr_win_migrate: l.hdr_win_migrate.into(),
+        hdr_hw_drivers: l.hdr_hw_drivers.into(),
+        btn_phone_mirror: l.btn_phone_mirror.into(),
+        btn_cloud_connect: l.btn_cloud_connect.into(),
+        btn_migrate_scan: l.btn_migrate_scan.into(),
+        btn_migrate_start: l.btn_migrate_start.into(),
+        btn_hw_reset_audio: l.btn_hw_reset_audio.into(),
+        btn_hw_fw_check: l.btn_hw_fw_check.into(),
     });
 }
 
@@ -824,6 +848,76 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
     state.users = users;
 }
 
+fn refresh_ecosystem(ui: &MainWindow) {
+    let phone = read_phone_overview();
+    ui.set_eco_kde_installed(phone.kdeconnect_installed);
+    ui.set_eco_kde_running(phone.kdeconnect_running);
+    ui.set_eco_kde_autostart(phone.kdeconnect_autostart);
+    ui.set_eco_scrcpy_installed(phone.scrcpy_installed);
+    let adb_str = if phone.adb_devices.is_empty() {
+        "No USB/Wi-Fi Android device detected".to_string()
+    } else {
+        phone.adb_devices.join(", ")
+    };
+    ui.set_eco_adb_summary(SharedString::from(adb_str));
+    let kde_rows: Vec<KdeDeviceRow> = phone
+        .kde_devices
+        .iter()
+        .map(|d| KdeDeviceRow {
+            id: SharedString::from(d.id.as_str()),
+            name: SharedString::from(d.name.as_str()),
+            paired: d.paired,
+            reachable: d.reachable,
+        })
+        .collect();
+    if let Some(first) = phone.kde_devices.first() {
+        ui.set_eco_selected_phone_idx(0);
+        ui.set_eco_selected_phone_id(SharedString::from(first.id.as_str()));
+    } else {
+        ui.set_eco_selected_phone_idx(-1);
+        ui.set_eco_selected_phone_id(SharedString::new());
+    }
+    ui.set_eco_kde_devices(ModelRc::new(VecModel::from(kde_rows)));
+
+    let cloud = read_cloud_overview();
+    ui.set_eco_rclone_installed(cloud.rclone_installed);
+    ui.set_eco_cloud_mount_base(SharedString::from(cloud.mount_base.as_str()));
+    let cloud_rows: Vec<CloudRemoteRow> = cloud
+        .remotes
+        .iter()
+        .map(|r| CloudRemoteRow {
+            name: SharedString::from(r.name.as_str()),
+            provider_type: SharedString::from(r.provider_type.as_str()),
+            mounted: r.mounted,
+            autostart: r.autostart,
+            mount_dir: SharedString::from(r.mount_dir.as_str()),
+        })
+        .collect();
+    if let Some(first) = cloud.remotes.first() {
+        ui.set_eco_selected_cloud_idx(0);
+        ui.set_eco_selected_cloud_name(SharedString::from(first.name.as_str()));
+    } else {
+        ui.set_eco_selected_cloud_idx(-1);
+        ui.set_eco_selected_cloud_name(SharedString::new());
+    }
+    ui.set_eco_cloud_remotes(ModelRc::new(VecModel::from(cloud_rows)));
+
+    let hw = read_hw_overview();
+    ui.set_eco_hw_gpu(SharedString::from(format!("{} (driver: {})", hw.gpu_model, hw.gpu_driver)));
+    ui.set_eco_hw_vulkan(SharedString::from(if hw.vulkan_ready {
+        format!("Ready — {}", hw.vulkan_device)
+    } else {
+        hw.vulkan_device.clone()
+    }));
+    ui.set_eco_hw_wifi(SharedString::from(format!("{} (driver: {})", hw.wifi_model, hw.wifi_driver)));
+    ui.set_eco_hw_audio(SharedString::from(hw.audio_model.as_str()));
+    ui.set_eco_hw_usb(SharedString::from(format!("{} device(s): {}", hw.usb_count, hw.usb_summary)));
+    ui.set_eco_hw_missing_fw(SharedString::from(hw.missing_firmware.as_str()));
+    ui.set_eco_hw_gpu_mode_idx(gpu_mode_to_index(&hw.gpu_mode));
+    ui.set_eco_hw_wifi_ps(hw.wifi_powersave != "off");
+    ui.set_eco_hw_fwupd_ok(hw.fwupd_available);
+}
+
 fn refresh_gaming_store_banners(ui: &MainWindow) {
     let fp = read_flatpak_overview();
     let fp_summary = if fp.installed {
@@ -1334,6 +1428,7 @@ fn main() {
     ui.invoke_set_accent_color(init_acc);
 
     let start_apps_cache: Rc<RefCell<Vec<DesktopAppItem>>> = Rc::new(RefCell::new(Vec::new()));
+    let win_parts_cache: Rc<RefCell<Vec<WindowsPartition>>> = Rc::new(RefCell::new(Vec::new()));
 
     {
         let b = backend.borrow();
@@ -1437,9 +1532,17 @@ fn main() {
                 ui.set_retro_pick_candidates(ModelRc::new(VecModel::from(cands)));
                 ui.set_retro_pick_selected_idx(0);
             }
+            LaunchMode::EcosystemHub(sub) => {
+                ui.set_ecosystem_dialog_only(true);
+                ui.set_eco_subtab(*sub);
+                refresh_ecosystem(&ui);
+            }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
                     refresh_settings(&ui, &mut settings_state.borrow_mut());
+                    if parsed.initial_settings_subtab == 7 {
+                        refresh_ecosystem(&ui);
+                    }
                 } else if parsed.initial_tab == 5 {
                     refresh_dev_ai(&ui, &mut settings_state.borrow_mut());
                 }
@@ -4349,6 +4452,484 @@ fn main() {
                 }
                 Err(err) => set_status(&ui, err, true),
             }
+        });
+    }
+
+    // === v0.8.0 Ecosystem, Phone Link, Cloud Drives, Windows Migration & Hardware Drivers ===
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_refresh(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_ecosystem(&ui);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_phone_service(move |act| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match phone_service_action(act.as_str()) {
+                Ok(msg) => {
+                    refresh_ecosystem(&ui);
+                    let note = if msg.is_empty() {
+                        format!("Phone Link action '{act}' completed.")
+                    } else {
+                        msg
+                    };
+                    ui.set_eco_status(SharedString::from(note.as_str()));
+                    set_status(&ui, note, false);
+                }
+                Err(err) => {
+                    ui.set_eco_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_phone_autostart(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match phone_set_autostart(enabled) {
+                Ok(_) => {
+                    ui.set_eco_kde_autostart(enabled);
+                    set_status(
+                        &ui,
+                        if enabled {
+                            "KDE Connect will auto-start on login."
+                        } else {
+                            "KDE Connect auto-start disabled (0 MB idle RAM)."
+                        },
+                        false,
+                    );
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_phone_device_action(move |act, dev_id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match phone_device_action(act.as_str(), dev_id.as_str()) {
+                Ok(msg) => {
+                    refresh_ecosystem(&ui);
+                    let note = if msg.is_empty() {
+                        format!("Phone '{act}' sent.")
+                    } else {
+                        msg
+                    };
+                    ui.set_eco_status(SharedString::from(note.as_str()));
+                    set_status(&ui, note, false);
+                }
+                Err(err) => {
+                    ui.set_eco_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_phone_mirror(move |screen_off| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match phone_mirror_android("", screen_off) {
+                Ok(_) => {
+                    ui.set_eco_status(SharedString::from(
+                        "Android screen mirroring launched via scrcpy!",
+                    ));
+                    set_status(&ui, "Android screen mirror launched (scrcpy).", false);
+                }
+                Err(err) => {
+                    ui.set_eco_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_phone_adb_wifi(move |target| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match phone_connect_adb_wifi(target.as_str()) {
+                Ok(msg) => {
+                    refresh_ecosystem(&ui);
+                    ui.set_eco_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_eco_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_cloud_connect(move |prov_idx, name, url, user, pass| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let provider = cloud_provider_from_index(prov_idx).to_string();
+            let name_s = name.to_string();
+            let url_s = url.to_string();
+            let user_s = user.to_string();
+            let pass_s = pass.to_string();
+            ui.set_eco_busy(true);
+            ui.set_eco_status(SharedString::from(format!(
+                "Connecting '{name_s}' ({provider}) — complete browser sign-in if prompted..."
+            )));
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = cloud_connect(&provider, &name_s, &url_s, &user_s, &pass_s);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_eco_busy(false);
+                        ui.set_eco_cloud_pass_input(SharedString::new());
+                        refresh_ecosystem(&ui);
+                        match res {
+                            Ok(msg) => {
+                                let note = if msg.is_empty() {
+                                    format!("Cloud drive '{name_s}' connected & mounted!")
+                                } else {
+                                    msg
+                                };
+                                ui.set_eco_status(SharedString::from(note.as_str()));
+                                set_status(&ui, note, false);
+                            }
+                            Err(err) => {
+                                ui.set_eco_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_cloud_action(move |act, name| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let act_s = act.to_string();
+            let name_s = name.to_string();
+            ui.set_eco_busy(true);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = cloud_remote_action(&act_s, &name_s);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_eco_busy(false);
+                        refresh_ecosystem(&ui);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_eco_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_eco_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_cloud_autostart(move |name, _toggle| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let current = read_cloud_overview()
+                .remotes
+                .into_iter()
+                .find(|r| r.name == name.as_str())
+                .map(|r| r.autostart)
+                .unwrap_or(false);
+            let next = !current;
+            match cloud_set_autostart(name.as_str(), next) {
+                Ok(_) => {
+                    refresh_ecosystem(&ui);
+                    set_status(
+                        &ui,
+                        format!(
+                            "Auto-mount for '{}' {}.",
+                            name,
+                            if next { "enabled" } else { "disabled" }
+                        ),
+                        false,
+                    );
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_cloud_open_dir(move |dir| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let _ = std::fs::create_dir_all(dir.as_str());
+            if let Err(err) = open_capture_dir(dir.as_str()) {
+                set_status(&ui, err, true);
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let parts_rc = Rc::clone(&win_parts_cache);
+        ui.on_eco_migrate_scan(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_eco_busy(true);
+            ui.set_eco_win_info_summary(SharedString::from(
+                "Scanning disks for Windows NTFS partitions (read-only)...",
+            ));
+            match scan_windows_partitions() {
+                Ok(parts) => {
+                    let labels: Vec<SharedString> = parts
+                        .iter()
+                        .map(|p| {
+                            SharedString::from(format!("{} — {} ({})", p.device, p.label, p.size))
+                        })
+                        .collect();
+                    ui.set_eco_win_part_labels(ModelRc::new(VecModel::from(labels)));
+                    ui.set_eco_win_part_idx(0);
+                    if let Some(first) = parts.first() {
+                        let users: Vec<SharedString> = first
+                            .users
+                            .iter()
+                            .map(|u| SharedString::from(u.as_str()))
+                            .collect();
+                        ui.set_eco_win_users(ModelRc::new(VecModel::from(users)));
+                        ui.set_eco_win_user_idx(0);
+                        if let Ok(info) = inspect_windows_partition(&first.device) {
+                            let bm = if info.bookmarks_found.is_empty() {
+                                "none".to_string()
+                            } else {
+                                info.bookmarks_found.join(", ")
+                            };
+                            ui.set_eco_win_info_summary(SharedString::from(format!(
+                                "Found Windows on {} • Free /data: {:.1} GB • Fonts: {} • Bookmarks: {}",
+                                info.device,
+                                info.free_data_mb as f64 / 1024.0,
+                                info.fonts_count,
+                                bm
+                            )));
+                            let matches: Vec<String> = info
+                                .store_matches
+                                .iter()
+                                .map(|m| format!("{} -> {}", m.windows_app, m.store_label))
+                                .collect();
+                            ui.set_eco_win_store_matches(SharedString::from(matches.join("  •  ")));
+                        }
+                    } else {
+                        ui.set_eco_win_users(ModelRc::new(VecModel::from(Vec::<SharedString>::new())));
+                        ui.set_eco_win_store_matches(SharedString::new());
+                        ui.set_eco_win_info_summary(SharedString::from(
+                            "No Windows NTFS partition detected on internal/USB drives.",
+                        ));
+                    }
+                    *parts_rc.borrow_mut() = parts;
+                }
+                Err(err) => {
+                    ui.set_eco_win_info_summary(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+            ui.set_eco_busy(false);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let parts_rc = Rc::clone(&win_parts_cache);
+        ui.on_eco_migrate_select_part(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let parts = parts_rc.borrow();
+            let Some(part) = parts.get(idx as usize) else {
+                return;
+            };
+            let users: Vec<SharedString> = part
+                .users
+                .iter()
+                .map(|u| SharedString::from(u.as_str()))
+                .collect();
+            ui.set_eco_win_users(ModelRc::new(VecModel::from(users)));
+            ui.set_eco_win_user_idx(0);
+            if let Ok(info) = inspect_windows_partition(&part.device) {
+                let bm = if info.bookmarks_found.is_empty() {
+                    "none".to_string()
+                } else {
+                    info.bookmarks_found.join(", ")
+                };
+                ui.set_eco_win_info_summary(SharedString::from(format!(
+                    "Found Windows on {} • Free /data: {:.1} GB • Fonts: {} • Bookmarks: {}",
+                    info.device,
+                    info.free_data_mb as f64 / 1024.0,
+                    info.fonts_count,
+                    bm
+                )));
+                let matches: Vec<String> = info
+                    .store_matches
+                    .iter()
+                    .map(|m| format!("{} -> {}", m.windows_app, m.store_label))
+                    .collect();
+                ui.set_eco_win_store_matches(SharedString::from(matches.join("  •  ")));
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let parts_rc = Rc::clone(&win_parts_cache);
+        ui.on_eco_migrate_run(
+            move |pidx, uidx, docs, pics, desktop, music, videos, saves, bookmarks, fonts| {
+                let Some(ui) = ui_weak.upgrade() else { return };
+                let parts = parts_rc.borrow();
+                let Some(part) = parts.get(pidx as usize) else {
+                    set_status(&ui, "Scan & select a Windows drive first.", true);
+                    return;
+                };
+                let Some(win_user) = part.users.get(uidx as usize) else {
+                    set_status(&ui, "Select a Windows user profile first.", true);
+                    return;
+                };
+                let flags = build_migrate_flags_csv(
+                    docs, pics, desktop, music, videos, saves, bookmarks, fonts,
+                );
+                let dev_s = part.device.clone();
+                let user_s = win_user.clone();
+                ui.set_eco_busy(true);
+                ui.set_eco_status(SharedString::from(format!(
+                    "Safely copying selected files from {dev_s} (read-only)..."
+                )));
+                let thread_ui = ui.as_weak();
+                std::thread::spawn(move || {
+                    let res = run_windows_migration(&dev_s, &user_s, &flags);
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = thread_ui.upgrade() {
+                            ui.set_eco_busy(false);
+                            match res {
+                                Ok(msg) => {
+                                    let note = format!("Windows migration complete! ({msg})");
+                                    ui.set_eco_status(SharedString::from(note.as_str()));
+                                    set_status(&ui, note, false);
+                                }
+                                Err(err) => {
+                                    ui.set_eco_status(SharedString::from(err.as_str()));
+                                    set_status(&ui, err, true);
+                                }
+                            }
+                        }
+                    });
+                });
+            },
+        );
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_hw_set_gpu(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let mode = gpu_mode_from_index(idx);
+            match hw_set_gpu_mode(mode) {
+                Ok(_) => {
+                    let note = format!("Saved GPU mode '{mode}' (applies on next login/reboot).");
+                    ui.set_eco_status(SharedString::from(note.as_str()));
+                    set_status(&ui, note, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_hw_set_wifi_ps(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match hw_set_wifi_powersave(enabled) {
+                Ok(_) => {
+                    ui.set_eco_hw_wifi_ps(enabled);
+                    let note = if enabled {
+                        "Wi-Fi power-save enabled."
+                    } else {
+                        "Wi-Fi power-save disabled (better stability on Realtek/Intel cards)."
+                    };
+                    ui.set_eco_status(SharedString::from(note));
+                    set_status(&ui, note, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_hw_reset_audio_bt(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_eco_busy(true);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = hw_reset_audio_bt();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_eco_busy(false);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_eco_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => set_status(&ui, err, true),
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_hw_fw_action(move |act| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let act_s = act.to_string();
+            ui.set_eco_busy(true);
+            ui.set_eco_hw_fw_log(SharedString::from(
+                "Querying official LVFS firmware metadata (fwupd)...",
+            ));
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = if act_s == "update" {
+                    hw_fw_update()
+                } else {
+                    hw_fw_check()
+                };
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_eco_busy(false);
+                        match res {
+                            Ok(out) => {
+                                let brief = if out.trim().is_empty() {
+                                    "All firmware is up to date (LVFS).".to_string()
+                                } else {
+                                    out.lines().take(6).collect::<Vec<_>>().join(" | ")
+                                };
+                                ui.set_eco_hw_fw_log(SharedString::from(brief.as_str()));
+                                set_status(&ui, brief, false);
+                            }
+                            Err(err) => {
+                                ui.set_eco_hw_fw_log(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
         });
     }
 

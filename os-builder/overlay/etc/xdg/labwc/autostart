@@ -80,6 +80,12 @@ if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ]; then
     if [ -x /usr/libexec/unicore-update-check ]; then
         /usr/libexec/unicore-update-check --daemon >/dev/null 2>&1 &
     fi
+    if [ -x /usr/libexec/unicore-phone ]; then
+        /usr/libexec/unicore-phone autostart-hook >/dev/null 2>&1 &
+    fi
+    if [ -x /usr/libexec/unicore-cloud ]; then
+        /usr/libexec/unicore-cloud autostart-hook >/dev/null 2>&1 &
+    fi
 fi
 
 # Launch First-Boot OOBE Wizard on initial boot, or UniCore App & Security Center once configured

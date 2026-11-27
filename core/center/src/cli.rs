@@ -23,6 +23,7 @@ pub enum LaunchMode {
     RetroWizard(Option<PathBuf>),
     RepairDialog(String),
     RetroTargetPicker(String),
+    EcosystemHub(i32),
     CheckOnly(Option<PathBuf>),
 }
 
@@ -56,7 +57,11 @@ OPTIONS:
   --retro-game [FILE]    Open Classic 98/XP Game Wizard (.exe/.msi/CD .iso/.zip/folder)
   --repair <APP_ID>      Open 1-Click Auto-Repair dialog after a Win98/XP game crash
   --retro-pick <APP_ID>  Choose the real installed game .exe after running Setup.exe
-  --tab <NAME>           Open initial tab: apps | store[:retro] | dev | ai | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security|power|users]
+  --phone                Open Phone Link hub (KDE Connect + scrcpy Android Screen Mirror)
+  --cloud                Open 1-Click Cloud Drives hub (Google Drive / OneDrive / Dropbox / Nextcloud)
+  --migrate              Open Read-Only Windows Migration Wizard (Files, Bookmarks, Fonts & Store Match)
+  --drivers              Open Hardware & Driver Health Manager + LVFS Firmware Updater
+  --tab <NAME>           Open initial tab: apps | store[:retro] | dev | ai | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security|power|users|ecosystem]
   --state-dir <DIR>      Override sandbox registry root (default: /data/uniload or .uniload_state)
   --apps-dir <DIR>       Override .desktop applications folder (default: ~/.local/share/applications)
   --desktop-dir <DIR>    Override Desktop shortcuts folder (default: ~/Desktop)
@@ -137,6 +142,18 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
                 let app_id = next_value(args, &mut idx, "--retro-pick")?;
                 mode = LaunchMode::RetroTargetPicker(app_id);
             }
+            "--phone" | "--ecosystem" => {
+                mode = LaunchMode::EcosystemHub(0);
+            }
+            "--cloud" => {
+                mode = LaunchMode::EcosystemHub(1);
+            }
+            "--migrate" => {
+                mode = LaunchMode::EcosystemHub(2);
+            }
+            "--drivers" => {
+                mode = LaunchMode::EcosystemHub(3);
+            }
             "--tab" => {
                 let raw = next_value(args, &mut idx, "--tab")?;
                 let lower = raw.to_ascii_lowercase();
@@ -150,7 +167,8 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
                         "printers" | "printer" | "cups" => 4,
                         "security" | "firewall" | "backup" | "vpn" => 5,
                         "power" | "battery" | "users" | "smart" => 6,
-                        _ => return Err(format!("Unknown settings subtab '{sub}'. Choose wifi, bluetooth, audio, display, appearance, printers, security, power, or users.")),
+                        "ecosystem" | "phone" | "cloud" | "migrate" | "drivers" => 7,
+                        _ => return Err(format!("Unknown settings subtab '{sub}'. Choose wifi, bluetooth, audio, display, appearance, printers, security, power, users, or ecosystem.")),
                     };
                 } else if let Some(sub) = lower.strip_prefix("store:") {
                     initial_tab = 4;

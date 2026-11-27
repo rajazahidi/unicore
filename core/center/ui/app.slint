@@ -111,6 +111,21 @@ export struct EmojiRow {
     e4: string, e5: string, e6: string, e7: string,
 }
 
+export struct KdeDeviceRow {
+    id: string,
+    name: string,
+    paired: bool,
+    reachable: bool,
+}
+
+export struct CloudRemoteRow {
+    name: string,
+    provider-type: string,
+    mounted: bool,
+    autostart: bool,
+    mount-dir: string,
+}
+
 export struct UiText {
     title-center: string,
     title-open: string,
@@ -303,6 +318,22 @@ export struct UiText {
     btn-retro-install-play: string,
     btn-repair-retry: string,
     btn-use-game-exe: string,
+    subtab-ecosystem: string,
+    title-ecosystem: string,
+    eco-tab-phone: string,
+    eco-tab-cloud: string,
+    eco-tab-migrate: string,
+    eco-tab-drivers: string,
+    hdr-phone-link: string,
+    hdr-cloud-drives: string,
+    hdr-win-migrate: string,
+    hdr-hw-drivers: string,
+    btn-phone-mirror: string,
+    btn-cloud-connect: string,
+    btn-migrate-scan: string,
+    btn-migrate-start: string,
+    btn-hw-reset-audio: string,
+    btn-hw-fw-check: string,
 }
 
 export global UiTheme {
@@ -602,14 +633,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center))))))))))));
-    preferred-width: root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px)))))))))));
-    preferred-height: root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px)))))))))));
+    title: root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))));
+    preferred-width: root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))));
+    preferred-height: root.ecosystem-dialog-only ? 590px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -642,6 +673,8 @@ export component MainWindow inherits Window {
     in-out property <bool> retro-wizard-only: false;
     in-out property <bool> repair-dialog-only: false;
     in-out property <bool> retro-pick-only: false;
+    in-out property <bool> ecosystem-dialog-only: false;
+    in-out property <int> eco-subtab: 0; // 0:Phone, 1:Cloud, 2:Migration, 3:Drivers
     in-out property <bool> oobe-dialog-only: false;
     in-out property <bool> taskmgr-dialog-only: false;
     in-out property <bool> picker-open: false;
@@ -652,7 +685,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v0.7.0";
+    in-out property <string> login-clock-text: "UniCore OS v0.8.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -960,6 +993,58 @@ export component MainWindow inherits Window {
     in-out property <int> sel-retro-vdesk-idx: 0;
     in-out property <string> sel-retro-cd-iso: "";
 
+    // v0.8.0 Ecosystem, Phone Link, Cloud Drives, Windows Migration & Hardware Drivers
+    in-out property <bool> eco-busy: false;
+    in-out property <string> eco-status: "";
+    // Phone Link
+    in-out property <bool> eco-kde-installed: false;
+    in-out property <bool> eco-kde-running: false;
+    in-out property <bool> eco-kde-autostart: false;
+    in-out property <bool> eco-scrcpy-installed: false;
+    in-out property <string> eco-adb-summary: "No USB/Wi-Fi Android device detected";
+    in-out property <string> eco-adb-wifi-input: "";
+    in-out property <bool> eco-mirror-screen-off: false;
+    in-out property <[KdeDeviceRow]> eco-kde-devices: [];
+    in-out property <int> eco-selected-phone-idx: -1;
+    in-out property <string> eco-selected-phone-id: "";
+    // Cloud Drives
+    in-out property <bool> eco-rclone-installed: false;
+    in-out property <string> eco-cloud-mount-base: "/home/unicore/Cloud";
+    in-out property <int> eco-cloud-provider-idx: 0; // 0:gdrive, 1:onedrive, 2:dropbox, 3:mega, 4:nextcloud
+    in-out property <string> eco-cloud-name-input: "GoogleDrive";
+    in-out property <string> eco-cloud-url-input: "";
+    in-out property <string> eco-cloud-user-input: "";
+    in-out property <string> eco-cloud-pass-input: "";
+    in-out property <[CloudRemoteRow]> eco-cloud-remotes: [];
+    in-out property <int> eco-selected-cloud-idx: -1;
+    in-out property <string> eco-selected-cloud-name: "";
+    // Windows Migration
+    in-out property <[string]> eco-win-part-labels: [];
+    in-out property <int> eco-win-part-idx: 0;
+    in-out property <[string]> eco-win-users: [];
+    in-out property <int> eco-win-user-idx: 0;
+    in-out property <string> eco-win-info-summary: "Click 'Scan Windows Drives' to detect Windows NTFS partitions (read-only).";
+    in-out property <string> eco-win-store-matches: "";
+    in-out property <bool> eco-mig-docs: true;
+    in-out property <bool> eco-mig-pics: true;
+    in-out property <bool> eco-mig-desktop: true;
+    in-out property <bool> eco-mig-music: false;
+    in-out property <bool> eco-mig-videos: false;
+    in-out property <bool> eco-mig-saves: true;
+    in-out property <bool> eco-mig-bookmarks: true;
+    in-out property <bool> eco-mig-fonts: true;
+    // Hardware & Drivers
+    in-out property <string> eco-hw-gpu: "-";
+    in-out property <string> eco-hw-vulkan: "-";
+    in-out property <string> eco-hw-wifi: "-";
+    in-out property <string> eco-hw-audio: "-";
+    in-out property <string> eco-hw-usb: "-";
+    in-out property <string> eco-hw-missing-fw: "none";
+    in-out property <int> eco-hw-gpu-mode-idx: 0; // 0:auto, 1:hw, 2:safe
+    in-out property <bool> eco-hw-wifi-ps: true;
+    in-out property <bool> eco-hw-fwupd-ok: false;
+    in-out property <string> eco-hw-fw-log: "";
+
     // App Catalog / Store state (Tab 4)
     in-out property <[StoreEntry]> store-entries: [];
     in-out property <[StoreRow]> store-rows: [];
@@ -1039,6 +1124,23 @@ export component MainWindow inherits Window {
     callback scan-sel-game-exe();
     callback repair-run-and-retry();
     callback retro-pick-apply(int);
+    callback eco-refresh();
+    callback eco-phone-service(string);
+    callback eco-phone-autostart(bool);
+    callback eco-phone-device-action(string, string);
+    callback eco-phone-mirror(bool);
+    callback eco-phone-adb-wifi(string);
+    callback eco-cloud-connect(int, string, string, string, string);
+    callback eco-cloud-action(string, string);
+    callback eco-cloud-autostart(string, bool);
+    callback eco-cloud-open-dir(string);
+    callback eco-migrate-scan();
+    callback eco-migrate-select-part(int);
+    callback eco-migrate-run(int, int, bool, bool, bool, bool, bool, bool, bool, bool);
+    callback eco-hw-set-gpu(int);
+    callback eco-hw-set-wifi-ps(bool);
+    callback eco-hw-reset-audio-bt();
+    callback eco-hw-fw-action(string);
     callback audio-profile-selected(int);
     callback toggle-dnd(bool);
     callback dismiss-all-notifications();
@@ -1122,7 +1224,7 @@ export component MainWindow inherits Window {
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -2544,6 +2646,616 @@ export component MainWindow inherits Window {
                     primary: true;
                     enabled: root.retro-pick-candidates.length > 0;
                     clicked => { root.retro-pick-apply(root.retro-pick-selected-idx); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // v0.8.0 Ecosystem, Phone Link, Cloud Drives, Windows Migration & Hardware Drivers Hub
+        if root.ecosystem-dialog-only && !root.picker-open : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 62px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #0369a1 0%, #1d4ed8 55%, #4338ca 100%);
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 14px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        Text {
+                            text: root.tr.title-ecosystem;
+                            color: #ffffff;
+                            font-size: 16px;
+                            font-weight: 800;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: "KDE Connect + scrcpy • Cloud Drives (~/Cloud) • Safe Windows NTFS Migration • Drivers & LVFS";
+                            color: #e0f2fe;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+                    TabPill {
+                        label: root.lang-badge;
+                        active: false;
+                        clicked => { root.toggle-language(); }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 6px;
+                TabPill {
+                    label: root.tr.eco-tab-phone;
+                    active: root.eco-subtab == 0;
+                    clicked => { root.eco-subtab = 0; root.eco-refresh(); }
+                }
+                TabPill {
+                    label: root.tr.eco-tab-cloud;
+                    active: root.eco-subtab == 1;
+                    clicked => { root.eco-subtab = 1; root.eco-refresh(); }
+                }
+                TabPill {
+                    label: root.tr.eco-tab-migrate;
+                    active: root.eco-subtab == 2;
+                    clicked => { root.eco-subtab = 2; }
+                }
+                TabPill {
+                    label: root.tr.eco-tab-drivers;
+                    active: root.eco-subtab == 3;
+                    clicked => { root.eco-subtab = 3; root.eco-refresh(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-refresh;
+                    enabled: !root.eco-busy;
+                    clicked => { root.eco-refresh(); }
+                }
+            }
+
+            // Tab 0: Phone Link (KDE Connect + scrcpy)
+            if root.eco-subtab == 0 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: root.tr.hdr-phone-link;
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+                            InfoRow {
+                                label: "KDE Connect Service:";
+                                value: root.eco-kde-running ? "Running (LAN Ports 1714-1764 ready)" : (root.eco-kde-installed ? "Stopped (0 MB Idle RAM)" : "Not installed");
+                                value-color: root.eco-kde-running ? UiTheme.text-ok : UiTheme.text-accent;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.eco-kde-running ? "Stop Service" : "Start KDE Connect";
+                                    primary: !root.eco-kde-running;
+                                    enabled: root.eco-kde-installed && !root.eco-busy;
+                                    clicked => { root.eco-phone-service(root.eco-kde-running ? "stop" : "start"); }
+                                }
+                                Button {
+                                    text: "Scan Phones";
+                                    enabled: root.eco-kde-installed && !root.eco-busy;
+                                    clicked => { root.eco-phone-service("refresh"); }
+                                }
+                                Button {
+                                    text: "Open KDE Connect GUI";
+                                    enabled: root.eco-kde-installed;
+                                    clicked => { root.eco-phone-service("open-kde-settings"); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                                Switch {
+                                    text: "Auto-Start";
+                                    checked: root.eco-kde-autostart;
+                                    toggled => { root.eco-phone-autostart(self.checked); }
+                                }
+                            }
+
+                            if root.eco-kde-devices.length == 0 : Text {
+                                text: "No phones paired yet. Open KDE Connect on your Android/iPhone on the same Wi-Fi and click 'Scan Phones'.";
+                                color: UiTheme.text-muted;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                            for dev[didx] in root.eco-kde-devices : Rectangle {
+                                height: 34px;
+                                border-radius: 6px;
+                                background: didx == root.eco-selected-phone-idx ? UiTheme.accent : UiTheme.surface-subtle;
+                                TouchArea {
+                                    clicked => {
+                                        root.eco-selected-phone-idx = didx;
+                                        root.eco-selected-phone-id = dev.id;
+                                    }
+                                }
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    Text {
+                                        text: dev.name + "  (" + (dev.paired ? "Paired" : "Unpaired") + ", " + (dev.reachable ? "Online" : "Offline") + ")";
+                                        color: didx == root.eco-selected-phone-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                            if root.eco-kde-devices.length > 0 : HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: "Pair";
+                                    primary: true;
+                                    enabled: root.eco-selected-phone-id != "";
+                                    clicked => { root.eco-phone-device-action("pair", root.eco-selected-phone-id); }
+                                }
+                                Button {
+                                    text: "Ping";
+                                    enabled: root.eco-selected-phone-id != "";
+                                    clicked => { root.eco-phone-device-action("ping", root.eco-selected-phone-id); }
+                                }
+                                Button {
+                                    text: "Find Phone (Ring)";
+                                    enabled: root.eco-selected-phone-id != "";
+                                    clicked => { root.eco-phone-device-action("ring", root.eco-selected-phone-id); }
+                                }
+                                Button {
+                                    text: "Unpair";
+                                    enabled: root.eco-selected-phone-id != "";
+                                    clicked => { root.eco-phone-device-action("unpair", root.eco-selected-phone-id); }
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: "Android Screen Mirroring (scrcpy via USB or Wi-Fi ADB)";
+                                color: UiTheme.text-primary;
+                                font-size: 13px;
+                                font-weight: 700;
+                            }
+                            InfoRow {
+                                label: "Detected ADB Devices:";
+                                value: root.eco-adb-summary;
+                                value-color: UiTheme.text-accent;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-phone-mirror;
+                                    primary: true;
+                                    enabled: root.eco-scrcpy-installed;
+                                    clicked => { root.eco-phone-mirror(root.eco-mirror-screen-off); }
+                                }
+                                Switch {
+                                    text: "Turn Phone Screen Off";
+                                    checked <=> root.eco-mirror-screen-off;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    text <=> root.eco-adb-wifi-input;
+                                    placeholder-text: "Wi-Fi ADB IP:PORT (e.g. 192.168.1.45:5555)";
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: "Connect Wi-Fi ADB";
+                                    enabled: root.eco-adb-wifi-input != "";
+                                    clicked => { root.eco-phone-adb-wifi(root.eco-adb-wifi-input); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Tab 1: Cloud Drives (rclone VFS -> ~/Cloud)
+            if root.eco-subtab == 1 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: root.tr.hdr-cloud-drives;
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                ComboBox {
+                                    model: ["Google Drive (OAuth)", "Microsoft OneDrive (OAuth)", "Dropbox (OAuth)", "MEGA (Email + Password)", "Nextcloud / WebDAV"];
+                                    current-index <=> root.eco-cloud-provider-idx;
+                                    width: 230px;
+                                }
+                                LineEdit {
+                                    text <=> root.eco-cloud-name-input;
+                                    placeholder-text: "Folder name in ~/Cloud (e.g. GoogleDrive)";
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                            if root.eco-cloud-provider-idx == 4 : LineEdit {
+                                text <=> root.eco-cloud-url-input;
+                                placeholder-text: "https://cloud.example.com/remote.php/dav/files/USERNAME/";
+                            }
+                            if root.eco-cloud-provider-idx >= 3 : HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    text <=> root.eco-cloud-user-input;
+                                    placeholder-text: "Email / Username";
+                                    horizontal-stretch: 1;
+                                }
+                                LineEdit {
+                                    text <=> root.eco-cloud-pass-input;
+                                    placeholder-text: "Password / App Password (stored chmod 600)";
+                                    input-type: InputType.password;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-cloud-connect;
+                                    primary: true;
+                                    enabled: root.eco-rclone-installed && !root.eco-busy && root.eco-cloud-name-input != "";
+                                    clicked => {
+                                        root.eco-cloud-connect(
+                                            root.eco-cloud-provider-idx,
+                                            root.eco-cloud-name-input,
+                                            root.eco-cloud-url-input,
+                                            root.eco-cloud-user-input,
+                                            root.eco-cloud-pass-input
+                                        );
+                                    }
+                                }
+                                Button {
+                                    text: "Open ~/Cloud Folder";
+                                    clicked => { root.eco-cloud-open-dir(root.eco-cloud-mount-base); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: "Configured Cloud Drives (On-Demand VFS Cache)";
+                                color: UiTheme.text-primary;
+                                font-size: 13px;
+                                font-weight: 700;
+                            }
+                            if root.eco-cloud-remotes.length == 0 : Text {
+                                text: "No cloud drives connected yet. Choose a provider above and click Connect (browser OAuth opens for Google Drive / OneDrive / Dropbox).";
+                                color: UiTheme.text-muted;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                            for rem[ridx] in root.eco-cloud-remotes : Rectangle {
+                                height: 34px;
+                                border-radius: 6px;
+                                background: ridx == root.eco-selected-cloud-idx ? UiTheme.accent : UiTheme.surface-subtle;
+                                TouchArea {
+                                    clicked => {
+                                        root.eco-selected-cloud-idx = ridx;
+                                        root.eco-selected-cloud-name = rem.name;
+                                    }
+                                }
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    Text {
+                                        text: rem.name + " [" + rem.provider-type + "] — " + (rem.mounted ? "Mounted" : "Idle") + (rem.autostart ? " • Auto-Mount" : "");
+                                        color: ridx == root.eco-selected-cloud-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                            if root.eco-cloud-remotes.length > 0 : HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-mount;
+                                    primary: true;
+                                    enabled: root.eco-selected-cloud-name != "" && !root.eco-busy;
+                                    clicked => { root.eco-cloud-action("mount", root.eco-selected-cloud-name); }
+                                }
+                                Button {
+                                    text: root.tr.btn-unmount;
+                                    enabled: root.eco-selected-cloud-name != "" && !root.eco-busy;
+                                    clicked => { root.eco-cloud-action("unmount", root.eco-selected-cloud-name); }
+                                }
+                                Button {
+                                    text: "Toggle Auto-Mount";
+                                    enabled: root.eco-selected-cloud-name != "";
+                                    clicked => { root.eco-cloud-autostart(root.eco-selected-cloud-name, true); }
+                                }
+                                Button {
+                                    text: "Remove";
+                                    enabled: root.eco-selected-cloud-name != "" && !root.eco-busy;
+                                    clicked => { root.eco-cloud-action("remove", root.eco-selected-cloud-name); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Tab 2: Safe Windows Migration Wizard (Read-Only NTFS)
+            if root.eco-subtab == 2 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: root.tr.hdr-win-migrate;
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-migrate-scan;
+                                    primary: true;
+                                    enabled: !root.eco-busy;
+                                    clicked => { root.eco-migrate-scan(); }
+                                }
+                                if root.eco-win-part-labels.length > 0 : ComboBox {
+                                    model: root.eco-win-part-labels;
+                                    current-index <=> root.eco-win-part-idx;
+                                    horizontal-stretch: 1;
+                                    selected => { root.eco-migrate-select-part(root.eco-win-part-idx); }
+                                }
+                                if root.eco-win-users.length > 0 : ComboBox {
+                                    model: root.eco-win-users;
+                                    current-index <=> root.eco-win-user-idx;
+                                    width: 150px;
+                                }
+                            }
+                            Text {
+                                text: root.eco-win-info-summary;
+                                color: UiTheme.text-accent;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: "Choose Items to Copy Safely (Windows Drive is Mounted Read-Only)";
+                                color: UiTheme.text-primary;
+                                font-size: 13px;
+                                font-weight: 700;
+                            }
+                            HorizontalLayout {
+                                spacing: 16px;
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Switch { text: "Documents"; checked <=> root.eco-mig-docs; }
+                                    Switch { text: "Pictures"; checked <=> root.eco-mig-pics; }
+                                    Switch { text: "Desktop Files"; checked <=> root.eco-mig-desktop; }
+                                    Switch { text: "Music"; checked <=> root.eco-mig-music; }
+                                }
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Switch { text: "Videos"; checked <=> root.eco-mig-videos; }
+                                    Switch { text: "Game Saves (My Games / Saved Games)"; checked <=> root.eco-mig-saves; }
+                                    Switch { text: "Chrome / Edge Bookmarks (HTML)"; checked <=> root.eco-mig-bookmarks; }
+                                    Switch { text: "Windows Fonts (C:\\Windows\\Fonts)"; checked <=> root.eco-mig-fonts; }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-migrate-start;
+                                    primary: true;
+                                    enabled: root.eco-win-part-labels.length > 0 && root.eco-win-users.length > 0 && !root.eco-busy;
+                                    clicked => {
+                                        root.eco-migrate-run(
+                                            root.eco-win-part-idx,
+                                            root.eco-win-user-idx,
+                                            root.eco-mig-docs,
+                                            root.eco-mig-pics,
+                                            root.eco-mig-desktop,
+                                            root.eco-mig-music,
+                                            root.eco-mig-videos,
+                                            root.eco-mig-saves,
+                                            root.eco-mig-bookmarks,
+                                            root.eco-mig-fonts
+                                        );
+                                    }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                    }
+
+                    if root.eco-win-store-matches != "" : Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            Text {
+                                text: "Matching Apps Found in UniCore Store:";
+                                color: UiTheme.text-ok;
+                                font-size: 12px;
+                                font-weight: 700;
+                            }
+                            Text {
+                                text: root.eco-win-store-matches;
+                                color: UiTheme.text-secondary;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                            HorizontalLayout {
+                                Button {
+                                    text: "Open UniCore Store";
+                                    clicked => {
+                                        root.ecosystem-dialog-only = false;
+                                        root.active-tab = 4;
+                                    }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Tab 3: Hardware & Driver Health Manager + LVFS Firmware
+            if root.eco-subtab == 3 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            Text {
+                                text: root.tr.hdr-hw-drivers;
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+                            InfoRow { label: "Graphics (GPU):"; value: root.eco-hw-gpu; }
+                            InfoRow { label: "Vulkan 3D:"; value: root.eco-hw-vulkan; value-color: UiTheme.text-accent; }
+                            InfoRow { label: "Wi-Fi / LAN:"; value: root.eco-hw-wifi; }
+                            InfoRow { label: "Audio Hardware:"; value: root.eco-hw-audio; }
+                            InfoRow { label: "USB Devices:"; value: root.eco-hw-usb; }
+                            InfoRow {
+                                label: "Missing Firmware:";
+                                value: root.eco-hw-missing-fw == "none" ? "None (All kernel firmware healthy)" : root.eco-hw-missing-fw;
+                                value-color: root.eco-hw-missing-fw == "none" ? UiTheme.text-ok : #f87171;
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text {
+                                text: "1-Click Stability Fixes & Official LVFS Firmware Updates";
+                                color: UiTheme.text-primary;
+                                font-size: 13px;
+                                font-weight: 700;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: "Graphics Mode:";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["Auto (Recommended)", "Hardware Accelerated (GLES2)", "Safe Software Mode (Pixman)"];
+                                    current-index <=> root.eco-hw-gpu-mode-idx;
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: "Save GPU Mode";
+                                    enabled: !root.eco-busy;
+                                    clicked => { root.eco-hw-set-gpu(root.eco-hw-gpu-mode-idx); }
+                                }
+                            }
+                            Switch {
+                                text: "Wi-Fi Power-Save (Turn OFF to fix Realtek/Intel Wi-Fi disconnects)";
+                                checked: root.eco-hw-wifi-ps;
+                                toggled => { root.eco-hw-set-wifi-ps(self.checked); }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-hw-reset-audio;
+                                    enabled: !root.eco-busy;
+                                    clicked => { root.eco-hw-reset-audio-bt(); }
+                                }
+                                Button {
+                                    text: root.tr.btn-hw-fw-check;
+                                    primary: true;
+                                    enabled: root.eco-hw-fwupd-ok && !root.eco-busy;
+                                    clicked => { root.eco-hw-fw-action("check"); }
+                                }
+                                Button {
+                                    text: "Install Firmware";
+                                    enabled: root.eco-hw-fwupd-ok && !root.eco-busy;
+                                    clicked => { root.eco-hw-fw-action("update"); }
+                                }
+                            }
+                            if root.eco-hw-fw-log != "" : Text {
+                                text: root.eco-hw-fw-log;
+                                color: UiTheme.text-muted;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.eco-status != "" : Text {
+                text: root.eco-status;
+                color: UiTheme.text-accent;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.tr.btn-open-center;
+                    clicked => {
+                        root.ecosystem-dialog-only = false;
+                        root.switch-to-full-center();
+                    }
                 }
                 Rectangle { horizontal-stretch: 1; }
                 Button {
@@ -4043,6 +4755,11 @@ export component MainWindow inherits Window {
                     active: root.settings-subtab == 6;
                     clicked => { root.settings-subtab = 6; root.refresh-settings(); }
                 }
+                TabPill {
+                    label: root.tr.subtab-ecosystem;
+                    active: root.settings-subtab == 7;
+                    clicked => { root.settings-subtab = 7; root.eco-refresh(); }
+                }
                 Rectangle { horizontal-stretch: 1; }
                 Button {
                     text: root.tr.btn-refresh;
@@ -5382,6 +6099,77 @@ export component MainWindow inherits Window {
                                     text: "Delete User";
                                     enabled: root.selected-user-name != "" && root.selected-user-name != "unicore";
                                     clicked => { root.delete-selected-user(); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Subtab 7: Ecosystem, Phone Link, Cloud Drives, Windows Migration & Hardware Drivers
+            if root.settings-subtab == 7 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 8px;
+                            Text {
+                                text: root.tr.title-ecosystem;
+                                color: UiTheme.text-primary;
+                                font-size: 15px;
+                                font-weight: 700;
+                            }
+                            InfoRow {
+                                label: "Phone Link:";
+                                value: root.eco-kde-running ? "KDE Connect Running + scrcpy Ready" : "KDE Connect Ready (0 MB Idle) + scrcpy Ready";
+                                value-color: root.eco-kde-running ? UiTheme.text-ok : UiTheme.text-accent;
+                            }
+                            InfoRow {
+                                label: "Cloud Drives:";
+                                value: root.eco-cloud-remotes.length + " configured in " + root.eco-cloud-mount-base;
+                            }
+                            InfoRow {
+                                label: "Graphics / Drivers:";
+                                value: root.eco-hw-gpu + " (" + root.eco-hw-vulkan + ")";
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.eco-tab-phone;
+                                    primary: true;
+                                    clicked => {
+                                        root.eco-subtab = 0;
+                                        root.ecosystem-dialog-only = true;
+                                        root.eco-refresh();
+                                    }
+                                }
+                                Button {
+                                    text: root.tr.eco-tab-cloud;
+                                    primary: true;
+                                    clicked => {
+                                        root.eco-subtab = 1;
+                                        root.ecosystem-dialog-only = true;
+                                        root.eco-refresh();
+                                    }
+                                }
+                                Button {
+                                    text: root.tr.eco-tab-migrate;
+                                    clicked => {
+                                        root.eco-subtab = 2;
+                                        root.ecosystem-dialog-only = true;
+                                    }
+                                }
+                                Button {
+                                    text: root.tr.eco-tab-drivers;
+                                    clicked => {
+                                        root.eco-subtab = 3;
+                                        root.ecosystem-dialog-only = true;
+                                        root.eco-refresh();
+                                    }
                                 }
                             }
                         }

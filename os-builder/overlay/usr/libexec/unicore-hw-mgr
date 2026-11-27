@@ -1,0 +1,181 @@
+#!/bin/sh
+# UniCore OS Hardware & Driver Health Manager + On-Demand LVFS Firmware (fwupd)
+set -eu
+
+CONF_PATH="${UNICORE_HW_OVERRIDES_CONF:-/data/unicore/hw-overrides.conf}"
+GPU_MODE="auto"
+WIFI_PS="on"
+
+load_conf() {
+    GPU_MODE="auto"
+    WIFI_PS="on"
+    if [ -r "${CONF_PATH}" ]; then
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                UNICORE_GPU_MODE)
+                    case "${v}" in auto|hw|safe) GPU_MODE="${v}" ;; esac
+                    ;;
+                UNICORE_WIFI_POWERSAVE)
+                    case "${v}" in on|off) WIFI_PS="${v}" ;; esac
+                    ;;
+            esac
+        done < "${CONF_PATH}"
+    fi
+}
+
+save_conf() {
+    mkdir -p "$(dirname "${CONF_PATH}")"
+    printf 'UNICORE_GPU_MODE=%s\nUNICORE_WIFI_POWERSAVE=%s\n' "${GPU_MODE}" "${WIFI_PS}" > "${CONF_PATH}"
+}
+
+apply_wifi_powersave() {
+    mode="$1"
+    nm_val=3
+    iw_val="on"
+    if [ "${mode}" = "off" ]; then
+        nm_val=2
+        iw_val="off"
+    fi
+    if [ -d /etc/NetworkManager/conf.d ] || mkdir -p /etc/NetworkManager/conf.d 2>/dev/null; then
+        printf '[connection]\nwifi.powersave = %s\n' "${nm_val}" > /etc/NetworkManager/conf.d/90-unicore-wifi-powersave.conf 2>/dev/null || true
+    fi
+    if command -v iw >/dev/null 2>&1; then
+        for wdev in /sys/class/net/wl*; do
+            [ -e "${wdev}" ] || continue
+            iw dev "$(basename "${wdev}")" set power_save "${iw_val}" >/dev/null 2>&1 || true
+        done
+    fi
+}
+
+detect_pci_class() {
+    pat="$1"
+    if command -v lspci >/dev/null 2>&1; then
+        lspci -k 2>/dev/null | awk -v p="${pat}" '
+            BEGIN { found=0; model=""; drv="" }
+            $0 ~ p && !found {
+                found=1
+                sub(/^[^ ]+ [^:]+: /, "", $0)
+                model=$0
+                next
+            }
+            found && /Kernel driver in use:/ {
+                sub(/.*Kernel driver in use:[[:space:]]*/, "", $0)
+                drv=$0
+                exit
+            }
+            found && /^[^[:space:]]/ { exit }
+            END { printf "%s|%s\n", model, drv }
+        '
+    else
+        echo "|"
+    fi
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        load_conf
+        gpu_info="$(detect_pci_class 'VGA compatible controller|3D controller|Display controller')"
+        gpu_model="${gpu_info%%|*}"
+        gpu_driver="${gpu_info#*|}"
+        [ -n "${gpu_model}" ] || gpu_model="Generic Framebuffer / Virtual Display"
+        [ -n "${gpu_driver}" ] || gpu_driver="simpledrm/vesa"
+
+        wifi_info="$(detect_pci_class 'Network controller|Ethernet controller')"
+        wifi_model="${wifi_info%%|*}"
+        wifi_driver="${wifi_info#*|}"
+        [ -n "${wifi_model}" ] || wifi_model="None detected"
+        [ -n "${wifi_driver}" ] || wifi_driver="-"
+
+        audio_info="$(detect_pci_class 'Audio device|Multimedia audio')"
+        audio_model="${audio_info%%|*}"
+        [ -n "${audio_model}" ] || audio_model="PipeWire / Default ALSA"
+
+        vk_ready=0
+        vk_dev="Software / OpenGL fallback"
+        if command -v vulkaninfo >/dev/null 2>&1; then
+            vk_out="$(vulkaninfo --summary 2>/dev/null | awk -F= '/deviceName/{gsub(/^[[:space:]]+/, "", $2); print $2; exit}' || true)"
+            if [ -n "${vk_out}" ]; then
+                vk_ready=1
+                vk_dev="${vk_out}"
+            fi
+        fi
+
+        usb_count=0
+        usb_summary=""
+        if command -v lsusb >/dev/null 2>&1; then
+            usb_count="$(lsusb 2>/dev/null | wc -l | tr -d ' ')"
+            usb_summary="$(lsusb 2>/dev/null | sed 's/^Bus [0-9]* Device [0-9]*: ID [0-9a-f:]* //' | grep -vi 'root hub' | head -n 4 | tr '\n' '; ' | sed 's/; $//' || true)"
+        fi
+        [ -n "${usb_summary}" ] || usb_summary="Standard USB Hubs"
+
+        miss_fw="$(dmesg 2>/dev/null | grep -i 'Direct firmware load.*failed' | sed 's/.*load for //;s/ failed.*//' | sort -u | head -n 4 | tr '\n' ',' | sed 's/,$//' || true)"
+        [ -n "${miss_fw}" ] || miss_fw="none"
+
+        fwupd_ok=0
+        command -v fwupdmgr >/dev/null 2>&1 && fwupd_ok=1
+
+        printf 'gpu_model=%s\ngpu_driver=%s\nvulkan_ready=%s\nvulkan_device=%s\nwifi_model=%s\nwifi_driver=%s\naudio_model=%s\nusb_count=%s\nusb_summary=%s\nmissing_firmware=%s\ngpu_mode=%s\nwifi_powersave=%s\nfwupd_available=%s\n' \
+            "${gpu_model}" "${gpu_driver}" "${vk_ready}" "${vk_dev}" "${wifi_model}" "${wifi_driver}" \
+            "${audio_model}" "${usb_count}" "${usb_summary}" "${miss_fw}" "${GPU_MODE}" "${WIFI_PS}" "${fwupd_ok}"
+        ;;
+    set-gpu)
+        mode="${1:-auto}"
+        case "${mode}" in
+            auto|hw|safe) ;;
+            *) echo "Invalid GPU mode: ${mode}" >&2; exit 2 ;;
+        esac
+        load_conf
+        GPU_MODE="${mode}"
+        save_conf
+        echo "gpu_mode=${GPU_MODE}"
+        ;;
+    set-wifi-ps)
+        mode="${1:-on}"
+        case "${mode}" in
+            on|off) ;;
+            *) echo "Invalid Wi-Fi power-save mode: ${mode}" >&2; exit 2 ;;
+        esac
+        load_conf
+        WIFI_PS="${mode}"
+        save_conf
+        apply_wifi_powersave "${WIFI_PS}"
+        echo "wifi_powersave=${WIFI_PS}"
+        ;;
+    apply-boot)
+        load_conf
+        apply_wifi_powersave "${WIFI_PS}"
+        ;;
+    reset-audio-bt)
+        pkill -u unicore -x pipewire-pulse 2>/dev/null || true
+        pkill -u unicore -x wireplumber 2>/dev/null || true
+        pkill -u unicore -x pipewire 2>/dev/null || true
+        sleep 0.4
+        su -s /bin/sh unicore -c '
+            export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000
+            command -v pipewire >/dev/null 2>&1 && nohup pipewire >/dev/null 2>&1 </dev/null &
+            sleep 0.2
+            command -v wireplumber >/dev/null 2>&1 && nohup wireplumber >/dev/null 2>&1 </dev/null &
+            command -v pipewire-pulse >/dev/null 2>&1 && nohup pipewire-pulse >/dev/null 2>&1 </dev/null &
+        ' >/dev/null 2>&1 || true
+        if [ -x /etc/init.d/bluetooth ] && ls /sys/class/bluetooth/hci* >/dev/null 2>&1; then
+            /etc/init.d/bluetooth restart >/dev/null 2>&1 || true
+        fi
+        echo "Audio (PipeWire) and Bluetooth services reset cleanly."
+        ;;
+    fw-check)
+        command -v fwupdmgr >/dev/null 2>&1 || { echo "fwupd is not installed" >&2; exit 1; }
+        fwupdmgr refresh --force >/dev/null 2>&1 || true
+        fwupdmgr get-updates --no-unreported-check 2>&1 || true
+        ;;
+    fw-update)
+        command -v fwupdmgr >/dev/null 2>&1 || { echo "fwupd is not installed" >&2; exit 1; }
+        fwupdmgr update -y --no-reboot-check 2>&1 || true
+        ;;
+    *)
+        echo "Usage: unicore-hw-mgr <status|set-gpu <auto|hw|safe>|set-wifi-ps <on|off>|apply-boot|reset-audio-bt|fw-check|fw-update>" >&2
+        exit 2
+        ;;
+esac

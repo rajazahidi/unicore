@@ -1,6 +1,6 @@
 # UniCore OS — Road to `v1.0.0` Perfection & Bare-Metal Readiness Checklist
 
-This checklist defines the concrete engineering environment, hardware verification gates, and production milestones required to graduate UniCore OS from **`v0.7.0` (Classic 98/XP Gaming Edition)** to **`v1.0.0` (Production Daily Driver)**.
+This checklist defines the concrete engineering environment, hardware verification gates, and production milestones required to graduate UniCore OS from **`v0.8.0` (Ecosystem & Migration Edition)** to **`v1.0.0` (Production Daily Driver)**.
 
 ---
 

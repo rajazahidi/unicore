@@ -302,6 +302,21 @@ command -v archivemount
 command -v bsdtar
 /usr/libexec/unicore-retro-media status | grep -q '^taskset=1$'
 /usr/libexec/unicore-retro-media status | grep -q '^archivemount=1$'
+echo "Checking v0.8.0 Ecosystem, Phone Link (KDE Connect + scrcpy), Cloud Drives, Windows Migration & Hardware Drivers..."
+test -x /usr/libexec/unicore-phone
+test -x /usr/libexec/unicore-cloud
+test -x /usr/libexec/unicore-migrate
+test -x /usr/libexec/unicore-hw-mgr
+command -v kdeconnect-cli
+command -v scrcpy
+command -v adb
+command -v lsusb
+command -v fwupdmgr
+grep -q '1714-1764' /usr/libexec/unicore-firewall
+/usr/libexec/unicore-phone status | grep -q '^kdeconnect_installed=1$'
+/usr/libexec/unicore-phone status | grep -q '^scrcpy_installed=1$'
+/usr/libexec/unicore-cloud status | grep -q '^rclone_installed=1$'
+/usr/libexec/unicore-hw-mgr status | grep -q '^fwupd_available=1$'
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_dll Library dplayx.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
@@ -384,12 +399,18 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --retro-game >/tmp/center_retro.log 2>&1 &
     sleep 3
     grim /tmp/v070_retro.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --phone >/tmp/center_eco.log 2>&1 &
+    sleep 3
+    grim /tmp/v080_ecosystem.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
 test -s /tmp/v050_capture.png
 test -s /tmp/v060_start.png
 test -s /tmp/v070_retro.png
+test -s /tmp/v080_ecosystem.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -406,6 +427,9 @@ echo "===PNG_START_B64_END==="
 echo "===PNG_RETRO_B64_START==="
 base64 /tmp/v070_retro.png
 echo "===PNG_RETRO_B64_END==="
+echo "===PNG_ECO_B64_START==="
+base64 /tmp/v080_ecosystem.png
+echo "===PNG_ECO_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -480,7 +504,13 @@ printf '\n===GATE1_OK===\n'
         retro_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v070_retro.png")
         with open(retro_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", retro_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}")
+        eco_m = re.search(r"===PNG_ECO_B64_START===\s*(.*?)\s*===PNG_ECO_B64_END===", out, re.DOTALL)
+        if not eco_m:
+            raise RuntimeError("Missing v0.8.0 Ecosystem Hub screenshot payload in Gate 1 output")
+        eco_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v080_ecosystem.png")
+        with open(eco_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", eco_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}")
     finally:
         h.close()
 

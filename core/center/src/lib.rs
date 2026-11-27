@@ -5,6 +5,7 @@ pub mod capture_a11y;
 pub mod cli;
 pub mod desktop;
 pub mod dev_ai;
+pub mod ecosystem;
 pub mod gaming;
 pub mod i18n;
 pub mod installer;

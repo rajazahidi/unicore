@@ -33,6 +33,15 @@ if [ -r /data/unicore/oobe.conf ]; then
     [ -n "${UNICORE_LANG:-}" ] && export LANG="${UNICORE_LANG}"
 fi
 
+if [ -r /data/unicore/hw-overrides.conf ]; then
+    # shellcheck disable=SC1091
+    . /data/unicore/hw-overrides.conf 2>/dev/null || true
+    case "${UNICORE_GPU_MODE:-auto}" in
+        safe) WLR_RENDERER="pixman" ;;
+        hw)   WLR_RENDERER="gles2" ;;
+    esac
+fi
+
 if [ -n "${WLR_RENDERER:-}" ] && [ "${WLR_RENDERER}" != "auto" ]; then
     export WLR_RENDERER
 else
@@ -85,7 +94,7 @@ else
     DATA_BASE="/data/users/${LOGIN_USER}"
 fi
 
-mkdir -p "${DATA_BASE}/Documents" "${DATA_BASE}/Downloads" "${DATA_BASE}/Desktop" "${DATA_BASE}/Pictures" "${DATA_BASE}/Videos" "${DATA_BASE}/Network" "${DATA_BASE}/applications"
+mkdir -p "${DATA_BASE}/Documents" "${DATA_BASE}/Downloads" "${DATA_BASE}/Desktop" "${DATA_BASE}/Pictures" "${DATA_BASE}/Videos" "${DATA_BASE}/Music" "${DATA_BASE}/Network" "${DATA_BASE}/Cloud" "${DATA_BASE}/applications"
 chown -R "${LOGIN_USER}:${LOGIN_USER}" "${DATA_BASE}" 2>/dev/null || true
 
 link_persistent_dir() {
@@ -106,7 +115,9 @@ link_persistent_dir "${USER_HOME}/Downloads" "${DATA_BASE}/Downloads"
 link_persistent_dir "${USER_HOME}/Desktop" "${DATA_BASE}/Desktop"
 link_persistent_dir "${USER_HOME}/Pictures" "${DATA_BASE}/Pictures"
 link_persistent_dir "${USER_HOME}/Videos" "${DATA_BASE}/Videos"
+link_persistent_dir "${USER_HOME}/Music" "${DATA_BASE}/Music"
 link_persistent_dir "${USER_HOME}/Network" "${DATA_BASE}/Network"
+link_persistent_dir "${USER_HOME}/Cloud" "${DATA_BASE}/Cloud"
 link_persistent_dir "${USER_HOME}/.local/share/applications" "${DATA_BASE}/applications"
 
 mkdir -p "${USER_HOME}/.config/gtk-3.0"
@@ -117,6 +128,7 @@ XDG_DOWNLOAD_DIR="$HOME/Downloads"
 XDG_DOCUMENTS_DIR="$HOME/Documents"
 XDG_PICTURES_DIR="$HOME/Pictures"
 XDG_VIDEOS_DIR="$HOME/Videos"
+XDG_MUSIC_DIR="$HOME/Music"
 EOF
 fi
 if [ ! -f "${USER_HOME}/.config/gtk-3.0/bookmarks" ]; then
@@ -126,9 +138,13 @@ file://${USER_HOME}/Documents Documents
 file://${USER_HOME}/Downloads Downloads
 file://${USER_HOME}/Pictures Pictures
 file://${USER_HOME}/Videos Videos
+file://${USER_HOME}/Music Music
+file://${USER_HOME}/Cloud Cloud Drives
 file://${USER_HOME}/Network Network Drives
 trash:/// Trash
 EOF
+elif ! grep -q "${USER_HOME}/Cloud" "${USER_HOME}/.config/gtk-3.0/bookmarks" 2>/dev/null; then
+    printf 'file://%s/Cloud Cloud Drives\n' "${USER_HOME}" >> "${USER_HOME}/.config/gtk-3.0/bookmarks"
 fi
 
 export HOME="${USER_HOME}"

@@ -1469,3 +1469,135 @@ fn v070_classic_98_xp_presets_cli_importer_and_bilingual_work() {
     assert_ne!(en.btn_retro_install_play, ms.btn_retro_install_play);
     assert_ne!(en.btn_repair_retry, ms.btn_repair_retry);
 }
+
+#[test]
+fn v080_ecosystem_phone_cloud_migrate_drivers_and_bilingual_work() {
+    use unicore_center::ecosystem::{
+        build_migrate_flags_csv, cloud_provider_from_index, gpu_mode_from_index, gpu_mode_to_index,
+        match_windows_programs_to_store, parse_cloud_status, parse_hw_status,
+        parse_migrate_inspect, parse_migrate_scan_tsv, parse_phone_status,
+        validate_adb_wifi_target, validate_cloud_name, validate_gpu_mode, validate_phone_id,
+        validate_win_partition, validate_win_username,
+    };
+    use unicore_center::start_emoji::builtin_ecosystem_apps;
+
+    // 1. CLI flags for --phone, --cloud, --migrate, --drivers & --tab settings:ecosystem
+    assert_eq!(
+        parse_args(&["--phone".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::EcosystemHub(0)
+    );
+    assert_eq!(
+        parse_args(&["--cloud".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::EcosystemHub(1)
+    );
+    assert_eq!(
+        parse_args(&["--migrate".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::EcosystemHub(2)
+    );
+    assert_eq!(
+        parse_args(&["--drivers".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::EcosystemHub(3)
+    );
+    for alias in ["settings:ecosystem", "settings:phone", "settings:cloud", "settings:migrate", "settings:drivers"] {
+        let p = parse_args(&["--tab".to_string(), alias.to_string()])
+            .unwrap()
+            .unwrap();
+        assert_eq!(p.initial_tab, 3);
+        assert_eq!(p.initial_settings_subtab, 7);
+    }
+
+    // 2. Phone Link (KDE Connect + scrcpy + ADB Wi-Fi)
+    assert!(validate_phone_id("abc123_phone:01").is_ok());
+    assert!(validate_phone_id("bad;rm -rf /").is_err());
+    assert!(validate_adb_wifi_target("192.168.1.45:5555").is_ok());
+    assert!(validate_adb_wifi_target("999.1.1.1:5555").is_err());
+    assert!(validate_adb_wifi_target("192.168.1.45:80").is_err());
+
+    let ph = parse_phone_status(
+        "kdeconnect_installed=1\nkdeconnect_running=1\nkdeconnect_autostart=1\nscrcpy_installed=1\nadb_installed=1\nkde_devices=dev1|Pixel 8|1|1;dev2|Galaxy S23|0|1\nadb_devices=R5CR12345,192.168.1.45:5555\n",
+    );
+    assert!(ph.kdeconnect_installed && ph.kdeconnect_running && ph.kdeconnect_autostart && ph.scrcpy_installed);
+    assert_eq!(ph.kde_devices.len(), 2);
+    assert_eq!(ph.kde_devices[0].name, "Pixel 8");
+    assert!(ph.kde_devices[0].paired && ph.kde_devices[0].reachable);
+    assert!(!ph.kde_devices[1].paired);
+    assert_eq!(ph.adb_devices.len(), 2);
+
+    // 3. Cloud Drives (rclone VFS)
+    assert!(validate_cloud_name("GoogleDrive_1").is_ok());
+    assert!(validate_cloud_name("../bad").is_err());
+    assert_eq!(cloud_provider_from_index(0), "gdrive");
+    assert_eq!(cloud_provider_from_index(1), "onedrive");
+    assert_eq!(cloud_provider_from_index(4), "nextcloud");
+
+    let cl = parse_cloud_status(
+        "rclone_installed=1\nmount_base=/home/unicore/Cloud\nremotes=GoogleDrive|drive|1|1|/home/unicore/Cloud/GoogleDrive;OneDrive|onedrive|0|0|/home/unicore/Cloud/OneDrive\n",
+    );
+    assert!(cl.rclone_installed);
+    assert_eq!(cl.remotes.len(), 2);
+    assert!(cl.remotes[0].mounted && cl.remotes[0].autostart);
+    assert!(!cl.remotes[1].mounted);
+
+    // 4. Windows Migration (RO NTFS + Program Files -> UniCore Store matcher)
+    assert!(validate_win_partition("/dev/nvme0n1p3").is_ok());
+    assert!(validate_win_partition("/etc/passwd").is_err());
+    assert!(validate_win_username("Raja Zahidi").is_ok());
+    assert!(validate_win_username("../root").is_err());
+
+    let parts = parse_migrate_scan_tsv("/dev/nvme0n1p3\tWindows11\t238.5G\tRaja,Guest\t42000\n");
+    assert_eq!(parts.len(), 1);
+    assert_eq!(parts[0].device, "/dev/nvme0n1p3");
+    assert_eq!(parts[0].users, vec!["Raja", "Guest"]);
+    assert_eq!(parts[0].free_data_mb, 42000);
+
+    let insp = parse_migrate_inspect(
+        "device=/dev/nvme0n1p3\nusers=Raja\nfree_data_mb=42000\nfonts_count=180\nbookmarks_found=chrome,edge\nprogram_dirs=Steam|VideoLAN|7-Zip|Microsoft Office|Discord|Visual Studio Code\n",
+    );
+    assert_eq!(insp.fonts_count, 180);
+    assert_eq!(insp.bookmarks_found, vec!["chrome", "edge"]);
+    let store_ids: Vec<&str> = insp.store_matches.iter().map(|m| m.store_id.as_str()).collect();
+    assert!(store_ids.contains(&"steam"));
+    assert!(store_ids.contains(&"vlc"));
+    assert!(store_ids.contains(&"7zip"));
+    assert!(store_ids.contains(&"libreoffice"));
+    assert!(store_ids.contains(&"vesktop"));
+    assert!(store_ids.contains(&"vscodium"));
+    assert_eq!(
+        match_windows_programs_to_store(&["Steam".to_string(), "Steam2".to_string()]).len(),
+        1
+    );
+    assert_eq!(
+        build_migrate_flags_csv(true, true, false, false, false, true, true, true),
+        "docs,pics,saves,bookmarks,fonts"
+    );
+
+    // 5. Hardware & Driver Manager + LVFS Firmware
+    assert_eq!(validate_gpu_mode("SAFE").unwrap(), "safe");
+    assert!(validate_gpu_mode("invalid").is_err());
+    assert_eq!(gpu_mode_to_index("safe"), 2);
+    assert_eq!(gpu_mode_from_index(2), "safe");
+
+    let hw = parse_hw_status(
+        "gpu_model=AMD Radeon RX 6600\ngpu_driver=amdgpu\nvulkan_ready=1\nvulkan_device=AMD RADV NAVI23\nwifi_model=Intel AX200\nwifi_driver=iwlwifi\naudio_model=HD Audio\nusb_count=5\nusb_summary=Logitech Mouse; Xbox Controller\nmissing_firmware=none\ngpu_mode=auto\nwifi_powersave=off\nfwupd_available=1\n",
+    );
+    assert!(hw.vulkan_ready && hw.fwupd_available);
+    assert_eq!(hw.gpu_driver, "amdgpu");
+    assert_eq!(hw.wifi_powersave, "off");
+    assert_eq!(hw.usb_count, 5);
+
+    // 6. Start Menu Ecosystem apps + Bilingual v0.8.0 labels
+    let eco_en = builtin_ecosystem_apps(UiLang::En);
+    let eco_ms = builtin_ecosystem_apps(UiLang::Ms);
+    assert_eq!(eco_en.len(), 4);
+    assert_ne!(eco_en[0].name, eco_ms[0].name);
+    assert_eq!(eco_en[0].exec_cmd, "/usr/bin/unicore-center --phone");
+
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.subtab_ecosystem, ms.subtab_ecosystem);
+    assert_ne!(en.title_ecosystem, ms.title_ecosystem);
+    assert_ne!(en.eco_tab_phone, ms.eco_tab_phone);
+    assert_ne!(en.eco_tab_cloud, ms.eco_tab_cloud);
+    assert_ne!(en.eco_tab_migrate, ms.eco_tab_migrate);
+    assert_ne!(en.eco_tab_drivers, ms.eco_tab_drivers);
+}
