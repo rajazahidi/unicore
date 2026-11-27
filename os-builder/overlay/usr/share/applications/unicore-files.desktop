@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Files
+Name[ms]=Fail
+Comment=Browse files and launch .exe / .apk applications
+Exec=pcmanfm /home/unicore
+Icon=system-file-manager
+Terminal=false
+Categories=System;FileManager;

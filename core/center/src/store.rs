@@ -1,16 +1,18 @@
 //! Backend helpers for UniCore OS 1-Click App Catalog & Storefront.
 
 use std::path::Path;
+use std::process::{Command, Stdio};
 
 use uniload::catalog::{
     filter_catalog_apps, find_catalog_app, install_catalog_app, load_catalog,
-    sync_catalog_from_url, CatalogApp, DEFAULT_DATA_CATALOG,
+    sync_catalog_verified, CatalogApp, DEFAULT_DATA_CATALOG, OFFICIAL_CATALOG_URL,
 };
 use uniload::inspector::{AppPlatform, WinEra};
 use uniload::sandbox::{AppSandbox, SandboxManager};
 
 use crate::backend::{CenterBackend, CenterConfig};
 use crate::desktop::platform_display_name;
+use crate::settings::SYS_HELPER_BIN;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoreItemView {
@@ -180,8 +182,108 @@ pub fn install_store_app_blocking(
     Ok(sandbox)
 }
 
-/// Download and validate a custom HTTPS `catalog.json` to `/data/unicore/catalog.json`.
-pub fn sync_store_catalog_blocking(url: &str) -> Result<usize, String> {
-    let catalog = sync_catalog_from_url(url, Path::new(DEFAULT_DATA_CATALOG), false)?;
-    Ok(catalog.apps.len())
+/// Download, cryptographically verify (Ed25519 when pubkey configured), and store catalog JSON.
+pub fn sync_store_catalog_blocking(url: &str) -> Result<(usize, String), String> {
+    let target = if url.trim().is_empty() {
+        OFFICIAL_CATALOG_URL
+    } else {
+        url.trim()
+    };
+    let (catalog, sig_status) =
+        sync_catalog_verified(target, Path::new(DEFAULT_DATA_CATALOG), false, false)?;
+    Ok((catalog.apps.len(), sig_status.as_str().to_string()))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserOverview {
+    pub default_browser: String,
+    pub epiphany_installed: bool,
+    pub firefox_installed: bool,
+    pub chromium_installed: bool,
+}
+
+impl Default for BrowserOverview {
+    fn default() -> Self {
+        Self {
+            default_browser: "epiphany".to_string(),
+            epiphany_installed: true,
+            firefox_installed: false,
+            chromium_installed: false,
+        }
+    }
+}
+
+pub fn parse_browser_status(raw: &str) -> BrowserOverview {
+    let mut ov = BrowserOverview::default();
+    for line in raw.lines() {
+        let Some((k, v)) = line.trim().split_once('=') else {
+            continue;
+        };
+        match k.trim() {
+            "default_browser" if !v.trim().is_empty() => ov.default_browser = v.trim().to_string(),
+            "epiphany_installed" => ov.epiphany_installed = v.trim() == "1",
+            "firefox_installed" => ov.firefox_installed = v.trim() == "1",
+            "chromium_installed" => ov.chromium_installed = v.trim() == "1",
+            _ => {}
+        }
+    }
+    ov
+}
+
+pub fn read_browser_overview() -> BrowserOverview {
+    const MGR: &str = "/usr/libexec/unicore-browser-mgr";
+    if cfg!(target_os = "linux") && Path::new(MGR).is_file() {
+        if let Ok(out) = Command::new(MGR)
+            .arg("status")
+            .stdin(Stdio::null())
+            .output()
+        {
+            if out.status.success() {
+                return parse_browser_status(&String::from_utf8_lossy(&out.stdout));
+            }
+        }
+    }
+    BrowserOverview::default()
+}
+
+pub fn install_native_browser_blocking(browser: &str) -> Result<String, String> {
+    if !matches!(browser, "firefox" | "chromium") {
+        return Err(format!("Unsupported browser '{browser}'. Choose firefox or chromium."));
+    }
+    if !cfg!(target_os = "linux") {
+        return Err("Native browser installation is only available inside UniCore OS".to_string());
+    }
+    let out = Command::new("doas")
+        .args([SYS_HELPER_BIN, "browser-install", browser])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("Failed to invoke browser installer: {e}"))?;
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        return Err(if !stderr.is_empty() { stderr } else { stdout });
+    }
+    let _ = set_default_browser(browser);
+    Ok(format!("Installed {browser} (native Wayland) and set as default browser"))
+}
+
+pub fn set_default_browser(browser: &str) -> Result<String, String> {
+    if !matches!(browser, "epiphany" | "firefox" | "chromium") {
+        return Err(format!("Unsupported default browser '{browser}'"));
+    }
+    const MGR: &str = "/usr/libexec/unicore-browser-mgr";
+    if !cfg!(target_os = "linux") || !Path::new(MGR).is_file() {
+        return Ok(format!("Default browser set to {browser}"));
+    }
+    let out = Command::new(MGR)
+        .args(["set-default", browser])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("Failed to invoke browser manager: {e}"))?;
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        return Err(if !stderr.is_empty() { stderr } else { stdout });
+    }
+    Ok(stdout)
 }

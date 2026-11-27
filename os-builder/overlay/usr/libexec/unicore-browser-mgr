@@ -1,0 +1,154 @@
+#!/bin/sh
+# UniCore OS 1-Click Native Mainstream Browser Manager (Epiphany / Firefox / Chromium).
+# Keeps the base ISO lightweight (~1.2 GB) while enabling 1-click native Wayland Firefox/Chromium.
+set -eu
+
+ARCH="$(uname -m 2>/dev/null || echo x86_64)"
+CACHE_DIR="/data/browsers/apk-cache"
+EXTRA_CONF="/data/unicore/extra-browsers.conf"
+USER_HOME="${HOME:-/home/unicore}"
+if [ -d /data/home ]; then
+    DEFAULT_CONF="/data/home/.config/unicore/default-browser"
+    APPS_DIR="/data/home/applications"
+else
+    DEFAULT_CONF="${USER_HOME}/.config/unicore/default-browser"
+    APPS_DIR="${USER_HOME}/.local/share/applications"
+fi
+
+is_installed() {
+    case "$1" in
+        epiphany) command -v epiphany >/dev/null 2>&1 ;;
+        firefox) command -v firefox >/dev/null 2>&1 ;;
+        chromium) command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 ;;
+        *) return 1 ;;
+    esac
+}
+
+current_default() {
+    if [ -r "${DEFAULT_CONF}" ]; then
+        val="$(tr -d ' \t\r\n' < "${DEFAULT_CONF}" 2>/dev/null || true)"
+        if [ -n "${val}" ] && is_installed "${val}"; then
+            printf '%s\n' "${val}"
+            return 0
+        fi
+    fi
+    printf 'epiphany\n'
+}
+
+ensure_apk_repos() {
+    if [ ! -f /etc/apk/repositories ] || ! grep -q '/community' /etc/apk/repositories 2>/dev/null; then
+        cat <<'EOF' > /etc/apk/repositories
+http://dl-cdn.alpinelinux.org/alpine/v3.20/main
+http://dl-cdn.alpinelinux.org/alpine/v3.20/community
+EOF
+    fi
+}
+
+write_shortcut() {
+    b="$1"
+    mkdir -p "${APPS_DIR}"
+    case "${b}" in
+        firefox)
+            cat <<'EOF' > "${APPS_DIR}/unicore-browser-firefox.desktop"
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Firefox Web Browser
+Comment=Fast native Wayland web browser (installed via UniCore OS)
+Exec=env MOZ_ENABLE_WAYLAND=1 firefox %U
+Icon=firefox
+Terminal=false
+Categories=Network;WebBrowser;
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+EOF
+            ;;
+        chromium)
+            cat <<'EOF' > "${APPS_DIR}/unicore-browser-chromium.desktop"
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Chromium Web Browser
+Comment=Modern Chromium web browser on Wayland (installed via UniCore OS)
+Exec=chromium --ozone-platform=wayland --enable-features=UseOzonePlatform %U
+Icon=chromium
+Terminal=false
+Categories=Network;WebBrowser;
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+EOF
+            ;;
+    esac
+    chmod 0755 "${APPS_DIR}/unicore-browser-${b}.desktop" 2>/dev/null || true
+    chown 1000:1000 "${APPS_DIR}/unicore-browser-${b}.desktop" 2>/dev/null || true
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        ep=0; is_installed epiphany && ep=1
+        ff=0; is_installed firefox && ff=1
+        cr=0; is_installed chromium && cr=1
+        def="$(current_default)"
+        printf 'default_browser=%s\nepiphany_installed=%s\nfirefox_installed=%s\nchromium_installed=%s\narch=%s\n' \
+            "${def}" "${ep}" "${ff}" "${cr}" "${ARCH}"
+        ;;
+
+    install)
+        target="${1:-}"
+        case "${target}" in
+            firefox|chromium) ;;
+            *) echo "Unsupported browser '${target}'. Choose firefox or chromium." >&2; exit 2 ;;
+        esac
+        [ "$(id -u)" -eq 0 ] || { echo "Installing browsers requires root privileges." >&2; exit 1; }
+        ensure_apk_repos
+        mkdir -p "${CACHE_DIR}" /data/unicore
+        echo "==> Installing native Wayland ${target} (${ARCH})..."
+        apk add --cache-dir "${CACHE_DIR}" "${target}"
+        write_shortcut "${target}"
+        touch "${EXTRA_CONF}"
+        grep -qx "${target}" "${EXTRA_CONF}" 2>/dev/null || printf '%s\n' "${target}" >> "${EXTRA_CONF}"
+        echo "==> Installed ${target} cleanly!"
+        ;;
+
+    remove)
+        target="${1:-}"
+        case "${target}" in
+            firefox|chromium) ;;
+            *) echo "Unsupported browser '${target}'. Choose firefox or chromium." >&2; exit 2 ;;
+        esac
+        [ "$(id -u)" -eq 0 ] || { echo "Removing browsers requires root privileges." >&2; exit 1; }
+        apk del "${target}" || true
+        rm -f "${APPS_DIR}/unicore-browser-${target}.desktop"
+        if [ -f "${EXTRA_CONF}" ]; then
+            grep -vx "${target}" "${EXTRA_CONF}" > "${EXTRA_CONF}.tmp" 2>/dev/null || true
+            mv -f "${EXTRA_CONF}.tmp" "${EXTRA_CONF}"
+        fi
+        if [ "$(current_default)" = "${target}" ]; then
+            mkdir -p "$(dirname "${DEFAULT_CONF}")"
+            printf 'epiphany\n' > "${DEFAULT_CONF}"
+            chown 1000:1000 "${DEFAULT_CONF}" 2>/dev/null || true
+        fi
+        echo "==> Removed ${target}."
+        ;;
+
+    set-default)
+        target="${1:-}"
+        case "${target}" in
+            epiphany|firefox|chromium) ;;
+            *) echo "Unsupported default browser '${target}'. Choose epiphany, firefox, or chromium." >&2; exit 2 ;;
+        esac
+        if ! is_installed "${target}"; then
+            echo "Browser '${target}' is not installed yet." >&2
+            exit 1
+        fi
+        mkdir -p "$(dirname "${DEFAULT_CONF}")"
+        printf '%s\n' "${target}" > "${DEFAULT_CONF}"
+        echo "Default browser set to ${target}."
+        ;;
+
+    *)
+        echo "Usage: unicore-browser-mgr <status|install <firefox|chromium>|remove <firefox|chromium>|set-default <epiphany|firefox|chromium>>" >&2
+        exit 2
+        ;;
+esac

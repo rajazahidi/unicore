@@ -59,6 +59,25 @@ window#waybar {
     border-bottom: 2px solid #0284c7;
 }
 
+#custom-update.update-available {
+    background-color: #0284c7;
+    color: #ffffff;
+    font-weight: bold;
+    padding: 4px 10px;
+    margin: 5px 2px;
+    border-radius: 6px;
+}
+
+#custom-update.update-available:hover {
+    background-color: #0369a1;
+}
+
+#custom-update.up-to-date {
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+}
+
 #network,
 #pulseaudio,
 #battery,

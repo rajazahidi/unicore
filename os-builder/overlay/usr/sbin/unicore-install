@@ -317,7 +317,7 @@ if [ -d /data/network ]; then
 fi
 chown -R 1000:1000 "${MNT}/data/uniload" "${MNT}/data/home" "${MNT}/data/unicore"
 
-OS_VERSION="0.2.1"
+OS_VERSION="0.3.0"
 if [ -r /etc/os-release ]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || true)"
     [ -n "${parsed_ver}" ] && OS_VERSION="${parsed_ver}"
@@ -330,6 +330,18 @@ if [ "${ARCH}" = "aarch64" ] || [ "${ARCH}" = "arm64" ]; then
     if [ -d /sys/firmware/efi/efivars ]; then
         grub-install --target=arm64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --bootloader-id=UniCore || true
     fi
+    if [ -f /usr/share/unicore/secureboot/shimaa64.efi ] && [ -f /usr/share/unicore/secureboot/grubaa64.efi ]; then
+        echo "==> Installing UEFI Secure Boot shim + MOK chain (arm64)"
+        mkdir -p "${MNT}/efi/EFI/BOOT"
+        cp /usr/share/unicore/secureboot/shimaa64.efi "${MNT}/efi/EFI/BOOT/BOOTAA64.EFI"
+        [ -f /usr/share/unicore/secureboot/mmaa64.efi ] && cp /usr/share/unicore/secureboot/mmaa64.efi "${MNT}/efi/EFI/BOOT/mmaa64.efi"
+        cp /usr/share/unicore/secureboot/grubaa64.efi "${MNT}/efi/EFI/BOOT/grubaa64.efi"
+        if [ -d "${MNT}/efi/EFI/UniCore" ]; then
+            cp /usr/share/unicore/secureboot/shimaa64.efi "${MNT}/efi/EFI/UniCore/shimaa64.efi"
+            [ -f /usr/share/unicore/secureboot/mmaa64.efi ] && cp /usr/share/unicore/secureboot/mmaa64.efi "${MNT}/efi/EFI/UniCore/mmaa64.efi"
+            cp /usr/share/unicore/secureboot/grubaa64.efi "${MNT}/efi/EFI/UniCore/grubaa64.efi"
+        fi
+    fi
 else
     echo "==> Installing Hybrid GRUB bootloader (Legacy BIOS i386-pc + UEFI x86_64-efi)"
     grub-install --target=i386-pc --boot-directory="${MNT}/efi/boot" --recheck "${TARGET_DISK}"
@@ -337,6 +349,21 @@ else
     if [ -d /sys/firmware/efi/efivars ]; then
         grub-install --target=x86_64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --bootloader-id=UniCore || true
     fi
+    if [ -f /usr/share/unicore/secureboot/shimx64.efi ] && [ -f /usr/share/unicore/secureboot/grubx64.efi ]; then
+        echo "==> Installing UEFI Secure Boot shim + MOK chain (x86_64)"
+        mkdir -p "${MNT}/efi/EFI/BOOT"
+        cp /usr/share/unicore/secureboot/shimx64.efi "${MNT}/efi/EFI/BOOT/BOOTX64.EFI"
+        [ -f /usr/share/unicore/secureboot/mmx64.efi ] && cp /usr/share/unicore/secureboot/mmx64.efi "${MNT}/efi/EFI/BOOT/mmx64.efi"
+        cp /usr/share/unicore/secureboot/grubx64.efi "${MNT}/efi/EFI/BOOT/grubx64.efi"
+        if [ -d "${MNT}/efi/EFI/UniCore" ]; then
+            cp /usr/share/unicore/secureboot/shimx64.efi "${MNT}/efi/EFI/UniCore/shimx64.efi"
+            [ -f /usr/share/unicore/secureboot/mmx64.efi ] && cp /usr/share/unicore/secureboot/mmx64.efi "${MNT}/efi/EFI/UniCore/mmx64.efi"
+            cp /usr/share/unicore/secureboot/grubx64.efi "${MNT}/efi/EFI/UniCore/grubx64.efi"
+        fi
+    fi
+fi
+if [ -f /etc/unicore/mok.der ]; then
+    cp /etc/unicore/mok.der "${MNT}/efi/ENROLL_UNICORE_MOK.cer"
 fi
 
 cat <<EOF > "${MNT}/efi/boot/grub/grub.cfg"

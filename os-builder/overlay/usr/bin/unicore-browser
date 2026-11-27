@@ -1,0 +1,38 @@
+#!/bin/sh
+# UniCore OS Default Web Browser Launcher (routes Epiphany / Firefox / Chromium cleanly on Wayland).
+set -eu
+
+CONF=""
+for p in /data/home/.config/unicore/default-browser "${HOME:-/home/unicore}/.config/unicore/default-browser"; do
+    if [ -r "${p}" ]; then
+        CONF="$(tr -d ' \t\r\n' < "${p}" 2>/dev/null || true)"
+        [ -n "${CONF}" ] && break
+    fi
+done
+
+case "${CONF}" in
+    firefox)
+        if command -v firefox >/dev/null 2>&1; then
+            export MOZ_ENABLE_WAYLAND=1
+            exec firefox "$@"
+        fi
+        ;;
+    chromium)
+        if command -v chromium >/dev/null 2>&1; then
+            exec chromium --ozone-platform=wayland --enable-features=UseOzonePlatform "$@"
+        elif command -v chromium-browser >/dev/null 2>&1; then
+            exec chromium-browser --ozone-platform=wayland "$@"
+        fi
+        ;;
+esac
+
+if command -v epiphany >/dev/null 2>&1; then
+    exec epiphany "$@"
+elif command -v firefox >/dev/null 2>&1; then
+    export MOZ_ENABLE_WAYLAND=1
+    exec firefox "$@"
+elif command -v chromium >/dev/null 2>&1; then
+    exec chromium --ozone-platform=wayland "$@"
+fi
+echo "No web browser installed." >&2
+exit 127

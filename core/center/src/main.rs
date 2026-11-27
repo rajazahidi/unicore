@@ -32,26 +32,27 @@ use unicore_center::oobe::{
 use unicore_center::settings::{
     add_printer, apply_and_save_display, apply_firewall_settings, bt_device_action,
     clamp_pointer_speed, connect_wifi, delete_vpn_connection, disconnect_wifi, discover_printers,
-    forget_wifi, import_vpn_profile, launch_document_scanner, list_backup_targets,
-    list_vpn_connections, load_nightlight_config, load_personalize_config,
+    enroll_secureboot_mok, forget_wifi, import_vpn_profile, launch_document_scanner,
+    list_backup_targets, list_vpn_connections, load_nightlight_config, load_personalize_config,
     persistent_display_config_dir, print_test_page, read_audio_overview, read_bluetooth_overview,
     read_display_overview, read_firewall_overview, read_network_overview, read_printers_overview,
-    remove_printer, run_backup_create, run_backup_restore, run_power_action,
-    save_and_apply_nightlight, save_and_apply_personalize, scan_bluetooth_brief, set_audio_mute,
-    set_audio_volume, set_bluetooth_enabled, set_brightness, set_cups_enabled, set_default_printer,
-    set_default_sink, set_mic_mute, set_wifi_radio, toggle_vpn_connection,
+    read_secureboot_overview, remove_printer, run_backup_create, run_backup_restore,
+    run_power_action, save_and_apply_nightlight, save_and_apply_personalize, scan_bluetooth_brief,
+    set_audio_mute, set_audio_volume, set_bluetooth_enabled, set_brightness, set_cups_enabled,
+    set_default_printer, set_default_sink, set_mic_mute, set_wifi_radio, toggle_vpn_connection,
     validate_backup_passphrase, validate_backup_path, AudioSink, BackupTarget, BluetoothDevice,
     DiscoveredPrinter, DisplayOutput, PersonalizeConfig, PrinterInfo, VpnConnection, WifiNetwork,
     KB_LAYOUTS, WALLPAPER_PRESETS,
 };
 use unicore_center::store::{
-    chunk_into_triples, install_store_app_blocking, load_store_views, sync_store_catalog_blocking,
+    chunk_into_triples, install_native_browser_blocking, install_store_app_blocking,
+    load_store_views, read_browser_overview, set_default_browser, sync_store_catalog_blocking,
     StoreItemView,
 };
 use unicore_center::taskmgr::{list_user_processes, terminate_process, ProcessInfo};
 use unicore_center::updater::{
     apply_local_update, apply_remote_update, check_remote_update, read_update_overview,
-    rollback_update,
+    rollback_update, set_auto_check_updates,
 };
 use unicore_center::users_power::{
     add_user_account, authenticate_user, delete_user_account, read_power_overview,
@@ -288,6 +289,7 @@ fn refresh_update_status(ui: &MainWindow) {
     }
     ui.set_upd_can_update(upd.can_update);
     ui.set_upd_can_rollback(upd.can_rollback);
+    ui.set_upd_auto_check(upd.auto_check);
 }
 
 fn set_disp_modes_for_output(ui: &MainWindow, output: Option<&DisplayOutput>) {
@@ -415,6 +417,16 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
     ui.set_set_natural_scroll(pers.natural_scroll);
     ui.set_set_tap_to_click(pers.tap_to_click);
     ui.set_set_pointer_speed_tenths((pers.pointer_speed * 10.0).round());
+    ui.set_set_desktop_icons(pers.desktop_icons);
+
+    let sb = read_secureboot_overview();
+    ui.set_set_sb_summary(SharedString::from(sb.summary()));
+    ui.set_set_sb_can_enroll(sb.uefi && sb.mok_cert && sb.mok_state != "enrolled");
+
+    let br = read_browser_overview();
+    ui.set_store_browser_default(SharedString::from(br.default_browser.as_str()));
+    ui.set_store_firefox_installed(br.firefox_installed);
+    ui.set_store_chromium_installed(br.chromium_installed);
 
     let pr = read_printers_overview();
     ui.set_set_cups_active(pr.service_active);
@@ -1297,22 +1309,56 @@ fn main() {
         });
     }
 
-    // Android subsystem buttons
+    // Android subsystem buttons (graphical background progress for init & setup-arm)
     {
         let ui_weak = ui.as_weak();
         let b = Rc::clone(&backend);
         ui.on_android_action(move |action| {
             let Some(ui) = ui_weak.upgrade() else { return };
+            let action_str = action.to_string();
             let profile = match ui.get_android_profile_idx() {
                 1 => "microg",
                 2 => "gapps",
                 _ => "vanilla",
+            }
+            .to_string();
+            if action_str == "ui" {
+                report_result(
+                    &ui,
+                    b.borrow().spawn_android_action(&action_str, &profile),
+                    "Launching Android UI...",
+                );
+                return;
+            }
+            let cfg = b.borrow().config.clone();
+            ui.set_android_busy(true);
+            let prog = match action_str.as_str() {
+                "init" => format!("Initializing Android ({profile}) into /data/waydroid..."),
+                "setup-arm" => "Downloading & installing libndk_translation ARM translator...".to_string(),
+                other => format!("Running Android action '{other}'..."),
             };
-            report_result(
-                &ui,
-                b.borrow().spawn_android_action(&action, profile),
-                format!("Started Android action '{action}'"),
-            );
+            ui.set_android_status(SharedString::from(prog.as_str()));
+            set_status(&ui, prog, false);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = CenterBackend::run_android_setup_blocking(&cfg, &action_str, &profile);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_android_busy(false);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_android_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                                ui.invoke_refresh_all();
+                            }
+                            Err(err) => {
+                                ui.set_android_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
         });
     }
 
@@ -1339,11 +1385,84 @@ fn main() {
             if app_id.is_empty() {
                 return;
             }
-            report_result(
-                &ui,
-                b.borrow().spawn_install_legacy_runtimes(&app_id),
-                format!("Started classic DX9/VC++ runtime installation for '{app_id}'"),
-            );
+            let cfg = b.borrow().config.clone();
+            ui.set_sel_fix_busy(true);
+            let msg = format!("Installing classic DX9/VC++ runtimes for '{app_id}'...");
+            set_status(&ui, msg, false);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = CenterBackend::run_win32_runtimes_blocking(&cfg, &app_id, None);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_sel_fix_busy(false);
+                        match res {
+                            Ok(ok) => set_status(&ui, ok, false),
+                            Err(err) => set_status(&ui, err, true),
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let lang_cell = Rc::clone(&current_lang);
+        ui.on_diagnose_selected_app(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            let diag = b.borrow().diagnose_app_log(&app_id);
+            let summary = if *lang_cell.borrow() == UiLang::Ms {
+                diag.summary_ms.clone()
+            } else {
+                diag.summary_en.clone()
+            };
+            let verbs = diag.recommended_verbs.join(" ");
+            ui.set_sel_diag_summary(SharedString::from(summary.as_str()));
+            ui.set_sel_diag_verbs(SharedString::from(verbs.as_str()));
+            set_status(&ui, summary, diag.issue_detected);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_autofix_selected_app(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            let verbs = ui.get_sel_diag_verbs().trim().to_string();
+            if app_id.is_empty() || verbs.is_empty() {
+                return;
+            }
+            let cfg = b.borrow().config.clone();
+            ui.set_sel_fix_busy(true);
+            let prog = format!("Auto-fixing '{app_id}' with runtimes: {verbs}...");
+            ui.set_sel_diag_summary(SharedString::from(prog.as_str()));
+            set_status(&ui, prog, false);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = CenterBackend::run_win32_runtimes_blocking(&cfg, &app_id, Some(&verbs));
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_sel_fix_busy(false);
+                        match res {
+                            Ok(ok) => {
+                                ui.set_sel_diag_verbs(SharedString::new());
+                                ui.set_sel_diag_summary(SharedString::from(ok.as_str()));
+                                set_status(&ui, ok, false);
+                            }
+                            Err(err) => {
+                                ui.set_sel_diag_summary(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
         });
     }
 
@@ -1787,7 +1906,7 @@ fn main() {
     {
         let ui_weak = ui.as_weak();
         ui.on_apply_personalize(
-            move |theme_idx, wp_idx, wp_custom, kb_idx, natural_scroll, tap_to_click, speed_tenths| {
+            move |theme_idx, wp_idx, wp_custom, kb_idx, natural_scroll, tap_to_click, speed_tenths, desktop_icons| {
                 let Some(ui) = ui_weak.upgrade() else { return };
                 let theme = if theme_idx == 1 { "light" } else { "dark" }.to_string();
                 let wallpaper = WALLPAPER_PRESETS
@@ -1805,17 +1924,19 @@ fn main() {
                     natural_scroll,
                     tap_to_click,
                     pointer_speed: clamp_pointer_speed((speed_tenths as f32) / 10.0),
+                    desktop_icons,
                 };
                 let cfg_dir = persistent_display_config_dir();
                 match save_and_apply_personalize(&cfg_dir, &req) {
                     Ok(saved) => {
                         ui.invoke_set_theme(saved.theme == "light");
                         ui.set_set_wallpaper_custom(SharedString::from(saved.wallpaper.as_str()));
+                        ui.set_set_desktop_icons(saved.desktop_icons);
                         let msg = format!(
-                            "Applied theme={} | kb={} | scroll={} | tap={}",
+                            "Applied theme={} | kb={} | icons={} | tap={}",
                             saved.theme,
                             saved.kb_layout,
-                            if saved.natural_scroll { "natural" } else { "standard" },
+                            if saved.desktop_icons { "on" } else { "off" },
                             if saved.tap_to_click { "on" } else { "off" }
                         );
                         ui.set_set_personalize_status(SharedString::from(msg.as_str()));
@@ -1828,6 +1949,40 @@ fn main() {
                 }
             },
         );
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_enroll_secureboot_mok(move |pass| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match enroll_secureboot_mok(&pass) {
+                Ok(msg) => {
+                    ui.set_set_sb_mok_pass(SharedString::new());
+                    ui.set_set_sb_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_set_sb_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_toggle_auto_check_updates(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(
+                &ui,
+                set_auto_check_updates(enabled),
+                if enabled {
+                    "Automatic background signed OTA checks enabled (Waybar badge active)"
+                } else {
+                    "Automatic background OTA checks disabled"
+                },
+            );
+        });
     }
 
     {
@@ -2456,11 +2611,10 @@ fn main() {
         ui.on_store_sync_catalog(move |url| {
             let Some(ui) = ui_weak.upgrade() else { return };
             let url_str = url.trim().to_string();
-            if url_str.is_empty() {
-                return;
-            }
             ui.set_store_busy(true);
-            ui.set_store_status(SharedString::from("Syncing catalog over HTTPS..."));
+            ui.set_store_status(SharedString::from(
+                "Syncing & verifying Ed25519 signed catalog over HTTPS...",
+            ));
 
             let thread_ui = ui.as_weak();
             std::thread::spawn(move || {
@@ -2469,9 +2623,11 @@ fn main() {
                     if let Some(ui) = thread_ui.upgrade() {
                         ui.set_store_busy(false);
                         match res {
-                            Ok(count) => {
+                            Ok((count, sig)) => {
                                 ui.invoke_refresh_all();
-                                let ok_msg = format!("Synced catalog ({count} verified apps)");
+                                let ok_msg = format!(
+                                    "Synced catalog ({count} verified apps, signature: {sig})"
+                                );
                                 ui.set_store_status(SharedString::from(ok_msg.as_str()));
                                 set_status(&ui, ok_msg, false);
                             }
@@ -2483,6 +2639,60 @@ fn main() {
                     }
                 });
             });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_install_native_browser(move |browser| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let bname = browser.trim().to_string();
+            ui.set_store_busy(true);
+            let prog = format!("Installing native Wayland '{bname}'...");
+            ui.set_store_status(SharedString::from(prog.as_str()));
+            set_status(&ui, prog, false);
+
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = install_native_browser_blocking(&bname);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_store_busy(false);
+                        let br = read_browser_overview();
+                        ui.set_store_browser_default(SharedString::from(br.default_browser.as_str()));
+                        ui.set_store_firefox_installed(br.firefox_installed);
+                        ui.set_store_chromium_installed(br.chromium_installed);
+                        match res {
+                            Ok(ok) => {
+                                ui.set_store_status(SharedString::from(ok.as_str()));
+                                set_status(&ui, ok, false);
+                            }
+                            Err(err) => {
+                                ui.set_store_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_set_default_browser(move |browser| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match set_default_browser(&browser) {
+                Ok(msg) => {
+                    ui.set_store_browser_default(browser);
+                    ui.set_store_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_store_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
         });
     }
 

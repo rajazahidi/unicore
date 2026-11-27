@@ -148,6 +148,7 @@ pub struct UpdateConfig {
     pub pubkey_path: String,
     pub allow_insecure_http: bool,
     pub require_signature: bool,
+    pub auto_check: bool,
 }
 
 impl Default for UpdateConfig {
@@ -158,8 +159,22 @@ impl Default for UpdateConfig {
             pubkey_path: "/etc/unicore/update.pub".to_string(),
             allow_insecure_http: false,
             require_signature: false,
+            auto_check: true,
         }
     }
+}
+
+/// Official GitHub Releases per-architecture OTA manifest endpoint.
+pub fn official_manifest_url(arch: &str) -> String {
+    let clean = match arch.trim() {
+        "arm64" | "aarch64" => "aarch64",
+        "amd64" | "x86_64" => "x86_64",
+        other if !other.is_empty() => other,
+        _ => "x86_64",
+    };
+    format!(
+        "https://github.com/rajazahidi/unicore/releases/latest/download/unicore-manifest-{clean}.json"
+    )
 }
 
 impl UpdateConfig {
@@ -189,6 +204,10 @@ impl UpdateConfig {
                     self.require_signature =
                         val == "1" || val.eq_ignore_ascii_case("true") || val.eq_ignore_ascii_case("yes");
                 }
+                "AUTO_CHECK" => {
+                    self.auto_check =
+                        val == "1" || val.eq_ignore_ascii_case("true") || val.eq_ignore_ascii_case("yes");
+                }
                 _ => {}
             }
         }
@@ -197,14 +216,32 @@ impl UpdateConfig {
 
     pub fn render(&self) -> String {
         format!(
-            "UPDATE_URL=\"{}\"\nUPDATE_CHANNEL=\"{}\"\nUPDATE_PUBKEY=\"{}\"\nALLOW_INSECURE_HTTP={}\nREQUIRE_SIGNATURE={}\n",
+            "UPDATE_URL=\"{}\"\nUPDATE_CHANNEL=\"{}\"\nUPDATE_PUBKEY=\"{}\"\nALLOW_INSECURE_HTTP={}\nREQUIRE_SIGNATURE={}\nAUTO_CHECK={}\n",
             self.update_url,
             self.channel,
             self.pubkey_path,
             if self.allow_insecure_http { 1 } else { 0 },
-            if self.require_signature { 1 } else { 0 }
+            if self.require_signature { 1 } else { 0 },
+            if self.auto_check { 1 } else { 0 }
         )
     }
+}
+
+/// Persist user preference for lightweight background OTA update checks in `/data/unicore/update.conf`.
+pub fn save_data_update_auto_check(path: &Path, enabled: bool) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+    }
+    let existing = fs::read_to_string(path).unwrap_or_default();
+    let mut lines: Vec<String> = existing
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("AUTO_CHECK="))
+        .map(str::to_string)
+        .collect();
+    lines.push(format!("AUTO_CHECK={}", if enabled { 1 } else { 0 }));
+    let content = format!("{}\n", lines.join("\n"));
+    fs::write(path, content).map_err(|e| format!("Failed to write {}: {e}", path.display()))
 }
 
 pub fn load_host_update_config() -> UpdateConfig {
@@ -934,6 +971,7 @@ pub fn build_update_status_json(
         "allow_insecure_http".to_string(),
         JsonValue::Bool(cfg.allow_insecure_http),
     );
+    map.insert("auto_check".to_string(), JsonValue::Bool(cfg.auto_check));
     map.insert(
         "boot_mode".to_string(),
         JsonValue::Str(boot.boot_mode.clone()),

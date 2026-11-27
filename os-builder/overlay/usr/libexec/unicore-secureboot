@@ -1,0 +1,109 @@
+#!/bin/sh
+# UniCore OS UEFI Secure Boot & Machine Owner Key (MOK) Status & Enrollment Helper.
+set -eu
+
+MOK_DER="/etc/unicore/mok.der"
+
+detect_sb_state() {
+    if [ ! -d /sys/firmware/efi ]; then
+        printf 'legacy_bios\n'
+        return 0
+    fi
+    if command -v mokutil >/dev/null 2>&1; then
+        out="$(mokutil --sb-state 2>/dev/null || true)"
+        case "${out}" in
+            *"SecureBoot enabled"*) printf 'enabled\n'; return 0 ;;
+            *"SecureBoot disabled"*) printf 'disabled\n'; return 0 ;;
+        esac
+    fi
+    for sb_var in /sys/firmware/efi/efivars/SecureBoot-*; do
+        if [ -r "${sb_var}" ]; then
+            last_byte="$(od -An -tx1 -j4 -N1 "${sb_var}" 2>/dev/null | tr -d ' \n' || true)"
+            if [ "${last_byte}" = "01" ]; then
+                printf 'enabled\n'
+            else
+                printf 'disabled\n'
+            fi
+            return 0
+        fi
+    done
+    printf 'unknown\n'
+}
+
+detect_mok_enrolled() {
+    if [ ! -d /sys/firmware/efi ] || [ ! -f "${MOK_DER}" ]; then
+        printf 'unknown\n'
+        return 0
+    fi
+    if ! command -v mokutil >/dev/null 2>&1; then
+        printf 'unknown\n'
+        return 0
+    fi
+    set +e
+    out="$(mokutil --test-key "${MOK_DER}" 2>&1)"
+    rc=$?
+    set -e
+    case "${out}" in
+        *"already enrolled"*)
+            printf 'enrolled\n'
+            ;;
+        *"not enrolled"*)
+            printf 'not_enrolled\n'
+            ;;
+        *)
+            if [ "${rc}" -eq 1 ]; then
+                printf 'enrolled\n'
+            else
+                printf 'not_enrolled\n'
+            fi
+            ;;
+    esac
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        uefi=0
+        [ -d /sys/firmware/efi ] && uefi=1
+        sb="$(detect_sb_state)"
+        cert_ok=0
+        [ -f "${MOK_DER}" ] && cert_ok=1
+        mok_state="$(detect_mok_enrolled)"
+        shim_ok=0
+        if [ -f /usr/share/unicore/secureboot/shimx64.efi ] || [ -f /usr/share/unicore/secureboot/shimaa64.efi ]; then
+            shim_ok=1
+        fi
+        printf 'uefi=%s\nsecure_boot=%s\nmok_cert=%s\nmok_state=%s\nshim_bundled=%s\n' \
+            "${uefi}" "${sb}" "${cert_ok}" "${mok_state}" "${shim_ok}"
+        ;;
+
+    enroll)
+        if [ ! -d /sys/firmware/efi ]; then
+            echo "Secure Boot MOK enrollment only applies to UEFI firmware (this PC booted in Legacy BIOS)." >&2
+            exit 1
+        fi
+        if [ ! -f "${MOK_DER}" ]; then
+            echo "UniCore MOK certificate not found at ${MOK_DER}." >&2
+            exit 1
+        fi
+        if ! command -v mokutil >/dev/null 2>&1; then
+            echo "mokutil utility is not installed in rootfs." >&2
+            exit 1
+        fi
+        IFS= read -r mok_pass || mok_pass=""
+        if [ "${#mok_pass}" -lt 8 ] || [ "${#mok_pass}" -gt 32 ]; then
+            echo "One-time MOK enrollment password must be 8 to 32 characters." >&2
+            exit 1
+        fi
+        printf '%s\n%s\n' "${mok_pass}" "${mok_pass}" | mokutil --import "${MOK_DER}"
+        unset mok_pass
+        echo "MOK enrollment queued! Reboot your PC and confirm 'Enroll MOK' once on the blue MokManager screen."
+        ;;
+
+    *)
+        echo "Usage: unicore-secureboot <status|enroll>" >&2
+        exit 2
+        ;;
+esac

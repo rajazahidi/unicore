@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Action
+Name=Open in UniCore Sandbox...
+Name[ms]=Buka dalam Sandbox UniCore...
+Tooltip=Configure era compatibility & sandbox permissions and launch this .exe/.msi/.apk/.com file
+Icon=application-x-executable
+Profiles=profile-unicore-open;
+
+[X-Action-Profile profile-unicore-open]
+MimeTypes=application/x-ms-dos-executable;application/x-dosexec;application/x-msi;application/vnd.android.package-archive;application/x-executable;
+Basenames=*.exe;*.EXE;*.msi;*.MSI;*.apk;*.APK;*.com;*.COM;*.bat;*.BAT;
+SelectionCount==1
+Exec=/usr/bin/unicore-center --open %f

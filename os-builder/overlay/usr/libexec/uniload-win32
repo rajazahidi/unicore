@@ -58,8 +58,17 @@ elif [ -L "${DOCS_LINK}" ]; then
     rm -f "${DOCS_LINK}"
 fi
 
-if ! command -v wine >/dev/null 2>&1; then
-    echo "[uniload-win32] Win32 core runtime not installed in rootfs." >&2
+HOST_ARCH="$(uname -m 2>/dev/null || echo x86_64)"
+ARM64_WINE_WRAPPER="/usr/share/unicore/arm64-win32/run-wine-box64.sh"
+WINE_CMD="wine"
+if [ "${HOST_ARCH}" = "aarch64" ] || [ "${HOST_ARCH}" = "arm64" ]; then
+    if [ -x "${ARM64_WINE_WRAPPER}" ]; then
+        WINE_CMD="${ARM64_WINE_WRAPPER}"
+    fi
+fi
+
+if [ "${WINE_CMD}" = "wine" ] && ! command -v wine >/dev/null 2>&1; then
+    echo "[uniload-win32] Win32 core runtime not installed in rootfs (${HOST_ARCH})." >&2
     exit 127
 fi
 
@@ -78,20 +87,20 @@ if [ "${PREV_ERA}" != "${ERA_SIG}" ]; then
     fi
     case "${ERA}" in
         win98)
-            wine reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "win98" /f >/dev/null 2>&1 || true
+            "${WINE_CMD}" reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "win98" /f >/dev/null 2>&1 || true
             ;;
         winxp)
-            wine reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "winxp" /f >/dev/null 2>&1 || true
+            "${WINE_CMD}" reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "winxp" /f >/dev/null 2>&1 || true
             ;;
         win7)
-            wine reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
+            "${WINE_CMD}" reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "win7" /f >/dev/null 2>&1 || true
             ;;
         *)
-            wine reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "win10" /f >/dev/null 2>&1 || true
+            "${WINE_CMD}" reg add "HKCU\\Software\\Wine" /v Version /t REG_SZ /d "win10" /f >/dev/null 2>&1 || true
             ;;
     esac
-    wine reg add "HKCU\\Software\\Wine\\Direct3D" /v DirectDrawRenderer /t REG_SZ /d "${DDRAW_RENDERER}" /f >/dev/null 2>&1 || true
-    wine reg add "HKCU\\Software\\Wine\\Direct3D" /v UseGLSL /t REG_SZ /d "${USE_GLSL}" /f >/dev/null 2>&1 || true
+    "${WINE_CMD}" reg add "HKCU\\Software\\Wine\\Direct3D" /v DirectDrawRenderer /t REG_SZ /d "${DDRAW_RENDERER}" /f >/dev/null 2>&1 || true
+    "${WINE_CMD}" reg add "HKCU\\Software\\Wine\\Direct3D" /v UseGLSL /t REG_SZ /d "${USE_GLSL}" /f >/dev/null 2>&1 || true
     printf '%s' "${ERA_SIG}" > "${ERA_MARKER}"
 fi
 
@@ -212,14 +221,14 @@ fi
 
 if [ "$1" = "msiexec" ]; then
     shift
-    exec /usr/libexec/uniload-sandbox-exec wine msiexec "$@"
+    exec /usr/libexec/uniload-sandbox-exec "${WINE_CMD}" msiexec "$@"
 fi
 
 # Win16 NE applications route through otvdm.exe when installed.
 if [ "${UNILOAD_WIN16_MODE:-0}" = "1" ]; then
     for otvdm_bin in /data/uniload/otvdm/otvdm.exe /usr/share/unicore/otvdm/otvdm.exe; do
         if [ -f "${otvdm_bin}" ]; then
-            exec /usr/libexec/uniload-sandbox-exec wine "${otvdm_bin}" "$@"
+            exec /usr/libexec/uniload-sandbox-exec "${WINE_CMD}" "${otvdm_bin}" "$@"
         fi
     done
 fi
@@ -227,7 +236,7 @@ fi
 # Classic Win98/XP 640x480 or 800x600 games run inside an isolated virtual desktop
 # so fullscreen mode switches cannot break the Wayland compositor.
 if [ "${VDESK}" != "off" ] && [ -n "${DISPLAY:-}" ]; then
-    exec /usr/libexec/uniload-sandbox-exec wine explorer "/desktop=UniCore-${ERA},${VDESK}" "$@"
+    exec /usr/libexec/uniload-sandbox-exec "${WINE_CMD}" explorer "/desktop=UniCore-${ERA},${VDESK}" "$@"
 fi
 
-exec /usr/libexec/uniload-sandbox-exec wine "$@"
+exec /usr/libexec/uniload-sandbox-exec "${WINE_CMD}" "$@"

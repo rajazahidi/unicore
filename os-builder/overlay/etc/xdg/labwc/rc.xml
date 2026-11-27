@@ -51,7 +51,7 @@
       <action name="Execute" command="/usr/bin/unicore-center --power" />
     </keybind>
     <keybind key="W-w">
-      <action name="Execute" command="epiphany" />
+      <action name="Execute" command="/usr/bin/unicore-browser" />
     </keybind>
     <keybind key="W-v">
       <action name="Execute" command="/usr/libexec/unicore-clipboard" />

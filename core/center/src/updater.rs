@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 use uniload::json_codec::{parse_json, JsonValue};
 use uniload::updater::{
     build_update_status_json, load_host_update_config, parse_os_version, read_boot_slot_info,
-    validate_update_url,
+    save_data_update_auto_check, validate_update_url, DEFAULT_DATA_UPDATE_CONF,
 };
 
 use crate::settings::SYS_HELPER_BIN;
@@ -26,6 +26,7 @@ pub struct UpdateOverview {
     pub can_update: bool,
     pub can_rollback: bool,
     pub pubkey_configured: bool,
+    pub auto_check: bool,
 }
 
 impl UpdateOverview {
@@ -82,6 +83,10 @@ pub fn parse_update_status_json(raw: &str) -> Result<UpdateOverview, String> {
         can_update: get_bool("can_update"),
         can_rollback: get_bool("can_rollback"),
         pubkey_configured: get_bool("pubkey_configured"),
+        auto_check: obj
+            .get("auto_check")
+            .and_then(JsonValue::as_bool)
+            .unwrap_or(true),
     })
 }
 
@@ -164,7 +169,7 @@ pub fn read_update_overview() -> UpdateOverview {
     let boot = read_boot_slot_info(Path::new("/mnt/unicore-boot.env"));
     let current_ver = std::fs::read_to_string("/etc/os-release")
         .map(|s| parse_os_version(&s))
-        .unwrap_or_else(|_| "0.2.1".to_string());
+        .unwrap_or_else(|_| "0.3.0".to_string());
     let json = build_update_status_json(&boot, &current_ver, None, &cfg, Some(false));
     parse_update_status_json(&json.to_string()).unwrap_or(UpdateOverview {
         current_version: current_ver,
@@ -180,7 +185,12 @@ pub fn read_update_overview() -> UpdateOverview {
         can_update: false,
         can_rollback: false,
         pubkey_configured: false,
+        auto_check: cfg.auto_check,
     })
+}
+
+pub fn set_auto_check_updates(enabled: bool) -> Result<(), String> {
+    save_data_update_auto_check(Path::new(DEFAULT_DATA_UPDATE_CONF), enabled)
 }
 
 pub fn check_remote_update(url: &str) -> Result<UpdateCheckResult, String> {

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Install UniCore OS
+Name[ms]=Pasang UniCore OS
+Comment=Install UniCore OS permanently to internal SSD/HDD (A/B + optional LUKS2)
+Exec=/usr/bin/unicore-center --tab system
+Icon=drive-harddisk
+Terminal=false
+Categories=System;Settings;

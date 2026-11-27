@@ -6,8 +6,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::catalog::{
-    filter_catalog_apps, find_catalog_app, install_catalog_app, load_catalog, sync_catalog_from_url,
-    DEFAULT_DATA_CATALOG,
+    filter_catalog_apps, find_catalog_app, install_catalog_app, load_catalog, sync_catalog_verified,
+    DEFAULT_DATA_CATALOG, OFFICIAL_CATALOG_URL,
 };
 use crate::hw_profile::{classify_hardware, detect_host_hardware};
 use crate::inspector::{inspect_binary, WinEra};
@@ -19,9 +19,11 @@ use crate::sandbox::{
 use crate::updater::{
     build_update_status_json, compare_versions, generate_ed25519_keypair, generate_manifest,
     load_host_update_config, normalize_arch, parse_os_version, read_boot_slot_info,
-    render_manifest_pretty, resolve_artifact_url, sign_manifest_file, validate_update_url,
-    verify_manifest_signature, GrubEnv, ManifestBuildParams, Slot, UpdateManifest,
+    render_manifest_pretty, resolve_artifact_url, save_data_update_auto_check, sign_manifest_file,
+    validate_update_url, verify_manifest_signature, GrubEnv, ManifestBuildParams, Slot,
+    UpdateManifest, DEFAULT_DATA_UPDATE_CONF,
 };
+use crate::win32_diag::diagnose_win32_log;
 
 const DEFAULT_HOST_ARCH: &str = "x86_64";
 const DEFAULT_IDLE_TIMEOUT_SEC: f64 = 30.0;
@@ -186,6 +188,38 @@ pub fn run_cli(args: &[String]) -> Result<String, String> {
 
     if cmd == "update" {
         return run_update_command(rest);
+    }
+
+    if cmd == "diagnose-log" {
+        let log_file = rest
+            .first()
+            .ok_or_else(|| "diagnose-log requires <LOG_FILE>".to_string())?;
+        let raw = fs::read_to_string(log_file)
+            .map_err(|e| format!("Failed to read log file '{log_file}': {e}"))?;
+        return Ok(diagnose_win32_log(&raw).to_json_pretty());
+    }
+
+    if cmd == "diagnose-app" {
+        let app_id = rest
+            .first()
+            .ok_or_else(|| "diagnose-app requires <APP_ID>".to_string())?;
+        let safe: String = app_id
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        let log_path = if cfg!(target_os = "linux") {
+            PathBuf::from(format!("/tmp/unicore-app-{safe}.log"))
+        } else {
+            std::env::temp_dir().join(format!("unicore-app-{safe}.log"))
+        };
+        let raw = fs::read_to_string(&log_path).unwrap_or_default();
+        return Ok(diagnose_win32_log(&raw).to_json_pretty());
     }
 
     if cmd == "hw-profile" {
@@ -635,6 +669,7 @@ fn run_win32_command(state_dir: &Path, rest: &[String]) -> Result<String, String
     let mut dry_run = false;
     let mut url: Option<String> = None;
     let mut from_file: Option<String> = None;
+    let mut verbs: Option<String> = None;
     let mut target_app_id: Option<String> = None;
     let mut idx = 0usize;
     while idx < tail.len() {
@@ -642,6 +677,7 @@ fn run_win32_command(state_dir: &Path, rest: &[String]) -> Result<String, String
             "--dry-run" => dry_run = true,
             "--url" => url = Some(next_flag_value(tail, &mut idx, "--url")?),
             "--from-file" => from_file = Some(next_flag_value(tail, &mut idx, "--from-file")?),
+            "--verbs" => verbs = Some(next_flag_value(tail, &mut idx, "--verbs")?),
             other if !other.starts_with('-') && matches!(sub, "install-runtimes" | "reset-prefix") && target_app_id.is_none() => {
                 target_app_id = Some(other.to_string());
             }
@@ -709,6 +745,10 @@ fn run_win32_command(state_dir: &Path, rest: &[String]) -> Result<String, String
     if let Some(f) = &from_file {
         runtime_argv.push("--from-file".to_string());
         runtime_argv.push(f.clone());
+    }
+    if let Some(v) = &verbs {
+        runtime_argv.push("--verbs".to_string());
+        runtime_argv.push(v.clone());
     }
 
     if !dry_run && cfg!(target_os = "linux") && Path::new(ASSETS_BIN).is_file() {
@@ -1244,8 +1284,45 @@ fn run_update_command(rest: &[String]) -> Result<String, String> {
             );
             Ok(to_json_pretty(&JsonValue::Object(out)))
         }
+        "set-auto-check" => {
+            let raw = tail
+                .first()
+                .ok_or_else(|| "update set-auto-check requires <on|off>".to_string())?
+                .trim()
+                .to_ascii_lowercase();
+            let enabled = match raw.as_str() {
+                "1" | "on" | "true" | "yes" => true,
+                "0" | "off" | "false" | "no" => false,
+                _ => {
+                    return Err(format!(
+                        "Invalid auto-check value '{raw}'. Choose on or off."
+                    ))
+                }
+            };
+            let mut conf_path = PathBuf::from(DEFAULT_DATA_UPDATE_CONF);
+            let mut idx = 1usize;
+            while idx < tail.len() {
+                if tail[idx] == "--file" {
+                    conf_path = PathBuf::from(next_flag_value(tail, &mut idx, "--file")?);
+                } else {
+                    return Err(format!(
+                        "Unexpected argument for update set-auto-check: {}",
+                        tail[idx]
+                    ));
+                }
+                idx += 1;
+            }
+            save_data_update_auto_check(&conf_path, enabled)?;
+            let mut out = BTreeMap::new();
+            out.insert("auto_check".to_string(), JsonValue::Bool(enabled));
+            out.insert(
+                "file".to_string(),
+                JsonValue::Str(conf_path.display().to_string()),
+            );
+            Ok(to_json_pretty(&JsonValue::Object(out)))
+        }
         other => Err(format!(
-            "Unknown update subcommand '{other}'. Choose status, check, generate-manifest, verify-manifest, verify-file, grubenv, keygen, or sign-manifest."
+            "Unknown update subcommand '{other}'. Choose status, check, set-auto-check, generate-manifest, verify-manifest, verify-file, grubenv, keygen, or sign-manifest."
         )),
     }
 }
@@ -1401,26 +1478,35 @@ fn run_store_command(state_dir: &Path, rest: &[String]) -> Result<String, String
             Ok(to_json_pretty(&sandbox.to_json()))
         }
         "sync" => {
-            let url = tail
-                .first()
-                .ok_or_else(|| "store sync requires <HTTPS_URL>".to_string())?;
+            let mut url = OFFICIAL_CATALOG_URL.to_string();
             let mut output_path = PathBuf::from(DEFAULT_DATA_CATALOG);
             let mut allow_insecure_http = false;
-            let mut idx = 1usize;
+            let mut allow_unsigned = false;
+            let mut idx = 0usize;
             while idx < tail.len() {
                 match tail[idx].as_str() {
                     "--output" => {
                         output_path = PathBuf::from(next_flag_value(tail, &mut idx, "--output")?);
                     }
                     "--allow-insecure-http" => allow_insecure_http = true,
+                    "--allow-unsigned" => allow_unsigned = true,
+                    other if !other.starts_with('-') && idx == 0 => {
+                        url = other.to_string();
+                    }
                     other => return Err(format!("Unexpected argument for store sync: {other}")),
                 }
                 idx += 1;
             }
-            let catalog = sync_catalog_from_url(url, &output_path, allow_insecure_http)?;
+            let (catalog, sig_status) =
+                sync_catalog_verified(&url, &output_path, allow_insecure_http, allow_unsigned)?;
             let mut out = BTreeMap::new();
             out.insert("count".to_string(), JsonValue::Number(catalog.apps.len() as f64));
             out.insert("output".to_string(), JsonValue::Str(output_path.display().to_string()));
+            out.insert(
+                "signature_status".to_string(),
+                JsonValue::Str(sig_status.as_str().to_string()),
+            );
+            out.insert("source_url".to_string(), JsonValue::Str(url));
             out.insert("synced".to_string(), JsonValue::Bool(true));
             out.insert("version".to_string(), JsonValue::Number(catalog.version as f64));
             Ok(to_json_pretty(&JsonValue::Object(out)))

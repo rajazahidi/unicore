@@ -14,6 +14,7 @@
     "wlr/taskbar"
   ],
   "modules-right": [
+    "custom/update",
     "network",
     "pulseaudio",
     "battery",
@@ -35,7 +36,7 @@
   "custom/browser": {
     "format": "Browser",
     "tooltip-format": "Web Browser (Win+W)",
-    "on-click": "epiphany &"
+    "on-click": "/usr/bin/unicore-browser &"
   },
   "custom/center": {
     "format": "App Center",
@@ -53,6 +54,12 @@
     "on-click": "activate",
     "on-click-middle": "close",
     "all-outputs": true
+  },
+  "custom/update": {
+    "exec": "/usr/libexec/unicore-update-check --waybar",
+    "return-type": "json",
+    "interval": 300,
+    "on-click": "/usr/bin/unicore-center --tab system &"
   },
   "network": {
     "format-wifi": "WiFi {signalStrength}%",

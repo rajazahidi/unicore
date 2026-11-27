@@ -3,11 +3,13 @@ set -eu
 
 # UniCore OS internal Android ART / Waydroid subsystem runner.
 # Invoked exclusively by `uniload`; manages on-demand container startup,
-# binderfs verification, persistent /data/waydroid storage, and multi-window mode.
+# binderfs verification, persistent /data/waydroid storage, multi-window mode,
+# 1-click libndk_translation ARM translator setup, and microG + F-Droid onboarding.
 
 ANDROID_ROOT="${UNILOAD_ANDROID_ROOT:-/data/waydroid}"
 BINDER_NODE="${UNILOAD_BINDER_NODE:-/dev/binderfs/binder}"
 MULTI_WINDOW="${UNILOAD_MULTI_WINDOW:-1}"
+HOST_ARCH="$(uname -m 2>/dev/null || echo x86_64)"
 
 ensure_storage_and_binder() {
     mkdir -p "${ANDROID_ROOT}/images" "${ANDROID_ROOT}/overlay/system/lib64"
@@ -30,8 +32,26 @@ ensure_storage_and_binder() {
 }
 
 has_arm_translator() {
+    if [ "${HOST_ARCH}" = "aarch64" ] || [ "${HOST_ARCH}" = "arm64" ]; then
+        return 0
+    fi
     [ -f "${ANDROID_ROOT}/overlay/system/lib64/libndk_translation.so" ] ||
         [ -f "${ANDROID_ROOT}/overlay/system/lib64/libhoudini.so" ]
+}
+
+ensure_waydroid_prop() {
+    cfg_file="${ANDROID_ROOT}/waydroid.cfg"
+    prop_key="$1"
+    prop_val="$2"
+    [ -f "${cfg_file}" ] || return 0
+    if ! grep -q '^\[properties\]' "${cfg_file}" 2>/dev/null; then
+        printf '\n[properties]\n' >> "${cfg_file}"
+    fi
+    if grep -q "^${prop_key}[[:space:]]*=" "${cfg_file}" 2>/dev/null; then
+        sed -i "s|^${prop_key}[[:space:]]*=.*|${prop_key} = ${prop_val}|" "${cfg_file}"
+    else
+        printf '%s = %s\n' "${prop_key}" "${prop_val}" >> "${cfg_file}"
+    fi
 }
 
 sync_shortcuts() {
@@ -117,11 +137,97 @@ ensure_container_running() {
     if ! pgrep -f "waydroid.*container" >/dev/null 2>&1; then
         waydroid -w container start >/tmp/uniload-waydroid-container.log 2>&1 &
         tries=0
-        while ! waydroid status >/dev/null 2>&1 && [ "${tries}" -lt 30 ]; do
-            sleep 0.2
+        while ! waydroid status >/dev/null 2>&1 && [ "${tries}" -lt 40 ]; do
+            sleep 0.25
             tries=$((tries + 1))
         done
     fi
+}
+
+install_arm_translator() {
+    if [ "${HOST_ARCH}" = "aarch64" ] || [ "${HOST_ARCH}" = "arm64" ]; then
+        echo "==> Running natively on ARM64 (aarch64): ARM Android APKs run at full native speed without translation!"
+        return 0
+    fi
+
+    work_dir="/tmp/unicore-libndk.$$"
+    mkdir -p "${work_dir}" "${ANDROID_ROOT}/overlay/system"
+    trap 'rm -rf "${work_dir}"' EXIT
+
+    ndk_url="${UNICORE_LIBNDK_URL:-https://github.com/supremegamers/vendor_google_proprietary_ndk_translation-prebuilt/archive/refs/heads/master.tar.gz}"
+    echo "==> Downloading libndk_translation ARM-to-x86_64 overlay..."
+    curl -fsSL --connect-timeout 15 --max-time 600 -o "${work_dir}/libndk.tar.gz" "${ndk_url}"
+
+    echo "==> Extracting libndk_translation libraries into ${ANDROID_ROOT}/overlay/system..."
+    tar -xzf "${work_dir}/libndk.tar.gz" -C "${work_dir}"
+    prebuilt_dir="$(find "${work_dir}" -maxdepth 3 -type d -name 'prebuilts' | head -n1 || true)"
+    if [ -z "${prebuilt_dir}" ]; then
+        echo "[uniload-art] Could not locate prebuilts/ directory inside libndk archive." >&2
+        exit 1
+    fi
+
+    for sub in bin etc lib lib64; do
+        if [ -d "${prebuilt_dir}/${sub}" ]; then
+            mkdir -p "${ANDROID_ROOT}/overlay/system/${sub}"
+            cp -a "${prebuilt_dir}/${sub}/." "${ANDROID_ROOT}/overlay/system/${sub}/"
+        fi
+    done
+
+    if [ ! -f "${ANDROID_ROOT}/overlay/system/lib64/libndk_translation.so" ]; then
+        echo "[uniload-art] Extraction finished but libndk_translation.so was not found." >&2
+        exit 1
+    fi
+
+    ensure_waydroid_prop "ro.dalvik.vm.native.bridge" "libndk_translation.so"
+    ensure_waydroid_prop "ro.enable.native.bridge.exec" "1"
+    ensure_waydroid_prop "ro.ndk_translation.version" "0.2.3"
+    ensure_waydroid_prop "ro.product.cpu.abilist" "x86_64,x86,arm64-v8a,armeabi-v7a,armeabi"
+    ensure_waydroid_prop "ro.product.cpu.abilist64" "x86_64,arm64-v8a"
+    ensure_waydroid_prop "ro.product.cpu.abilist32" "x86,armeabi-v7a,armeabi"
+
+    if command -v waydroid >/dev/null 2>&1 && [ -f "${ANDROID_ROOT}/images/system.img" ]; then
+        waydroid upgrade -o >/dev/null 2>&1 || true
+    fi
+    rm -rf "${work_dir}"
+    trap - EXIT
+    echo "==> libndk_translation installed! arm64-v8a and armeabi-v7a Android APKs are now supported."
+}
+
+install_microg_bundle() {
+    work_dir="/tmp/unicore-microg.$$"
+    mkdir -p "${work_dir}"
+    trap 'rm -rf "${work_dir}"' EXIT
+
+    echo "==> Enabling microG signature spoofing & installing F-Droid + microG Services..."
+    ensure_waydroid_prop "ro.build.selinux" "0"
+    ensure_container_running
+
+    fdroid_apk="${work_dir}/F-Droid.apk"
+    if curl -fsSL --connect-timeout 15 --max-time 180 -o "${fdroid_apk}" "https://f-droid.org/F-Droid.apk"; then
+        echo "==> Installing F-Droid open-source Android app store..."
+        waydroid app install "${fdroid_apk}" || true
+    fi
+
+    if command -v jq >/dev/null 2>&1; then
+        rel_json="$(curl -fsSL --connect-timeout 15 --max-time 30 -H 'User-Agent: UniCoreOS' https://api.github.com/repos/microg/GmsCore/releases/latest 2>/dev/null || true)"
+        if [ -n "${rel_json}" ]; then
+            gms_url="$(printf '%s' "${rel_json}" | jq -r '.assets[] | select(.name | test("com\\.google\\.android\\.gms-.*\\.apk$")) | .browser_download_url' | head -n1 || true)"
+            vending_url="$(printf '%s' "${rel_json}" | jq -r '.assets[] | select(.name | test("com\\.android\\.vending-.*\\.apk$")) | .browser_download_url' | head -n1 || true)"
+            if [ -n "${gms_url}" ] && [ "${gms_url}" != "null" ]; then
+                echo "==> Downloading & installing microG Services (GmsCore)..."
+                curl -fsSL --connect-timeout 15 --max-time 240 -o "${work_dir}/microg-gms.apk" "${gms_url}" && waydroid app install "${work_dir}/microg-gms.apk" || true
+            fi
+            if [ -n "${vending_url}" ] && [ "${vending_url}" != "null" ]; then
+                echo "==> Downloading & installing microG Companion (FakeStore)..."
+                curl -fsSL --connect-timeout 15 --max-time 180 -o "${work_dir}/microg-companion.apk" "${vending_url}" && waydroid app install "${work_dir}/microg-companion.apk" || true
+            fi
+        fi
+    fi
+
+    sync_shortcuts || true
+    rm -rf "${work_dir}"
+    trap - EXIT
+    echo "==> microG + F-Droid onboarding complete."
 }
 
 cmd="${1:-status}"
@@ -181,11 +287,9 @@ EOF
         echo "==> Initializing UniCore Android subsystem (profile=${profile}, system_type=${system_type}) into ${ANDROID_ROOT}"
         waydroid init -s "${system_type}" -f
 
-        if [ -f "${ANDROID_ROOT}/waydroid.cfg" ] && ! grep -q "multi_windows" "${ANDROID_ROOT}/waydroid.cfg"; then
-            printf '\n[properties]\npersist.waydroid.multi_windows = true\n' >> "${ANDROID_ROOT}/waydroid.cfg"
-        fi
+        ensure_waydroid_prop "persist.waydroid.multi_windows" "true"
         if [ "${profile}" = "microg" ]; then
-            echo "==> Vanilla base initialized. Add microG signature spoofing/APK overlay into ${ANDROID_ROOT}/overlay when ready."
+            install_microg_bundle
         fi
         ;;
 
@@ -213,15 +317,15 @@ EOF
         fi
         if [ ! -f "${ANDROID_ROOT}/images/system.img" ]; then
             echo "[uniload-art] Android system image is not initialized yet at ${ANDROID_ROOT}/images/system.img." >&2
-            echo "Run once (requires internet): uniload android init --profile vanilla" >&2
+            echo "Run once (requires internet): uniload android init --profile microg" >&2
             if command -v notify-send >/dev/null 2>&1; then
-                notify-send -u normal -a "UniCore Android" "Android Subsystem Not Initialized" "Open UniCore Center -> System & Android -> Initialize Android first." >/dev/null 2>&1 || true
+                notify-send -u normal -a "UniCore Android" "Android Subsystem Not Initialized" "Open UniCore Center -> System -> Initialize Android first." >/dev/null 2>&1 || true
             fi
             exit 2
         fi
         if [ -n "${UNILOAD_NDK_TRANSLATOR:-}" ] && ! has_arm_translator; then
             echo "[WARN] APK uses ARM ABI (${UNILOAD_NDK_TRANSLATOR}) and no ARM translator is installed." >&2
-            echo "       Run 'uniload android setup-arm' for instructions." >&2
+            echo "       Installing ARM translation via 'uniload android setup-arm' is recommended." >&2
         fi
 
         ensure_container_running
@@ -243,7 +347,7 @@ EOF
         if [ ! -f "${ANDROID_ROOT}/images/system.img" ]; then
             echo "[uniload-art] Android image not initialized. Run: uniload android init" >&2
             if command -v notify-send >/dev/null 2>&1; then
-                notify-send -u normal -a "UniCore Android" "Android Subsystem Not Initialized" "Open UniCore Center -> System & Android -> Initialize Android first." >/dev/null 2>&1 || true
+                notify-send -u normal -a "UniCore Android" "Android Subsystem Not Initialized" "Open UniCore Center -> System -> Initialize Android first." >/dev/null 2>&1 || true
             fi
             exit 2
         fi
@@ -252,14 +356,19 @@ EOF
         ;;
 
     setup-arm)
-        if has_arm_translator; then
-            echo "ARM translator detected under ${ANDROID_ROOT}/overlay/system/lib64."
+        if [ "${1:-}" = "--check" ]; then
+            if has_arm_translator; then
+                echo "ARM translator ready (${HOST_ARCH})."
+                exit 0
+            fi
+            echo "ARM translator not installed yet."
+            exit 1
+        fi
+        if has_arm_translator && [ "${1:-}" != "--force" ]; then
+            echo "ARM translator already ready (${HOST_ARCH}). Pass --force to reinstall."
             exit 0
         fi
-        echo "ARM translation (libndk_translation / libhoudini) is not installed yet."
-        echo "Place extracted ARM translation libraries into:"
-        echo "  ${ANDROID_ROOT}/overlay/system/lib64/"
-        echo "Pure-DEX and x86_64 APKs run natively without extra libraries."
+        install_arm_translator
         ;;
 
     clipboard-sync)

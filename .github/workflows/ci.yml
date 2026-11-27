@@ -19,7 +19,7 @@ jobs:
           for p in pathlib.Path("os-builder").rglob("*"):
               if not p.is_file():
                   continue
-              if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".ico", ".exe", ".apk", ".ps1", ".rs", ".toml", ".py") or "fixtures/target" in p.as_posix():
+              if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".ico", ".exe", ".apk", ".ps1", ".rs", ".toml", ".py", ".der", ".cer", ".efi") or "fixtures/target" in p.as_posix() or "os-builder/keys" in p.as_posix():
                   continue
               if b"\r" in p.read_bytes():
                   bad.append(str(p))
@@ -37,7 +37,7 @@ jobs:
             [ -f "$f" ] || continue
             head -n1 "$f" | grep -q '^#!/bin/sh' && sh -n "$f"
           done
-          python3 -m py_compile scripts/test-release-matrix.py scripts/test-ab-install-luks.py scripts/ota-local-server.py
+          python3 -m py_compile scripts/test-release-matrix.py scripts/test-ab-install-luks.py scripts/test-aarch64-qemu.py scripts/ota-local-server.py
           python3 scripts/ota-local-server.py --dir docs --self-test
 
       - name: Install Rust toolchains & musl targets

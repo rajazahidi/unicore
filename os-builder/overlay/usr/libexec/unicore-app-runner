@@ -53,6 +53,16 @@ set -e
 
 printf '=== Exited with code %s ===\n' "${rc}" >> "${LOG_FILE}"
 if [ "${rc}" -ne 0 ] && command -v notify-send >/dev/null 2>&1; then
-    notify-send -u critical -a "UniCore OS" "${APP_NAME} exited (code ${rc})" "Open UniCore Center -> View Log for details." >/dev/null 2>&1 || true
+    diag_hint="Open UniCore Center -> View Log for details."
+    if [ -x "${UNILOAD_BIN}" ]; then
+        diag_json="$("${UNILOAD_BIN}" diagnose-log "${LOG_FILE}" 2>/dev/null || true)"
+        if printf '%s\n' "${diag_json}" | grep -q '"issue_detected":[[:space:]]*true'; then
+            parsed_sum="$(printf '%s\n' "${diag_json}" | sed -n 's/^[[:space:]]*"summary_en":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+            if [ -n "${parsed_sum}" ]; then
+                diag_hint="${parsed_sum} — Open App Center -> Auto-Fix Runtime."
+            fi
+        fi
+    fi
+    notify-send -u critical -a "UniCore OS" "${APP_NAME} exited (code ${rc})" "${diag_hint}" >/dev/null 2>&1 || true
 fi
 exit "${rc}"

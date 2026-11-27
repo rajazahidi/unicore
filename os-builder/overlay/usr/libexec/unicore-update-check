@@ -1,0 +1,103 @@
+#!/bin/sh
+# UniCore OS Lightweight Background OTA Auto-Checker & Waybar Badge Provider.
+# Checks ~1 KB signed release manifest only when AUTO_CHECK=1 and notifies once per version.
+set -eu
+
+CACHE_FILE="/tmp/unicore-update-cache.json"
+NOTIFIED_FILE="/tmp/unicore-update-notified.ver"
+UNILOAD_BIN="/usr/bin/uniload"
+
+load_auto_check() {
+    AUTO_CHECK="1"
+    UPDATE_URL=""
+    for cfg in /etc/unicore/update.conf /data/unicore/update.conf; do
+        if [ -r "${cfg}" ]; then
+            while IFS='=' read -r k v; do
+                v="$(printf '%s' "${v}" | tr -d "\"'\r")"
+                case "${k}" in
+                    AUTO_CHECK) AUTO_CHECK="${v}" ;;
+                    UPDATE_URL) UPDATE_URL="${v}" ;;
+                esac
+            done < "${cfg}"
+        fi
+    done
+}
+
+json_str() {
+    printf '%s\n' "$1" | sed -n "s/^[[:space:]]*\"$2\":[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -n1
+}
+
+json_bool() {
+    printf '%s\n' "$1" | sed -n "s/^[[:space:]]*\"$2\":[[:space:]]*\(true\|false\).*/\1/p" | head -n1
+}
+
+run_check() {
+    load_auto_check
+    case "${AUTO_CHECK}" in
+        0|false|no|off)
+            rm -f "${CACHE_FILE}"
+            return 0
+            ;;
+    esac
+    [ -n "${UPDATE_URL}" ] || return 0
+    [ -x "${UNILOAD_BIN}" ] || return 0
+
+    out="$("${UNILOAD_BIN}" update check 2>/dev/null || true)"
+    [ -n "${out}" ] || return 0
+
+    tmp="${CACHE_FILE}.tmp.$$"
+    printf '%s\n' "${out}" > "${tmp}"
+    mv -f "${tmp}" "${CACHE_FILE}"
+
+    avail="$(json_bool "${out}" update_available)"
+    latest="$(json_str "${out}" latest_version)"
+    sig="$(json_str "${out}" signature_status)"
+    if [ "${avail}" = "true" ] && [ -n "${latest}" ]; then
+        prev=""
+        [ -r "${NOTIFIED_FILE}" ] && prev="$(cat "${NOTIFIED_FILE}" 2>/dev/null || true)"
+        if [ "${prev}" != "${latest}" ]; then
+            printf '%s\n' "${latest}" > "${NOTIFIED_FILE}"
+            if command -v notify-send >/dev/null 2>&1; then
+                notify-send -u normal -a "UniCore OS" \
+                    "UniCore OS ${latest} Available" \
+                    "Signed OTA update ready (${sig}). Open App Center -> System to update safely to standby A/B slot." \
+                    >/dev/null 2>&1 || true
+            fi
+        fi
+    fi
+}
+
+emit_waybar() {
+    if [ ! -r "${CACHE_FILE}" ]; then
+        printf '{"text":"","class":"up-to-date"}\n'
+        return 0
+    fi
+    raw="$(cat "${CACHE_FILE}" 2>/dev/null || true)"
+    avail="$(json_bool "${raw}" update_available)"
+    latest="$(json_str "${raw}" latest_version)"
+    if [ "${avail}" = "true" ] && [ -n "${latest}" ]; then
+        printf '{"text":"Update v%s","tooltip":"UniCore OS v%s available (Ed25519 verified). Click to open System Updater.","class":"update-available"}\n' "${latest}" "${latest}"
+    else
+        printf '{"text":"","class":"up-to-date"}\n'
+    fi
+}
+
+case "${1:---waybar}" in
+    --check)
+        run_check
+        ;;
+    --waybar)
+        emit_waybar
+        ;;
+    --daemon)
+        sleep 45
+        while true; do
+            run_check || true
+            sleep 43200
+        done
+        ;;
+    *)
+        echo "Usage: unicore-update-check [--check|--waybar|--daemon]" >&2
+        exit 2
+        ;;
+esac

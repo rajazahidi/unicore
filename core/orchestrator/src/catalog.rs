@@ -8,10 +8,12 @@ use std::process::Command;
 use crate::inspector::{AppPlatform, WinEra};
 use crate::json_codec::{parse_json, to_json_pretty, JsonValue};
 use crate::sandbox::{sha256_file, AppSandbox, SandboxManager};
-use crate::updater::validate_update_url;
+use crate::updater::{load_host_update_config, validate_update_url, verify_manifest_signature, SignatureStatus};
 
 pub const DEFAULT_SYSTEM_CATALOG: &str = "/usr/share/unicore/catalog.json";
 pub const DEFAULT_DATA_CATALOG: &str = "/data/unicore/catalog.json";
+pub const OFFICIAL_CATALOG_URL: &str =
+    "https://github.com/rajazahidi/unicore/releases/latest/download/unicore-catalog.json";
 pub const EMBEDDED_CATALOG_JSON: &str =
     include_str!("../../../os-builder/overlay/usr/share/unicore/catalog.json");
 
@@ -416,13 +418,20 @@ pub fn install_catalog_app(
     Ok(sandbox)
 }
 
-/// Fetch, parse, validate, and atomically store a remote HTTPS `catalog.json`.
-pub fn sync_catalog_from_url(
+/// Fetch, cryptographically verify (when `/etc/unicore/update.pub` or `REQUIRE_SIGNATURE=1` is active),
+/// validate, and atomically store a remote HTTPS `catalog.json`.
+pub fn sync_catalog_verified(
     url: &str,
     dest_path: &Path,
     allow_insecure_http: bool,
-) -> Result<AppCatalog, String> {
-    validate_update_url(url, allow_insecure_http)?;
+    allow_unsigned: bool,
+) -> Result<(AppCatalog, SignatureStatus), String> {
+    let effective_url = if url.trim().is_empty() {
+        OFFICIAL_CATALOG_URL
+    } else {
+        url.trim()
+    };
+    validate_update_url(effective_url, allow_insecure_http)?;
     let parent = dest_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -431,16 +440,41 @@ pub fn sync_catalog_from_url(
         .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
 
     let tmp_path = dest_path.with_extension("sync.tmp");
+    let sig_tmp = dest_path.with_extension("sync.tmp.sig");
     let status = Command::new("curl")
         .args(["-fsSL", "--connect-timeout", "15", "--max-time", "60", "-o"])
         .arg(&tmp_path)
-        .arg(url.trim())
+        .arg(effective_url)
         .status()
         .map_err(|e| format!("Failed to run curl for catalog sync: {e}"))?;
     if !status.success() {
         let _ = fs::remove_file(&tmp_path);
-        return Err(format!("Failed to download catalog from {url} (exit {status})"));
+        return Err(format!("Failed to download catalog from {effective_url} (exit {status})"));
     }
+
+    let sig_url = format!("{effective_url}.sig");
+    let _ = Command::new("curl")
+        .args(["-fsSL", "--connect-timeout", "10", "--max-time", "20", "-o"])
+        .arg(&sig_tmp)
+        .arg(&sig_url)
+        .status();
+
+    let upd_cfg = load_host_update_config();
+    let sig_status = match verify_manifest_signature(
+        &tmp_path,
+        sig_tmp.is_file().then_some(sig_tmp.as_path()),
+        Path::new(&upd_cfg.pubkey_path),
+        allow_unsigned,
+        upd_cfg.require_signature,
+    ) {
+        Ok(st) => st,
+        Err(e) => {
+            let _ = fs::remove_file(&tmp_path);
+            let _ = fs::remove_file(&sig_tmp);
+            return Err(format!("Catalog signature verification failed: {e}"));
+        }
+    };
+    let _ = fs::remove_file(&sig_tmp);
 
     let raw = fs::read_to_string(&tmp_path).map_err(|e| {
         let _ = fs::remove_file(&tmp_path);
@@ -458,6 +492,16 @@ pub fn sync_catalog_from_url(
         .map_err(|e| format!("Failed to stage catalog file: {e}"))?;
     fs::rename(&tmp_path, dest_path)
         .map_err(|e| format!("Failed to save catalog {}: {e}", dest_path.display()))?;
+    Ok((catalog, sig_status))
+}
+
+/// Fetch, parse, validate, and atomically store a remote HTTPS `catalog.json`.
+pub fn sync_catalog_from_url(
+    url: &str,
+    dest_path: &Path,
+    allow_insecure_http: bool,
+) -> Result<AppCatalog, String> {
+    let (catalog, _) = sync_catalog_verified(url, dest_path, allow_insecure_http, false)?;
     Ok(catalog)
 }
 

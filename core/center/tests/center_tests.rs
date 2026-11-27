@@ -954,6 +954,7 @@ fn phase20d_personalization_theme_wallpaper_and_input_work() {
         natural_scroll: false,
         tap_to_click: true,
         pointer_speed: 0.4,
+        desktop_icons: false,
     };
     let saved = save_and_apply_personalize(&root, &custom).unwrap();
     assert_eq!(saved, custom);
@@ -1063,4 +1064,46 @@ fn phase23_24_25_power_users_devbox_ai_and_picker_work() {
     assert_ne!(en.subtab_power_users, ms.subtab_power_users);
     assert_ne!(en.hdr_local_ai, ms.hdr_local_ai);
     assert_ne!(en.hdr_users, ms.hdr_users);
+}
+
+#[test]
+fn v030_secureboot_browsers_auto_ota_and_win32_diag_work() {
+    use unicore_center::settings::{parse_secureboot_status, SecureBootOverview};
+    use unicore_center::store::{parse_browser_status, BrowserOverview};
+    use uniload::updater::{official_manifest_url, save_data_update_auto_check, UpdateConfig};
+    use uniload::win32_diag::diagnose_win32_log;
+
+    let sb = parse_secureboot_status(
+        "uefi=1\nsecure_boot=enabled\nmok_cert=1\nmok_state=enrolled\nshim_bundled=1\n",
+    );
+    assert!(sb.uefi);
+    assert_eq!(sb.secure_boot, "enabled");
+    assert_eq!(sb.mok_state, "enrolled");
+    assert!(sb.shim_bundled);
+    assert!(sb.summary().contains("enabled"));
+    assert_eq!(SecureBootOverview::default().secure_boot, "legacy_bios");
+
+    let br = parse_browser_status(
+        "default_browser=firefox\nepiphany_installed=1\nfirefox_installed=1\nchromium_installed=0\n",
+    );
+    assert_eq!(br.default_browser, "firefox");
+    assert!(br.firefox_installed);
+    assert!(!br.chromium_installed);
+    assert_eq!(BrowserOverview::default().default_browser, "epiphany");
+
+    assert!(official_manifest_url("x86_64").ends_with("unicore-manifest-x86_64.json"));
+    assert!(official_manifest_url("aarch64").ends_with("unicore-manifest-aarch64.json"));
+    let root = make_temp_dir("v030_ota");
+    let conf = root.join("update.conf");
+    save_data_update_auto_check(&conf, false).unwrap();
+    let cfg = UpdateConfig::parse(&fs::read_to_string(&conf).unwrap());
+    assert!(!cfg.auto_check);
+    save_data_update_auto_check(&conf, true).unwrap();
+    let cfg2 = UpdateConfig::parse(&fs::read_to_string(&conf).unwrap());
+    assert!(cfg2.auto_check);
+    let _ = fs::remove_dir_all(&root);
+
+    let diag = diagnose_win32_log("err:module:import_dll Library vcruntime140.dll not found");
+    assert!(diag.issue_detected);
+    assert!(diag.recommended_verbs.contains(&"vcrun2022".to_string()));
 }

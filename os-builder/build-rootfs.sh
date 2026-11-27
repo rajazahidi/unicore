@@ -108,6 +108,7 @@ DESKTOP_PKGS=(
     parted
     dosfstools
     efibootmgr
+    mokutil
     lsblk
     curl
     openssl
@@ -135,7 +136,6 @@ DESKTOP_PKGS=(
     vulkan-loader
     vulkan-tools
     mesa-vulkan-ati
-    mesa-vulkan-intel
     mesa-va-gallium
     mpv
     celluloid
@@ -186,7 +186,7 @@ DESKTOP_PKGS=(
 )
 
 if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]]; then
-    DESKTOP_PKGS+=(grub-bios intel-media-driver libva-intel-driver)
+    DESKTOP_PKGS+=(grub-bios mesa-vulkan-intel intel-media-driver libva-intel-driver)
 fi
 
 BASE_PKGS=(
@@ -327,6 +327,9 @@ fi
 ln -snf /data/cups "${ROOTFS_DIR}/etc/cups"
 cp "${SCRIPT_DIR}/binfmt-universal.conf" "${ROOTFS_DIR}/etc/binfmt.d/binfmt-universal.conf"
 cp "${SCRIPT_DIR}/kernel.config.fragment" "${ROOTFS_DIR}/etc/uniload/kernel.config.fragment"
+if grep -q '^UPDATE_URL=' "${ROOTFS_DIR}/etc/unicore/update.conf" 2>/dev/null; then
+    sed -i "s|^UPDATE_URL=.*|UPDATE_URL=\"https://github.com/rajazahidi/unicore/releases/latest/download/unicore-manifest-${ARCH}.json\"|" "${ROOTFS_DIR}/etc/unicore/update.conf"
+fi
 if [[ -n "${UPDATE_PUBKEY_OVERRIDE:-}" && -f "${UPDATE_PUBKEY_OVERRIDE}" ]]; then
     install -m 0644 "${UPDATE_PUBKEY_OVERRIDE}" "${ROOTFS_DIR}/etc/unicore/update.pub"
     if grep -q '^REQUIRE_SIGNATURE=' "${ROOTFS_DIR}/etc/unicore/update.conf" 2>/dev/null; then
@@ -336,9 +339,67 @@ if [[ -n "${UPDATE_PUBKEY_OVERRIDE:-}" && -f "${UPDATE_PUBKEY_OVERRIDE}" ]]; the
     fi
 fi
 
+# Bundle UEFI Secure Boot MOK DER certificate and upstream Microsoft-signed shim + signed standalone GRUB EFI
+SB_STAGE_DIR="${ROOTFS_DIR}/usr/share/unicore/secureboot"
+if [[ -n "${MOK_CERT_OVERRIDE:-}" && -f "${MOK_CERT_OVERRIDE}" ]]; then
+    mkdir -p "${SB_STAGE_DIR}"
+    if command -v openssl >/dev/null 2>&1; then
+        openssl x509 -in "${MOK_CERT_OVERRIDE}" -outform DER -out "${ROOTFS_DIR}/etc/unicore/mok.der"
+        chmod 0644 "${ROOTFS_DIR}/etc/unicore/mok.der"
+    fi
+fi
+if [[ -n "${SHIM_DIR_OVERRIDE:-}" && -d "${SHIM_DIR_OVERRIDE}" ]]; then
+    mkdir -p "${SB_STAGE_DIR}"
+    for efi_f in shimx64.efi mmx64.efi shimaa64.efi mmaa64.efi; do
+        if [[ -f "${SHIM_DIR_OVERRIDE}/${efi_f}" ]]; then
+            install -m 0644 "${SHIM_DIR_OVERRIDE}/${efi_f}" "${SB_STAGE_DIR}/${efi_f}"
+        fi
+    done
+fi
+if [[ -n "${MOK_KEY_OVERRIDE:-}" && -f "${MOK_KEY_OVERRIDE}" && -n "${MOK_CERT_OVERRIDE:-}" && -f "${MOK_CERT_OVERRIDE}" ]] && command -v grub-mkstandalone >/dev/null 2>&1 && command -v sbsign >/dev/null 2>&1; then
+    mkdir -p "${SB_STAGE_DIR}"
+    if [[ "${ARCH}" == "aarch64" || "${ARCH}" == "arm64" ]]; then
+        GRUB_EFI_FMT="arm64-efi"
+        GRUB_EFI_NAME="grubaa64.efi"
+    else
+        GRUB_EFI_FMT="x86_64-efi"
+        GRUB_EFI_NAME="grubx64.efi"
+    fi
+    cat <<'GRUB_EARLY_EOF' > "${WORK_DIR}/early-grub.cfg"
+search --no-floppy --label --set=root UNICORE_OS
+if [ ! -f ($root)/boot/grub/grub.cfg ]; then
+    search --no-floppy --label --set=root UNICORE_EFI
+fi
+set prefix=($root)/boot/grub
+configfile ($root)/boot/grub/grub.cfg
+GRUB_EARLY_EOF
+    if [[ -d "/usr/lib/grub/${GRUB_EFI_FMT}" ]]; then
+        echo "==> Building & MOK-signing standalone Secure Boot GRUB (${GRUB_EFI_NAME})"
+        grub-mkstandalone -O "${GRUB_EFI_FMT}" \
+            -o "${WORK_DIR}/unsigned-${GRUB_EFI_NAME}" \
+            "boot/grub/grub.cfg=${WORK_DIR}/early-grub.cfg"
+        sbsign --key "${MOK_KEY_OVERRIDE}" --cert "${MOK_CERT_OVERRIDE}" \
+            --output "${SB_STAGE_DIR}/${GRUB_EFI_NAME}" \
+            "${WORK_DIR}/unsigned-${GRUB_EFI_NAME}"
+        chmod 0644 "${SB_STAGE_DIR}/${GRUB_EFI_NAME}"
+        rm -f "${WORK_DIR}/unsigned-${GRUB_EFI_NAME}"
+    fi
+fi
+
+if [[ -n "${ARM64_WIN32_RUNTIME_OVERRIDE:-}" && -f "${ARM64_WIN32_RUNTIME_OVERRIDE}" ]]; then
+    echo "==> Embedding isolated ARM64 Box64 + Wine x64 runtime into /usr/share/unicore/arm64-win32"
+    rm -rf "${ROOTFS_DIR}/usr/share/unicore/arm64-win32"
+    mkdir -p "${ROOTFS_DIR}/usr/share/unicore/arm64-win32"
+    tar --zstd -xf "${ARM64_WIN32_RUNTIME_OVERRIDE}" -C "${ROOTFS_DIR}/usr/share/unicore/arm64-win32"
+    if [[ -f "${ROOTFS_DIR}/usr/share/unicore/arm64-win32/run-wine-box64.sh" ]]; then
+        chmod 0755 "${ROOTFS_DIR}/usr/share/unicore/arm64-win32/run-wine-box64.sh"
+    fi
+fi
+
 install -m 0755 "${UNILOAD_BIN}" "${ROOTFS_DIR}/usr/bin/uniload"
 install -m 0755 "${UNICORE_CENTER_BIN}" "${ROOTFS_DIR}/usr/bin/unicore-center"
 chmod 0755 \
+    "${ROOTFS_DIR}/usr/bin/unicore-browser" \
     "${ROOTFS_DIR}/usr/bin/unicore-setup-data" \
     "${ROOTFS_DIR}/usr/bin/unicore-diag" \
     "${ROOTFS_DIR}/usr/sbin/unicore-install" \
@@ -350,6 +411,9 @@ chmod 0755 \
     "${ROOTFS_DIR}/usr/libexec/uniload-native" \
     "${ROOTFS_DIR}/usr/libexec/uniload-sandbox-exec" \
     "${ROOTFS_DIR}/usr/libexec/unicore-app-runner" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-browser-mgr" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-secureboot" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-update-check" \
     "${ROOTFS_DIR}/usr/libexec/unicore-screenshot" \
     "${ROOTFS_DIR}/usr/libexec/unicore-lock" \
     "${ROOTFS_DIR}/usr/libexec/unicore-session" \
@@ -462,13 +526,17 @@ chroot "${ROOTFS_DIR}" /bin/sh -c '
     update-desktop-database /usr/share/applications || true
 '
 
-cat <<'EOF' > "${ROOTFS_DIR}/etc/inittab"
+SERIAL_DEV="ttyS0"
+if [[ "${ARCH}" == "aarch64" || "${ARCH}" == "arm64" ]]; then
+    SERIAL_DEV="ttyAMA0"
+fi
+cat <<EOF > "${ROOTFS_DIR}/etc/inittab"
 ::sysinit:/sbin/openrc sysinit
 ::sysinit:/sbin/openrc boot
 ::wait:/sbin/openrc default
 
 tty1::respawn:/usr/libexec/unicore-session
-ttyS0::respawn:/sbin/getty -n -l /bin/sh -L 115200 ttyS0 vt100
+${SERIAL_DEV}::respawn:/sbin/getty -n -l /bin/sh -L 115200 ${SERIAL_DEV} vt100
 
 ::ctrlaltdel:/sbin/reboot
 ::shutdown:/sbin/openrc shutdown
@@ -497,6 +565,13 @@ if [[ -z "${VMLINUZ_SRC}" ]]; then
     exit 1
 fi
 cp "${VMLINUZ_SRC}" "${OUT_DIR}/vmlinuz-${ARCH}"
+if [[ -n "${MOK_KEY_OVERRIDE:-}" && -f "${MOK_KEY_OVERRIDE}" && -n "${MOK_CERT_OVERRIDE:-}" && -f "${MOK_CERT_OVERRIDE}" ]] && command -v sbsign >/dev/null 2>&1; then
+    echo "==> MOK-signing Linux kernel (${OUT_DIR}/vmlinuz-${ARCH}) for UEFI Secure Boot"
+    sbsign --key "${MOK_KEY_OVERRIDE}" --cert "${MOK_CERT_OVERRIDE}" \
+        --output "${OUT_DIR}/vmlinuz-${ARCH}.signed" \
+        "${OUT_DIR}/vmlinuz-${ARCH}"
+    mv -f "${OUT_DIR}/vmlinuz-${ARCH}.signed" "${OUT_DIR}/vmlinuz-${ARCH}"
+fi
 
 KVER="$(basename "$(find "${ROOTFS_DIR}/lib/modules" -mindepth 1 -maxdepth 1 -type d | head -n1)")"
 mkdir -p "${INITRD_DIR}/bin" "${INITRD_DIR}/sbin" "${INITRD_DIR}/lib" "${INITRD_DIR}/usr/lib" "${INITRD_DIR}/lib/modules/${KVER}"
@@ -654,13 +729,14 @@ SQUASH_IMG="${OUT_DIR}/unicore-rootfs-${ARCH}.squashfs"
 echo "==> Packing immutable SquashFS root image: ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp zstd -noappend
 
-OS_VERSION="0.2.1"
+OS_VERSION="0.3.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"
 fi
+MANIFEST_ARCH_IMG="${OUT_DIR}/unicore-manifest-${ARCH}.json"
 MANIFEST_IMG="${OUT_DIR}/unicore-manifest.json"
-echo "==> Generating signed-ready OTA manifest: ${MANIFEST_IMG}"
+echo "==> Generating signed-ready OTA manifest: ${MANIFEST_ARCH_IMG}"
 "${UNILOAD_BIN}" update generate-manifest \
     --version "${OS_VERSION}" \
     --channel stable \
@@ -668,41 +744,132 @@ echo "==> Generating signed-ready OTA manifest: ${MANIFEST_IMG}"
     --vmlinuz "${OUT_DIR}/vmlinuz-${ARCH}" \
     --initramfs "${OUT_DIR}/initramfs-${ARCH}.img" \
     --squashfs "${SQUASH_IMG}" \
-    --output "${MANIFEST_IMG}" >/dev/null
+    --output "${MANIFEST_ARCH_IMG}" >/dev/null
 
 if [[ -n "${UPDATE_SIGN_KEY_OVERRIDE:-}" && -f "${UPDATE_SIGN_KEY_OVERRIDE}" ]]; then
     echo "==> Signing OTA manifest with Ed25519 release key"
-    "${UNILOAD_BIN}" update sign-manifest "${MANIFEST_IMG}" --key "${UPDATE_SIGN_KEY_OVERRIDE}" --output "${MANIFEST_IMG}.sig" >/dev/null
+    "${UNILOAD_BIN}" update sign-manifest "${MANIFEST_ARCH_IMG}" --key "${UPDATE_SIGN_KEY_OVERRIDE}" --output "${MANIFEST_ARCH_IMG}.sig" >/dev/null
 fi
 
-if command -v grub-mkrescue >/dev/null 2>&1 && command -v xorriso >/dev/null 2>&1; then
+# Maintain backward-compatible unicore-manifest.json alias on x86_64 so v0.2.x installs upgrade seamlessly
+if [[ "${ARCH}" == "x86_64" ]]; then
+    cp "${MANIFEST_ARCH_IMG}" "${MANIFEST_IMG}"
+    [[ -f "${MANIFEST_ARCH_IMG}.sig" ]] && cp "${MANIFEST_ARCH_IMG}.sig" "${MANIFEST_IMG}.sig"
+fi
+
+# Export & sign curated online Store catalog (unicore-catalog.json + .sig)
+if [[ -f "${ROOTFS_DIR}/usr/share/unicore/catalog.json" ]]; then
+    cp "${ROOTFS_DIR}/usr/share/unicore/catalog.json" "${OUT_DIR}/unicore-catalog.json"
+    if [[ -n "${UPDATE_SIGN_KEY_OVERRIDE:-}" && -f "${UPDATE_SIGN_KEY_OVERRIDE}" ]]; then
+        "${UNILOAD_BIN}" update sign-manifest "${OUT_DIR}/unicore-catalog.json" --key "${UPDATE_SIGN_KEY_OVERRIDE}" --output "${OUT_DIR}/unicore-catalog.json.sig" >/dev/null
+    fi
+fi
+
+if command -v xorriso >/dev/null 2>&1 && { command -v grub-mkrescue >/dev/null 2>&1 || command -v grub-mkimage >/dev/null 2>&1; }; then
     ISO_DIR="${WORK_DIR}/iso_stage"
     ISO_IMG="${OUT_DIR}/unicore-os-${ARCH}.iso"
-    echo "==> Building Hybrid BIOS+UEFI Bootable ISO (2005-present PCs): ${ISO_IMG}"
+    echo "==> Building Bootable ISO (${ARCH}): ${ISO_IMG}"
     rm -rf "${ISO_DIR}"
     mkdir -p "${ISO_DIR}/boot/grub" "${ISO_DIR}/unicore"
     cp "${OUT_DIR}/vmlinuz-${ARCH}" "${ISO_DIR}/boot/vmlinuz-${ARCH}"
     cp "${OUT_DIR}/initramfs-${ARCH}.img" "${ISO_DIR}/boot/initramfs-${ARCH}.img"
     ln -f "${SQUASH_IMG}" "${ISO_DIR}/unicore/unicore-rootfs-${ARCH}.squashfs" 2>/dev/null || cp "${SQUASH_IMG}" "${ISO_DIR}/unicore/unicore-rootfs-${ARCH}.squashfs"
-    cp "${MANIFEST_IMG}" "${ISO_DIR}/unicore/unicore-manifest.json"
-    if [[ -f "${MANIFEST_IMG}.sig" ]]; then
-        cp "${MANIFEST_IMG}.sig" "${ISO_DIR}/unicore/unicore-manifest.json.sig"
+    cp "${MANIFEST_ARCH_IMG}" "${ISO_DIR}/unicore/unicore-manifest-${ARCH}.json"
+    cp "${MANIFEST_ARCH_IMG}" "${ISO_DIR}/unicore/unicore-manifest.json"
+    if [[ -f "${MANIFEST_ARCH_IMG}.sig" ]]; then
+        cp "${MANIFEST_ARCH_IMG}.sig" "${ISO_DIR}/unicore/unicore-manifest-${ARCH}.json.sig"
+        cp "${MANIFEST_ARCH_IMG}.sig" "${ISO_DIR}/unicore/unicore-manifest.json.sig"
+    fi
+    if [[ -f "${ROOTFS_DIR}/etc/unicore/mok.der" ]]; then
+        cp "${ROOTFS_DIR}/etc/unicore/mok.der" "${ISO_DIR}/ENROLL_UNICORE_MOK.cer"
     fi
     cat <<EOF > "${ISO_DIR}/boot/grub/grub.cfg"
 set timeout=3
 set default=0
 
-menuentry "UniCore OS ${OS_VERSION} (Universal Desktop - 2005 to Present)" {
+menuentry "UniCore OS ${OS_VERSION} (Universal Desktop - ${ARCH})" {
     linux /boot/vmlinuz-${ARCH} console=tty1 quiet
     initrd /boot/initramfs-${ARCH}.img
 }
 
 menuentry "UniCore OS ${OS_VERSION} (Safe / Legacy VESA & Serial Debug Mode)" {
-    linux /boot/vmlinuz-${ARCH} console=tty1 console=ttyS0 nomodeset
+    linux /boot/vmlinuz-${ARCH} console=tty1 console=${SERIAL_DEV} nomodeset
     initrd /boot/initramfs-${ARCH}.img
 }
 EOF
-    grub-mkrescue -o "${ISO_IMG}" "${ISO_DIR}" -- -volid UNICORE_OS >/dev/null
+
+    USE_SECUREBOOT_ISO=0
+    if [[ "${ARCH}" == "aarch64" || "${ARCH}" == "arm64" ]]; then
+        SB_SHIM="${SB_STAGE_DIR}/shimaa64.efi"
+        SB_MM="${SB_STAGE_DIR}/mmaa64.efi"
+        SB_GRUB="${SB_STAGE_DIR}/grubaa64.efi"
+        SB_BOOT_DST="BOOTAA64.EFI"
+        SB_MM_DST="mmaa64.efi"
+        SB_GRUB_DST="grubaa64.efi"
+    else
+        SB_SHIM="${SB_STAGE_DIR}/shimx64.efi"
+        SB_MM="${SB_STAGE_DIR}/mmx64.efi"
+        SB_GRUB="${SB_STAGE_DIR}/grubx64.efi"
+        SB_BOOT_DST="BOOTX64.EFI"
+        SB_MM_DST="mmx64.efi"
+        SB_GRUB_DST="grubx64.efi"
+    fi
+
+    if [[ -f "${SB_SHIM}" && -f "${SB_GRUB}" ]] && command -v mkfs.vfat >/dev/null 2>&1 && command -v mcopy >/dev/null 2>&1; then
+        USE_SECUREBOOT_ISO=1
+    fi
+
+    if [[ "${USE_SECUREBOOT_ISO}" -eq 1 ]]; then
+        echo "==> Packaging UEFI Secure Boot EFI partition (shim + MokManager + MOK-signed GRUB)"
+        EFI_IMG="${WORK_DIR}/efi.img"
+        rm -f "${EFI_IMG}"
+        dd if=/dev/zero of="${EFI_IMG}" bs=1M count=16 >/dev/null 2>&1
+        mkfs.vfat -F 16 -n UNICORE_ESP "${EFI_IMG}" >/dev/null 2>&1
+        mmd -i "${EFI_IMG}" ::/EFI ::/EFI/BOOT
+        mcopy -i "${EFI_IMG}" "${SB_SHIM}" "::/EFI/BOOT/${SB_BOOT_DST}"
+        [[ -f "${SB_MM}" ]] && mcopy -i "${EFI_IMG}" "${SB_MM}" "::/EFI/BOOT/${SB_MM_DST}"
+        mcopy -i "${EFI_IMG}" "${SB_GRUB}" "::/EFI/BOOT/${SB_GRUB_DST}"
+        [[ -f "${ROOTFS_DIR}/etc/unicore/mok.der" ]] && mcopy -i "${EFI_IMG}" "${ROOTFS_DIR}/etc/unicore/mok.der" ::/ENROLL_UNICORE_MOK.cer
+
+        mkdir -p "${ISO_DIR}/EFI/BOOT"
+        cp "${SB_SHIM}" "${ISO_DIR}/EFI/BOOT/${SB_BOOT_DST}"
+        [[ -f "${SB_MM}" ]] && cp "${SB_MM}" "${ISO_DIR}/EFI/BOOT/${SB_MM_DST}"
+        cp "${SB_GRUB}" "${ISO_DIR}/EFI/BOOT/${SB_GRUB_DST}"
+        cp "${EFI_IMG}" "${ISO_DIR}/boot/grub/efi.img"
+
+        if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]] && [[ -f /usr/lib/grub/i386-pc/cdboot.img && -f /usr/lib/grub/i386-pc/boot_hybrid.img ]]; then
+            echo "==> Building Hybrid Legacy BIOS + UEFI Secure Boot ISO (${ISO_IMG})"
+            grub-mkimage -O i386-pc-eltorito -p /boot/grub \
+                -c "${WORK_DIR}/early-grub.cfg" \
+                -o "${ISO_DIR}/boot/grub/bios.img" \
+                biosdisk iso9660 part_msdos part_gpt fat ext2 exfat ntfs normal configfile linux search search_label echo test serial terminal
+            xorriso -as mkisofs \
+                -R -J -V UNICORE_OS \
+                --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img \
+                -partition_offset 16 \
+                --mbr-force-bootable \
+                -append_partition 2 0xef "${EFI_IMG}" \
+                -appended_part_as_gpt \
+                -c boot.catalog \
+                -b boot/grub/bios.img \
+                -no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info \
+                -eltorito-alt-boot \
+                -e --interval:appended_partition_2:all:: \
+                -no-emul-boot \
+                -o "${ISO_IMG}" "${ISO_DIR}" >/dev/null
+        else
+            echo "==> Building UEFI Secure Boot ISO (${ARCH}: ${ISO_IMG})"
+            xorriso -as mkisofs \
+                -R -J -V UNICORE_OS \
+                -append_partition 2 0xef "${EFI_IMG}" \
+                -appended_part_as_gpt \
+                -e --interval:appended_partition_2:all:: \
+                -no-emul-boot \
+                -o "${ISO_IMG}" "${ISO_DIR}" >/dev/null
+        fi
+    else
+        grub-mkrescue -o "${ISO_IMG}" "${ISO_DIR}" -- -volid UNICORE_OS >/dev/null
+    fi
     (cd "${OUT_DIR}" && sha256sum "$(basename "${ISO_IMG}")" > "${ISO_IMG}.sha256")
     ls -lh "${ISO_IMG}" "${ISO_IMG}.sha256"
 fi

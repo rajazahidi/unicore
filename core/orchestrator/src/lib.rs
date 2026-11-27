@@ -7,3 +7,4 @@ pub mod inspector;
 pub mod json_codec;
 pub mod sandbox;
 pub mod updater;
+pub mod win32_diag;

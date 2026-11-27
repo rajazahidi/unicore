@@ -41,7 +41,9 @@ emit_status_json() {
     winetricks_ok="false"
     dos_subsystem_ok="false"
 
-    command -v wine >/dev/null 2>&1 && wine_ok="true"
+    if command -v wine >/dev/null 2>&1 || [ -x /usr/share/unicore/arm64-win32/run-wine-box64.sh ]; then
+        wine_ok="true"
+    fi
     for d in "${DXVK_DIR}" /usr/share/dxvk /usr/lib/dxvk; do
         if has_dir_dlls "${d}"; then
             dxvk_ok="true"

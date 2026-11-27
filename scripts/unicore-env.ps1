@@ -44,7 +44,7 @@ bad = []
 for p in pathlib.Path("os-builder").rglob("*"):
     if not p.is_file():
         continue
-    if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".ico", ".exe", ".apk", ".ps1", ".rs", ".toml", ".py") or "fixtures/target" in p.as_posix() or "os-builder/out" in p.as_posix():
+    if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".ico", ".exe", ".apk", ".ps1", ".rs", ".toml", ".py", ".der", ".cer", ".efi") or "fixtures/target" in p.as_posix() or "os-builder/out" in p.as_posix() or "os-builder/keys" in p.as_posix():
         continue
     if b"\r" in p.read_bytes():
         bad.append(str(p))

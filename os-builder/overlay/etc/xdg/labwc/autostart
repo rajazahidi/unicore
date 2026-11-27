@@ -3,9 +3,21 @@
 
 USER_HOME="${HOME:-/home/unicore}"
 mkdir -p "${USER_HOME}/.local/share/applications" "${USER_HOME}/Desktop"
-if [ ! -f "${USER_HOME}/Desktop/unicore-center.desktop" ] && [ -f /usr/share/applications/unicore-center.desktop ]; then
-    cp /usr/share/applications/unicore-center.desktop "${USER_HOME}/Desktop/unicore-center.desktop"
-    chmod +x "${USER_HOME}/Desktop/unicore-center.desktop"
+for desk_src in \
+    /usr/share/applications/unicore-center.desktop \
+    /usr/share/applications/unicore-files.desktop \
+    /usr/share/applications/unicore-browser.desktop; do
+    base_name="$(basename "${desk_src}")"
+    if [ -f "${desk_src}" ] && [ ! -f "${USER_HOME}/Desktop/${base_name}" ]; then
+        cp "${desk_src}" "${USER_HOME}/Desktop/${base_name}"
+        chmod +x "${USER_HOME}/Desktop/${base_name}"
+    fi
+done
+if [ -r /mnt/unicore-boot.env ] && grep -q '^UNICORE_BOOT_MODE=live$' /mnt/unicore-boot.env 2>/dev/null; then
+    if [ -f /usr/share/applications/unicore-install.desktop ] && [ ! -f "${USER_HOME}/Desktop/unicore-install.desktop" ]; then
+        cp /usr/share/applications/unicore-install.desktop "${USER_HOME}/Desktop/unicore-install.desktop"
+        chmod +x "${USER_HOME}/Desktop/unicore-install.desktop"
+    fi
 fi
 
 if command -v pipewire >/dev/null 2>&1; then
@@ -26,17 +38,26 @@ if [ -x /usr/libexec/unicore-nightlight ]; then
     /usr/libexec/unicore-nightlight apply >/dev/null 2>&1 || true
 fi
 
-# Skip heavy shell panels, wallpaper, clipboard watcher, idle lock & toast daemon on 2005-2008 legacy_ultra machines (<=1.5GB RAM).
+# Skip heavy shell panels, desktop icons, wallpaper, clipboard watcher, idle lock & toast daemon on 2005-2008 legacy_ultra machines (<=1.5GB RAM).
 if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ]; then
     WALLPAPER_PATH="/usr/share/unicore/wallpaper.png"
+    SHOW_DESKTOP_ICONS="yes"
     if [ -x /usr/libexec/unicore-personalize ]; then
-        SAVED_WP="$(/usr/libexec/unicore-personalize status 2>/dev/null | sed -n 's/^wallpaper=//p' | head -n1 || true)"
+        P_STATUS="$(/usr/libexec/unicore-personalize status 2>/dev/null || true)"
+        SAVED_WP="$(printf '%s\n' "${P_STATUS}" | sed -n 's/^wallpaper=//p' | head -n1 || true)"
+        SAVED_DI="$(printf '%s\n' "${P_STATUS}" | sed -n 's/^desktop_icons=//p' | head -n1 || true)"
         if [ -n "${SAVED_WP}" ] && [ -f "${SAVED_WP}" ]; then
             WALLPAPER_PATH="${SAVED_WP}"
+        fi
+        if [ -n "${SAVED_DI}" ]; then
+            SHOW_DESKTOP_ICONS="${SAVED_DI}"
         fi
     fi
     if [ -f "${WALLPAPER_PATH}" ] && command -v swaybg >/dev/null 2>&1; then
         swaybg -i "${WALLPAPER_PATH}" -m fill >/dev/null 2>&1 &
+    fi
+    if [ "${SHOW_DESKTOP_ICONS}" = "yes" ] && command -v pcmanfm >/dev/null 2>&1; then
+        pcmanfm --desktop >/dev/null 2>&1 &
     fi
     if command -v mako >/dev/null 2>&1; then
         mako >/dev/null 2>&1 &
@@ -49,6 +70,9 @@ if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ]; then
     fi
     if [ -x /usr/libexec/unicore-power ]; then
         /usr/libexec/unicore-power apply-idle >/dev/null 2>&1 || true
+    fi
+    if [ -x /usr/libexec/unicore-update-check ]; then
+        /usr/libexec/unicore-update-check --daemon >/dev/null 2>&1 &
     fi
 fi
 

@@ -305,6 +305,72 @@ impl CenterBackend {
         }
     }
 
+    /// Analyze an app's runtime log for missing Win32 DLLs / DX9 / VC++ / .NET / DirectDraw issues.
+    pub fn diagnose_app_log(&self, app_id: &str) -> uniload::win32_diag::Win32Diagnosis {
+        let path = Self::app_log_path(app_id);
+        let raw = fs::read_to_string(&path).unwrap_or_default();
+        uniload::win32_diag::diagnose_win32_log(&raw)
+    }
+
+    /// Run `uniload win32 install-runtimes` synchronously for background-thread GUI progress display.
+    pub fn run_win32_runtimes_blocking(
+        config: &CenterConfig,
+        app_id: &str,
+        verbs: Option<&str>,
+    ) -> Result<String, String> {
+        let mut cmd = Command::new(&config.uniload_bin);
+        cmd.arg("--state-dir")
+            .arg(&config.state_dir)
+            .arg("win32")
+            .arg("install-runtimes")
+            .arg(app_id);
+        if let Some(v) = verbs.filter(|s| !s.trim().is_empty()) {
+            cmd.arg("--verbs").arg(v.trim());
+        }
+        let out = cmd
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| format!("Failed to invoke win32 runtime installer: {e}"))?;
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        if !out.status.success() {
+            return Err(if !stderr.is_empty() { stderr } else { stdout });
+        }
+        Ok(if stdout.is_empty() {
+            format!("Installed Win32 runtimes cleanly for '{app_id}'")
+        } else {
+            stdout
+        })
+    }
+
+    /// Run Android setup actions (`init`, `setup-arm`, `sync-shortcuts`, `clipboard-sync`) synchronously
+    /// in a background GUI worker thread so the user gets a smooth graphical progress bar.
+    pub fn run_android_setup_blocking(
+        config: &CenterConfig,
+        action: &str,
+        profile: &str,
+    ) -> Result<String, String> {
+        let mut cmd = Command::new(&config.uniload_bin);
+        cmd.arg("android").arg(action);
+        if action == "init" {
+            cmd.arg("--profile").arg(profile);
+        }
+        let out = cmd
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| format!("Failed to run Android {action}: {e}"))?;
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        if !out.status.success() {
+            return Err(if !stderr.is_empty() { stderr } else { stdout });
+        }
+        Ok(if stdout.is_empty() {
+            format!("Android '{action}' completed")
+        } else {
+            stdout
+        })
+    }
+
     /// Collect hardware, boot, network, audio, and kernel diagnostics to Desktop (`unicore-diag.txt`).
     pub fn export_diagnostics(&self) -> Result<String, String> {
         const DIAG_BIN: &str = "/usr/bin/unicore-diag";

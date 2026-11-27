@@ -316,6 +316,28 @@ case "$1" in
         [ "$#" -eq 1 ] || exit 2
         exec /usr/sbin/unicore-update --confirm-boot
         ;;
+    sb-status)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/unicore-secureboot status
+        ;;
+    sb-enroll)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/unicore-secureboot enroll
+        ;;
+    browser-install)
+        [ "$#" -eq 2 ] || exit 2
+        case "$2" in
+            firefox|chromium) exec /usr/libexec/unicore-browser-mgr install "$2" ;;
+            *) echo "Denied unsupported browser: $2" >&2; exit 2 ;;
+        esac
+        ;;
+    browser-remove)
+        [ "$#" -eq 2 ] || exit 2
+        case "$2" in
+            firefox|chromium) exec /usr/libexec/unicore-browser-mgr remove "$2" ;;
+            *) echo "Denied unsupported browser: $2" >&2; exit 2 ;;
+        esac
+        ;;
     set-cpu-governor)
         [ "$#" -eq 2 ] || exit 2
         target_gov="$2"

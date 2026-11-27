@@ -918,6 +918,7 @@ pub struct PersonalizeConfig {
     pub natural_scroll: bool,
     pub tap_to_click: bool,
     pub pointer_speed: f32,
+    pub desktop_icons: bool,
 }
 
 impl Default for PersonalizeConfig {
@@ -929,6 +930,7 @@ impl Default for PersonalizeConfig {
             natural_scroll: true,
             tap_to_click: true,
             pointer_speed: 0.0,
+            desktop_icons: true,
         }
     }
 }
@@ -1014,6 +1016,12 @@ pub fn parse_personalize_conf(raw: &str) -> PersonalizeConfig {
                     }
                 }
             }
+            "UNICORE_DESKTOP_ICONS" => {
+                cfg.desktop_icons = matches!(
+                    val.to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                );
+            }
             _ => {}
         }
     }
@@ -1031,9 +1039,10 @@ pub fn render_personalize_conf(cfg: &PersonalizeConfig) -> String {
     let kb_layout = validate_kb_layout(&cfg.kb_layout).unwrap_or_else(|_| "us".to_string());
     let ns = if cfg.natural_scroll { "yes" } else { "no" };
     let tap = if cfg.tap_to_click { "yes" } else { "no" };
+    let di = if cfg.desktop_icons { "yes" } else { "no" };
     let speed = clamp_pointer_speed(cfg.pointer_speed);
     format!(
-        "UNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\n"
+        "UNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\nUNICORE_DESKTOP_ICONS={di}\n"
     )
 }
 
@@ -1054,6 +1063,7 @@ pub fn save_and_apply_personalize(
         natural_scroll: cfg.natural_scroll,
         tap_to_click: cfg.tap_to_click,
         pointer_speed: clamp_pointer_speed(cfg.pointer_speed),
+        desktop_icons: cfg.desktop_icons,
     };
     fs::create_dir_all(cfg_dir)
         .map_err(|e| format!("Failed to create config dir: {e}"))?;
@@ -1063,6 +1073,7 @@ pub fn save_and_apply_personalize(
     if cfg!(target_os = "linux") && Path::new(PERSONALIZE_HELPER_BIN).is_file() {
         let ns = if clean.natural_scroll { "yes" } else { "no" };
         let tap = if clean.tap_to_click { "yes" } else { "no" };
+        let di = if clean.desktop_icons { "yes" } else { "no" };
         let speed = format!("{:.1}", clean.pointer_speed);
         run_capture_timeout(
             PERSONALIZE_HELPER_BIN,
@@ -1080,11 +1091,113 @@ pub fn save_and_apply_personalize(
                 tap,
                 "--pointer-speed",
                 &speed,
+                "--desktop-icons",
+                di,
             ],
             Duration::from_secs(8),
         )?;
     }
     Ok(clean)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecureBootOverview {
+    pub uefi: bool,
+    pub secure_boot: String,
+    pub mok_cert: bool,
+    pub mok_state: String,
+    pub shim_bundled: bool,
+}
+
+impl Default for SecureBootOverview {
+    fn default() -> Self {
+        Self {
+            uefi: false,
+            secure_boot: "legacy_bios".to_string(),
+            mok_cert: false,
+            mok_state: "unknown".to_string(),
+            shim_bundled: false,
+        }
+    }
+}
+
+impl SecureBootOverview {
+    pub fn summary(&self) -> String {
+        if !self.uefi {
+            return "Legacy BIOS boot (UEFI Secure Boot not applicable)".to_string();
+        }
+        format!(
+            "UEFI Secure Boot: {} | UniCore MOK: {} | Shim: {}",
+            self.secure_boot,
+            self.mok_state,
+            if self.shim_bundled { "bundled" } else { "not bundled" }
+        )
+    }
+}
+
+pub fn parse_secureboot_status(raw: &str) -> SecureBootOverview {
+    let mut ov = SecureBootOverview::default();
+    for line in raw.lines() {
+        let Some((k, v)) = line.trim().split_once('=') else {
+            continue;
+        };
+        match k.trim() {
+            "uefi" => ov.uefi = v.trim() == "1",
+            "secure_boot" if !v.trim().is_empty() => ov.secure_boot = v.trim().to_string(),
+            "mok_cert" => ov.mok_cert = v.trim() == "1",
+            "mok_state" if !v.trim().is_empty() => ov.mok_state = v.trim().to_string(),
+            "shim_bundled" => ov.shim_bundled = v.trim() == "1",
+            _ => {}
+        }
+    }
+    ov
+}
+
+pub fn read_secureboot_overview() -> SecureBootOverview {
+    if cfg!(target_os = "linux") && Path::new(SYS_HELPER_BIN).is_file() {
+        if let Ok(raw) = run_capture_timeout("doas", &[SYS_HELPER_BIN, "sb-status"], Duration::from_secs(5)) {
+            return parse_secureboot_status(&raw);
+        }
+    }
+    SecureBootOverview::default()
+}
+
+pub fn enroll_secureboot_mok(one_time_pass: &str) -> Result<String, String> {
+    let pass = one_time_pass.trim();
+    if pass.len() < 8 || pass.len() > 32 {
+        return Err("MOK enrollment password must be 8 to 32 characters.".to_string());
+    }
+    if pass.chars().any(|c| c.is_control()) {
+        return Err("MOK enrollment password contains invalid characters.".to_string());
+    }
+    if !cfg!(target_os = "linux") {
+        return Err("UEFI MOK enrollment is only available inside UniCore OS".to_string());
+    }
+    let mut child = Command::new("doas")
+        .args([SYS_HELPER_BIN, "sb-enroll"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to invoke Secure Boot helper: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        writeln!(stdin, "{pass}")
+            .map_err(|e| format!("Failed to send MOK password: {e}"))?;
+    }
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("Failed waiting for MOK enrollment: {e}"))?;
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        return Err(if !stderr.is_empty() { stderr } else { stdout });
+    }
+    Ok(if stdout.is_empty() {
+        "MOK enrollment queued! Reboot and confirm 'Enroll MOK' once.".to_string()
+    } else {
+        stdout
+    })
 }
 
 pub fn validate_printer_name(name: &str) -> Result<String, String> {

@@ -1,4 +1,4 @@
-import { Button, CheckBox, ComboBox, LineEdit, Palette, ScrollView, Slider, Switch } from "std-widgets.slint";
+import { Button, CheckBox, ComboBox, LineEdit, Palette, ProgressIndicator, ScrollView, Slider, Switch } from "std-widgets.slint";
 
 export struct AppEntry {
     name: string,
@@ -640,18 +640,24 @@ export component MainWindow inherits Window {
     in-out property <string> sys-cpu-governor: "-";
 
     // A/B OS Updater & Rollback state (Tab 2)
-    in-out property <string> upd-current-version: "0.2.1";
+    in-out property <string> upd-current-version: "0.3.0";
     in-out property <string> upd-active-slot: "UNICORE_SYS_A";
     in-out property <string> upd-standby-slot: "UNICORE_SYS_B";
     in-out property <string> upd-pending-summary: "Checking...";
     in-out property <string> upd-url-input: "";
     in-out property <string> upd-local-path: "";
     in-out property <bool> upd-allow-unsigned: false;
+    in-out property <bool> upd-auto-check: true;
     in-out property <bool> upd-can-update: false;
     in-out property <bool> upd-can-rollback: false;
     in-out property <bool> upd-busy: false;
     in-out property <bool> upd-needs-reboot: false;
     in-out property <string> upd-status: "";
+    in-out property <bool> android-busy: false;
+    in-out property <string> android-status: "";
+    in-out property <bool> sel-fix-busy: false;
+    in-out property <string> sel-diag-summary: "";
+    in-out property <string> sel-diag-verbs: "";
 
     // Daily Settings state (Network, Bluetooth, Audio, Display & Brightness)
     in-out property <bool> set-net-available: true;
@@ -757,6 +763,11 @@ export component MainWindow inherits Window {
     in-out property <string> set-backup-restore-path: "";
     in-out property <bool> set-backup-busy: false;
     in-out property <string> set-backup-status: "";
+    in-out property <bool> set-desktop-icons: true;
+    in-out property <string> set-sb-summary: "Checking UEFI Secure Boot...";
+    in-out property <bool> set-sb-can-enroll: false;
+    in-out property <string> set-sb-mok-pass: "";
+    in-out property <string> set-sb-status: "";
 
     // App Catalog / Store state (Tab 4)
     in-out property <[StoreEntry]> store-entries: [];
@@ -771,6 +782,9 @@ export component MainWindow inherits Window {
     in-out property <bool> store-busy: false;
     in-out property <string> store-status: "";
     in-out property <string> store-sync-url: "";
+    in-out property <string> store-browser-default: "epiphany";
+    in-out property <bool> store-firefox-installed: false;
+    in-out property <bool> store-chromium-installed: false;
 
     // Callbacks handled by Rust backend
     callback select-app(int);
@@ -822,7 +836,7 @@ export component MainWindow inherits Window {
     callback apply-display(int, int, int);
     callback brightness-changed(int);
     callback nightlight-changed(bool, int);
-    callback apply-personalize(int, int, string, int, bool, bool, int);
+    callback apply-personalize(int, int, string, int, bool, bool, int, bool);
     callback toggle-cups(bool);
     callback scan-printers();
     callback open-document-scanner();
@@ -851,6 +865,12 @@ export component MainWindow inherits Window {
     callback store-install-app(string);
     callback store-launch-app(string);
     callback store-sync-catalog(string);
+    callback toggle-auto-check-updates(bool);
+    callback enroll-secureboot-mok(string);
+    callback install-native-browser(string);
+    callback set-default-browser(string);
+    callback diagnose-selected-app();
+    callback autofix-selected-app();
     callback save-app-launch-config(string, string);
     callback reset-app-prefix();
     callback backup-app-save(string);
@@ -1511,6 +1531,19 @@ export component MainWindow inherits Window {
                     if root.oobe-step == 0 : VerticalLayout {
                         spacing: 10px;
                         HorizontalLayout {
+                            spacing: 8px;
+                            Button {
+                                text: "Bahasa Melayu (BM)";
+                                primary: root.oobe-lang-idx == 1;
+                                clicked => { root.oobe-lang-selected(1); }
+                            }
+                            Button {
+                                text: "English (EN)";
+                                primary: root.oobe-lang-idx != 1;
+                                clicked => { root.oobe-lang-selected(0); }
+                            }
+                        }
+                        HorizontalLayout {
                             spacing: 10px;
                             Text { text: root.tr.oobe-lang; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
                             ComboBox {
@@ -1762,12 +1795,45 @@ export component MainWindow inherits Window {
                         if root.has-selected-app : HorizontalLayout {
                             spacing: 10px;
                             if root.sel-supports-era : Button {
-                                text: root.tr.btn-classic-runtimes;
+                                text: root.sel-fix-busy ? "Installing Runtimes..." : root.tr.btn-classic-runtimes;
+                                enabled: !root.sel-fix-busy;
                                 clicked => { root.install-runtimes-selected(); }
+                            }
+                            if root.sel-supports-era : Button {
+                                text: "Diagnose Crashes / DLLs";
+                                enabled: !root.sel-fix-busy;
+                                clicked => { root.diagnose-selected-app(); }
                             }
                             Button {
                                 text: root.sel-show-adv ? "v Hide App Launch / Save Controls" : "> Advanced App Launch & Save Controls";
                                 clicked => { root.sel-show-adv = !root.sel-show-adv; }
+                            }
+                        }
+
+                        if root.sel-fix-busy : ProgressIndicator {
+                            indeterminate: true;
+                            height: 8px;
+                        }
+
+                        if root.has-selected-app && root.sel-diag-summary != "" : Card {
+                            VerticalLayout {
+                                padding: 10px;
+                                spacing: 6px;
+                                Text {
+                                    text: root.sel-diag-summary;
+                                    color: UiTheme.text-accent;
+                                    font-size: 12px;
+                                    wrap: word-wrap;
+                                }
+                                if root.sel-diag-verbs != "" : HorizontalLayout {
+                                    spacing: 8px;
+                                    Button {
+                                        text: root.sel-fix-busy ? "Repairing..." : ("1-Click Auto-Fix (" + root.sel-diag-verbs + ")");
+                                        primary: true;
+                                        enabled: !root.sel-fix-busy;
+                                        clicked => { root.autofix-selected-app(); }
+                                    }
+                                }
                             }
                         }
 
@@ -2162,6 +2228,18 @@ export component MainWindow inherits Window {
                             enabled: !root.upd-busy;
                         }
 
+                        Switch {
+                            text: "Auto-check for signed updates in background (Waybar badge & toast)";
+                            checked <=> root.upd-auto-check;
+                            enabled: !root.upd-busy;
+                            toggled => { root.toggle-auto-check-updates(self.checked); }
+                        }
+
+                        if root.upd-busy : ProgressIndicator {
+                            indeterminate: true;
+                            height: 8px;
+                        }
+
                         HorizontalLayout {
                             spacing: 10px;
                             Button {
@@ -2226,24 +2304,29 @@ export component MainWindow inherits Window {
                         HorizontalLayout {
                             spacing: 10px;
                             Button {
-                                text: "Initialize Android";
+                                text: root.android-busy ? "Working..." : "Initialize Android";
                                 primary: true;
+                                enabled: !root.android-busy;
                                 clicked => { root.android-action("init"); }
                             }
                             Button {
                                 text: "Open Android UI";
+                                enabled: !root.android-busy;
                                 clicked => { root.android-action("ui"); }
                             }
                             Button {
-                                text: "ARM Translation Setup";
+                                text: "Install ARM Translator";
+                                enabled: !root.android-busy;
                                 clicked => { root.android-action("setup-arm"); }
                             }
                             Button {
                                 text: "Sync App Shortcuts";
+                                enabled: !root.android-busy;
                                 clicked => { root.android-action("sync-shortcuts"); }
                             }
                             Button {
                                 text: "Sync Clipboard";
+                                enabled: !root.android-busy;
                                 clicked => { root.android-action("clipboard-sync"); }
                             }
                             Button {
@@ -2254,6 +2337,16 @@ export component MainWindow inherits Window {
                                 text: "Refresh";
                                 clicked => { root.refresh-all(); }
                             }
+                        }
+                        if root.android-busy : ProgressIndicator {
+                            indeterminate: true;
+                            height: 8px;
+                        }
+                        if root.android-status != "" : Text {
+                            text: root.android-status;
+                            color: UiTheme.text-accent;
+                            font-size: 12px;
+                            wrap: word-wrap;
                         }
                     }
                 }
@@ -2864,6 +2957,10 @@ export component MainWindow inherits Window {
                                     text: root.tr.chk-tap-click;
                                     checked <=> root.set-tap-to-click;
                                 }
+                                Switch {
+                                    text: "Desktop Icons";
+                                    checked <=> root.set-desktop-icons;
+                                }
                             }
 
                             HorizontalLayout {
@@ -2897,7 +2994,8 @@ export component MainWindow inherits Window {
                                             root.set-kb-layout-idx,
                                             root.set-natural-scroll,
                                             root.set-tap-to-click,
-                                            Math.round(root.set-pointer-speed-tenths)
+                                            Math.round(root.set-pointer-speed-tenths),
+                                            root.set-desktop-icons
                                         );
                                     }
                                 }
@@ -3262,6 +3360,45 @@ export component MainWindow inherits Window {
 
                             if root.set-backup-status != "" : Text {
                                 text: root.set-backup-status;
+                                color: UiTheme.text-accent;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 8px;
+                            Text {
+                                text: "UEFI Secure Boot & Machine Owner Key (MOK)";
+                                color: UiTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+                            Text {
+                                text: root.set-sb-summary;
+                                color: UiTheme.text-secondary;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                            if root.set-sb-can-enroll : HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    text <=> root.set-sb-mok-pass;
+                                    placeholder-text: "One-time MOK enroll password (8-32 chars)";
+                                    input-type: InputType.password;
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: "Enroll UniCore MOK";
+                                    primary: true;
+                                    clicked => { root.enroll-secureboot-mok(root.set-sb-mok-pass); }
+                                }
+                            }
+                            if root.set-sb-status != "" : Text {
+                                text: root.set-sb-status;
                                 color: UiTheme.text-accent;
                                 font-size: 12px;
                                 wrap: word-wrap;
@@ -3703,23 +3840,28 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                // Collapsible Custom HTTPS Catalog Feed URL Bar
+                // Collapsible Signed HTTPS Catalog Feed URL Bar
                 if root.store-show-feed && !root.store-detail-open : Card {
                     HorizontalLayout {
                         padding: 10px;
                         spacing: 8px;
                         LineEdit {
                             text <=> root.store-sync-url;
-                            placeholder-text: "Custom HTTPS catalog URL (https://.../catalog.json)";
+                            placeholder-text: "Leave blank for Official Ed25519 Signed GitHub Catalog, or enter custom HTTPS URL";
                             enabled: !root.store-busy;
                             horizontal-stretch: 1;
                         }
                         Button {
                             text: root.tr.btn-store-sync;
-                            enabled: !root.store-busy && root.store-sync-url != "";
+                            enabled: !root.store-busy;
                             clicked => { root.store-sync-catalog(root.store-sync-url); }
                         }
                     }
+                }
+
+                if root.store-busy && !root.store-detail-open : ProgressIndicator {
+                    indeterminate: true;
+                    height: 8px;
                 }
 
                 if root.store-status != "" && !root.store-detail-open : Text {
@@ -3735,6 +3877,49 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         spacing: 12px;
                         alignment: start;
+
+                        // 1-Click Native Wayland Web Browsers Strip (Epiphany / Firefox / Chromium)
+                        if root.store-category == "all" && root.store-search-query == "" : Card {
+                            HorizontalLayout {
+                                padding: 10px;
+                                spacing: 8px;
+                                Text {
+                                    text: "Web Browsers (Native Wayland):";
+                                    color: UiTheme.text-primary;
+                                    font-size: 12px;
+                                    font-weight: 700;
+                                    vertical-alignment: center;
+                                }
+                                Button {
+                                    text: root.store-browser-default == "epiphany" ? "Epiphany (Default)" : "Use Epiphany";
+                                    enabled: !root.store-busy && root.store-browser-default != "epiphany";
+                                    clicked => { root.set-default-browser("epiphany"); }
+                                }
+                                Button {
+                                    text: root.store-firefox-installed ? (root.store-browser-default == "firefox" ? "Firefox (Default)" : "Use Firefox") : "1-Click Install Firefox";
+                                    primary: !root.store-firefox-installed;
+                                    enabled: !root.store-busy && !(root.store-firefox-installed && root.store-browser-default == "firefox");
+                                    clicked => {
+                                        if (root.store-firefox-installed) {
+                                            root.set-default-browser("firefox");
+                                        } else {
+                                            root.install-native-browser("firefox");
+                                        }
+                                    }
+                                }
+                                Button {
+                                    text: root.store-chromium-installed ? (root.store-browser-default == "chromium" ? "Chromium (Default)" : "Use Chromium") : "1-Click Install Chromium";
+                                    enabled: !root.store-busy && !(root.store-chromium-installed && root.store-browser-default == "chromium");
+                                    clicked => {
+                                        if (root.store-chromium-installed) {
+                                            root.set-default-browser("chromium");
+                                        } else {
+                                            root.install-native-browser("chromium");
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         // Featured Hero Banner (shown on Discover view without active search)
                         if root.store-has-featured && root.store-category == "all" && root.store-search-query == "" : Rectangle {
