@@ -1,6 +1,6 @@
 # UniCore OS — Road to `v1.0.0` Perfection & Bare-Metal Readiness Checklist
 
-This checklist defines the concrete engineering environment, hardware verification gates, and production milestones required to graduate UniCore OS from **`v0.2.0` (Beta)** to **`v1.0.0` (Production Daily Driver)**.
+This checklist defines the concrete engineering environment, hardware verification gates, and production milestones required to graduate UniCore OS from **`v0.2.1` (Beta)** to **`v1.0.0` (Production Daily Driver)**.
 
 ---
 
@@ -51,11 +51,11 @@ Collect a real diagnostic bundle on each target machine (`unicore-diag --save-us
 
 ## 3. Production Security, OTA Hosting & Release Infrastructure
 
-- [ ] **GitHub Remote + CI Active:** Push repository to GitHub so `.github/workflows/ci.yml` and `.github/workflows/release.yml` run automatically on every commit and tag.
+- [x] **GitHub Remote + CI Active:** Push repository to GitHub (`rajazahidi/unicore`) so `.github/workflows/ci.yml` and `.github/workflows/release.yml` run automatically on every commit and tag.
 - [ ] **Production Ed25519 Release Signing:**
-  - Generate offline Ed25519 keypair (`uniload update keygen --private release.key --public update.pub`).
+  - Generate offline Ed25519 keypair (`.\scripts\sign-release.ps1 -GenerateKey` or `uniload update keygen --private release.key --public update.pub`).
   - Store `release.key` and `update.pub` in GitHub Repository Secrets (`UNICORE_RELEASE_KEY`, `UNICORE_RELEASE_PUB`) — never commit private keys to Git.
-  - Set `UPDATE_URL` in `/etc/unicore/update.conf` to `https://github.com/<owner>/<repo>/releases/latest/download/unicore-manifest.json` with `REQUIRE_SIGNATURE=1`.
+  - Set `UPDATE_URL` in `/etc/unicore/update.conf` to `https://github.com/rajazahidi/unicore/releases/latest/download/unicore-manifest.json` (`REQUIRE_SIGNATURE=1` is automatically enforced when `update.pub` is embedded at build time).
 - [ ] **Over-the-Network A/B OTA Test on Real Hardware:**
   - Serve a new build with `.\scripts\unicore-env.ps1 ota-serve` and apply an A/B Slot B update + rollback test on a real installed PC over Wi-Fi/LAN.
 - [ ] **UEFI Secure Boot Support (Target `v0.3.0` / `v1.0.0`):**

@@ -193,7 +193,7 @@ GRUB_ARCH_PKGS="grub grub-efi"
 if [ "@@TARGET_ARCH@@" = "x86_64" ] || [ "@@TARGET_ARCH@@" = "x86" ]; then
     GRUB_ARCH_PKGS="grub grub-bios grub-efi"
 fi
-apk add --no-cache bash squashfs-tools tar zstd unzip gzip findutils kmod e2fsprogs util-linux ${GRUB_ARCH_PKGS} xorriso mtools dosfstools
+apk add --no-cache bash squashfs-tools tar zstd unzip gzip findutils kmod e2fsprogs util-linux ${GRUB_ARCH_PKGS} xorriso mtools dosfstools openssl
 
 mkfs.ext4 -F /dev/vda >/dev/null 2>&1
 mkdir -p /work

@@ -79,7 +79,7 @@ try {
                 @{ Label = "Python 3"; Path = (Resolve-Tool "python") },
                 @{ Label = "QEMU x86_64"; Path = (Resolve-Tool "qemu-system-x86_64" @("C:\Program Files\qemu\qemu-system-x86_64.exe")) },
                 @{ Label = "UEFI OVMF Firmware"; Path = (Resolve-Tool "__none__" @("C:\Program Files\qemu\share\edk2-x86_64-code.fd")) },
-                @{ Label = "OpenSSL (Optional Host Sign)"; Path = (Resolve-Tool "openssl" @("C:\Program Files\Git\usr\bin\openssl.exe", "C:\Program Files\OpenSSL-Win64\bin\openssl.exe")) },
+                @{ Label = "OpenSSL (Optional Host Sign)"; Path = (Resolve-Tool "openssl" @("C:\Program Files\Git\usr\bin\openssl.exe", "$env:LOCALAPPDATA\Programs\Git\usr\bin\openssl.exe", "C:\Program Files\OpenSSL-Win64\bin\openssl.exe")) },
                 @{ Label = "GitHub CLI (gh)"; Path = (Resolve-Tool "gh" @("C:\Program Files\GitHub CLI\gh.exe")) }
             )
             foreach ($c in $checks) {

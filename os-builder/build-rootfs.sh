@@ -654,7 +654,7 @@ SQUASH_IMG="${OUT_DIR}/unicore-rootfs-${ARCH}.squashfs"
 echo "==> Packing immutable SquashFS root image: ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp zstd -noappend
 
-OS_VERSION="0.1.0"
+OS_VERSION="0.2.1"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

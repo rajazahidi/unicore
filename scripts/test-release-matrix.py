@@ -29,9 +29,25 @@ MANIFEST_PATH = os.path.join(OUT_DIR, "unicore-manifest.json")
 OVMF_BIOS = r"C:\Program Files\qemu\share\edk2-x86_64-code.fd"
 QEMU_BIN = r"C:\Program Files\qemu\qemu-system-x86_64.exe"
 QEMU_IMG_BIN = r"C:\Program Files\qemu\qemu-img.exe"
-SCREENSHOT_DEST = (
-    r"C:\Users\WIN11\.gemini\antigravity\brain\1cb0b065-c5bb-4947-a4e4-38afcff688cd\desktop_phase20d.png"
+SCREENSHOT_DIR = os.environ.get(
+    "UNICORE_QA_SCREENSHOT_DIR",
+    os.path.join(OUT_DIR, "qa-screenshots"),
 )
+SCREENSHOT_DEST = os.path.join(SCREENSHOT_DIR, "desktop_phase20d.png")
+
+
+def read_expected_os_version():
+    os_rel = os.path.join(REPO_ROOT, "os-builder", "overlay", "etc", "os-release")
+    if os.path.isfile(os_rel):
+        with open(os_rel, "r", encoding="utf-8") as f:
+            for line in f:
+                m = re.match(r'^VERSION_ID=["\']?([^"\'\r\n]+)["\']?$', line.strip())
+                if m:
+                    return m.group(1)
+    return "0.2.1"
+
+
+EXPECTED_OS_VERSION = read_expected_os_version()
 
 
 class SerialHarness:
@@ -161,10 +177,10 @@ def gate1_bios_phase20d_and_ed25519():
         script = r"""#!/bin/sh
 set -eu
 
-echo "[1/5] Checking v0.2.0 boot mode, wallpapers, Light theme & Phase 23/24/25 tools..."
+echo "[1/5] Checking v__EXPECTED_OS_VERSION__ boot mode, wallpapers, Light theme & Phase 23/24/25 tools..."
 . /mnt/unicore-boot.env
 [ "${UNICORE_BOOT_MODE}" = "live" ] || { echo "Expected live boot mode, got ${UNICORE_BOOT_MODE}"; exit 1; }
-grep -q 'VERSION_ID="0.2.0"' /etc/os-release
+grep -q 'VERSION_ID="__EXPECTED_OS_VERSION__"' /etc/os-release
 uname -r
 test -f /usr/share/unicore/wallpaper.png
 test -f /usr/share/unicore/wallpaper-aurora.png
@@ -293,6 +309,7 @@ rm -rf /tmp/ed25519_qa
 
 printf '\n===GATE1_OK===\n'
 """
+        script = script.replace("__EXPECTED_OS_VERSION__", EXPECTED_OS_VERSION)
         h.send_script_b64(script)
         out = h.wait_for("\n===GATE1_OK===", 300)
         m = re.search(r"===PNG_B64_START===\s*(.*?)\s*===PNG_B64_END===", out, re.DOTALL)

@@ -28,29 +28,69 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free runner disk space for rootfs, SquashFS & ISO build
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h
+
       - name: Install Rust & musl targets
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
 
-      - name: Build static uniload (${{ matrix.arch }})
+      - name: Build static uniload & dynamic musl unicore-center (${{ matrix.arch }})
         run: |
+          set -eu
           TARGET_ARCH="${{ github.event.inputs.arch || matrix.arch }}"
+          UPPER_ARCH="$(printf '%s' "${TARGET_ARCH}" | tr '[:lower:]' '[:upper:]')"
+          SYSROOT="$(rustc --print sysroot)"
+          RUST_LLD="$(find "${SYSROOT}/lib/rustlib" -name rust-lld -type f | head -n1)"
+          if [ -z "${RUST_LLD}" ]; then
+            echo "[ERROR] rust-lld not found inside Rust sysroot ${SYSROOT}" >&2
+            exit 1
+          fi
+          export "CARGO_TARGET_${UPPER_ARCH}_UNKNOWN_LINUX_MUSL_LINKER=${RUST_LLD}"
+          export "CARGO_TARGET_${UPPER_ARCH}_UNKNOWN_LINUX_MUSL_RUSTFLAGS=-C link-self-contained=yes"
+
+          echo "==> Building static Rust uniload (${TARGET_ARCH}-unknown-linux-musl)"
           cargo build --release --target "${TARGET_ARCH}-unknown-linux-musl" -p uniload
 
-      - name: Build unicore-center (dynamic musl) inside Alpine 3.20
-        run: |
-          TARGET_ARCH="${{ github.event.inputs.arch || matrix.arch }}"
+          echo "==> Extracting Alpine 3.20 musl dynamic sysroot (${TARGET_ARCH})"
+          MUSL_SYSROOT="/tmp/alpine-musl-sysroot-${TARGET_ARCH}"
+          mkdir -p "${MUSL_SYSROOT}"
           docker run --rm \
-            -v "${PWD}:/work" \
-            -w /work \
+            -v "${MUSL_SYSROOT}:/out" \
             alpine:3.20 /bin/sh -c "
               set -eu
-              apk add --no-cache rust cargo build-base pkgconf wayland-dev libxkbcommon-dev fontconfig-dev freetype-dev
-              cargo build --release -p unicore-center
-              mkdir -p /work/os-builder/out/ci-bins
-              cp /work/target/release/unicore-center /work/os-builder/out/ci-bins/unicore-center
+              apk add --no-cache musl-dev libgcc
+              cp -L /lib/ld-musl-${TARGET_ARCH}.so.1 /out/ld-musl-${TARGET_ARCH}.so.1
+              cp -L /lib/ld-musl-${TARGET_ARCH}.so.1 /out/libc.so
+              cp -L /usr/lib/Scrt1.o /usr/lib/crti.o /usr/lib/crtn.o /usr/lib/libdl.a /out/
+              cp -L /usr/lib/libgcc_s.so.1 /out/libgcc_s.so.1
+              cp -L /usr/lib/libgcc_s.so.1 /out/libgcc_s.so
             "
+
+          echo "==> Building unicore-center (dynamic musl for Alpine 3.20)"
+          cargo rustc -p unicore-center --bin unicore-center --release \
+            --target "${TARGET_ARCH}-unknown-linux-musl" -- \
+            -C target-feature=-crt-static \
+            -L "native=${MUSL_SYSROOT}" \
+            -C "link-arg=--dynamic-linker=/lib/ld-musl-${TARGET_ARCH}.so.1"
+
+          mkdir -p os-builder/out/ci-bins
+          cp "target/${TARGET_ARCH}-unknown-linux-musl/release/unicore-center" os-builder/out/ci-bins/unicore-center
+
+          if [ "${TARGET_ARCH}" = "x86_64" ]; then
+            echo "==> Smoke-testing unicore-center dynamic linking inside Alpine 3.20"
+            docker run --rm \
+              -v "${PWD}/os-builder/out/ci-bins:/bins:ro" \
+              alpine:3.20 /bin/sh -c "
+                set -eu
+                apk add --no-cache fontconfig freetype libxkbcommon wayland-libs-client
+                ldd /bins/unicore-center
+                /bins/unicore-center --check
+              "
+          fi
 
       - name: Fetch offline Win32/Win16 gaming runtimes (DXVK, VKD3D-Proton, cnc-ddraw, OTVDM, winetricks)
         run: |
@@ -66,15 +106,16 @@ jobs:
           UNICORE_RELEASE_KEY: ${{ secrets.UNICORE_RELEASE_KEY }}
           UNICORE_RELEASE_PUB: ${{ secrets.UNICORE_RELEASE_PUB }}
         run: |
+          set -eu
           TARGET_ARCH="${{ github.event.inputs.arch || matrix.arch }}"
           mkdir -p /tmp/unicore-keys os-builder/out
           EXTRA_ENV=""
           if [ -n "${UNICORE_RELEASE_PUB}" ]; then
-            printf '%s\n' "${UNICORE_RELEASE_PUB}" > /tmp/unicore-keys/update.pub
+            printf '%s\n' "${UNICORE_RELEASE_PUB}" | tr -d '\r' > /tmp/unicore-keys/update.pub
             EXTRA_ENV="${EXTRA_ENV} -e UPDATE_PUBKEY_OVERRIDE=/work/keys/update.pub"
           fi
           if [ -n "${UNICORE_RELEASE_KEY}" ]; then
-            printf '%s\n' "${UNICORE_RELEASE_KEY}" > /tmp/unicore-keys/release.key
+            printf '%s\n' "${UNICORE_RELEASE_KEY}" | tr -d '\r' > /tmp/unicore-keys/release.key
             chmod 600 /tmp/unicore-keys/release.key
             EXTRA_ENV="${EXTRA_ENV} -e UPDATE_SIGN_KEY_OVERRIDE=/work/keys/release.key"
           fi
@@ -96,20 +137,18 @@ jobs:
               set -eu
               apk add --no-cache bash squashfs-tools tar zstd unzip gzip findutils kmod e2fsprogs util-linux grub grub-bios grub-efi xorriso mtools dosfstools openssl
               bash /work/os-builder/build-rootfs.sh
+              if [ -f /work/keys/update.pub ] && [ -f /work/os-builder/out/unicore-manifest.json.sig ]; then
+                echo '==> Strictly verifying Ed25519 manifest signature'
+                /work/target/${TARGET_ARCH}-unknown-linux-musl/release/uniload update verify-manifest \
+                  /work/os-builder/out/unicore-manifest.json \
+                  --pubkey /work/keys/update.pub \
+                  --sig /work/os-builder/out/unicore-manifest.json.sig \
+                  --require-signature
+              fi
+              rm -rf /work/os-builder/out/work
             "
-
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: unicore-os-${{ github.event.inputs.arch || matrix.arch }}
-          path: |
-            os-builder/out/vmlinuz-*
-            os-builder/out/initramfs-*.img
-            os-builder/out/unicore-rootfs-*.squashfs
-            os-builder/out/unicore-os-*.iso
-            os-builder/out/unicore-os-*.iso.sha256
-            os-builder/out/unicore-manifest.json
-            os-builder/out/unicore-manifest.json.sig
+          rm -rf /tmp/unicore-keys
+          ls -lh os-builder/out/
 
       - name: Publish Signed OTA Release to GitHub Releases (on version tags)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -121,6 +160,17 @@ jobs:
             os-builder/out/initramfs-*.img
             os-builder/out/unicore-rootfs-*.squashfs
             os-builder/out/unicore-os-*.iso
+            os-builder/out/unicore-os-*.iso.sha256
+            os-builder/out/unicore-manifest.json
+            os-builder/out/unicore-manifest.json.sig
+
+      - name: Upload Manifest & Checksum Artifacts
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: unicore-manifest-${{ github.event.inputs.arch || matrix.arch }}
+          retention-days: 7
+          path: |
             os-builder/out/unicore-os-*.iso.sha256
             os-builder/out/unicore-manifest.json
             os-builder/out/unicore-manifest.json.sig

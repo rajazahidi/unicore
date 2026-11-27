@@ -1,4 +1,4 @@
-# UniCore OS (`0.2.0`)
+# UniCore OS (`0.2.1`)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`)**, **MS-DOS (`.exe`/`.com`/`.bat` embedded seamlessly without third-party launcher branding)**, **Android (`.apk`)**, and **native Linux (`ELF`)** applications inside per-app Zero-Trust `bubblewrap` sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern PCs**.
 
