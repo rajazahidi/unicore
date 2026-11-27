@@ -1,10 +1,11 @@
 #!/bin/sh
 set -eu
 
-# Detect 2005-2026 hardware tier, enable compressed zram swap, and load GPU DRM drivers.
+# Detect 2005-2026 hardware tier, enable compressed zram swap, load GPU/gamepad drivers & TLP.
 mkdir -p /run/unicore
 
-for mod in zram i915 radeon amdgpu nouveau bochs cirrus virtio_gpu; do
+for mod in zram i915 radeon amdgpu nouveau panfrost vc4 v3d msm bochs cirrus virtio_gpu \
+           uinput joydev xpad hid_playstation hid_nintendo hid_sony; do
     modprobe "${mod}" 2>/dev/null || true
 done
 
@@ -29,4 +30,15 @@ fi
 
 if [ -n "${UNICORE_SWAPPINESS:-}" ] && [ -w /proc/sys/vm/swappiness ]; then
     echo "${UNICORE_SWAPPINESS}" > /proc/sys/vm/swappiness || true
+fi
+
+# Start TLP laptop battery power optimization automatically when a battery is detected
+if command -v tlp >/dev/null 2>&1; then
+    for ps in /sys/class/power_supply/*; do
+        [ -r "${ps}/type" ] || continue
+        if [ "$(cat "${ps}/type" 2>/dev/null || true)" = "Battery" ]; then
+            tlp start >/dev/null 2>&1 || true
+            break
+        fi
+    done
 fi

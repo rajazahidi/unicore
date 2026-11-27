@@ -19,11 +19,11 @@ if [ -x /usr/libexec/unicore-users ]; then
     /usr/libexec/unicore-users sync-boot >/dev/null 2>&1 || true
 fi
 
-mkdir -p /data/uniload /data/home/Documents /data/home/Downloads /data/home/Desktop /data/home/Pictures /data/home/applications /data/unicore /data/users /run/unicore
+mkdir -p /data/uniload /data/home/Documents /data/home/Downloads /data/home/Desktop /data/home/Pictures /data/home/applications /data/unicore /data/users /data/flatpak /data/gaming/proton-ge /data/ai /run/unicore
 if [ ! -e /data/users/unicore ]; then
     ln -s /data/home /data/users/unicore
 fi
-chown -R unicore:unicore /data/uniload /data/home /data/unicore 2>/dev/null || true
+chown -R unicore:unicore /data/uniload /data/home /data/unicore /data/flatpak /data/gaming /data/ai 2>/dev/null || true
 
 if [ -r /data/unicore/oobe.conf ]; then
     set -a
@@ -142,7 +142,7 @@ if [ -x /usr/libexec/unicore-personalize ]; then
     su -s /bin/sh "${LOGIN_USER}" -c "HOME=${USER_HOME} XDG_CONFIG_HOME=${XDG_CONFIG_HOME} /usr/libexec/unicore-personalize apply --no-reload" >/dev/null 2>&1 || true
 fi
 
-ENV_PASS="HOME=${USER_HOME} USER=${LOGIN_USER} XDG_CONFIG_HOME=${XDG_CONFIG_HOME} XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} XDG_CURRENT_DESKTOP=labwc WLR_RENDERER_ALLOW_SOFTWARE=1 UNILOAD_STATE_DIR=/data/uniload"
+ENV_PASS="HOME=${USER_HOME} USER=${LOGIN_USER} XDG_CONFIG_HOME=${XDG_CONFIG_HOME} XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} XDG_CURRENT_DESKTOP=labwc FLATPAK_USER_DIR=/data/flatpak XDG_DATA_DIRS=/data/flatpak/exports/share:/usr/local/share:/usr/share WLR_RENDERER_ALLOW_SOFTWARE=1 UNILOAD_STATE_DIR=/data/uniload"
 [ -n "${LANG:-}" ] && ENV_PASS="${ENV_PASS} LANG=${LANG}"
 [ -n "${WLR_RENDERER:-}" ] && ENV_PASS="${ENV_PASS} WLR_RENDERER=${WLR_RENDERER}"
 if [ "${WLR_RENDERER:-}" = "pixman" ]; then

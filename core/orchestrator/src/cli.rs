@@ -452,7 +452,8 @@ pub fn run_cli(args: &[String]) -> Result<String, String> {
             let subsystem = match app.platform {
                 crate::inspector::AppPlatform::AndroidApk => SubsystemKind::AndroidArt,
                 crate::inspector::AppPlatform::Dos16 => SubsystemKind::Dos,
-                crate::inspector::AppPlatform::NativeElf => SubsystemKind::Native,
+                crate::inspector::AppPlatform::NativeElf
+                | crate::inspector::AppPlatform::LinuxFlatpak => SubsystemKind::Native,
                 _ => SubsystemKind::Win32,
             };
             let video_devices: Vec<String> = fs::read_dir("/dev")

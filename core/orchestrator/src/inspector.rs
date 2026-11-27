@@ -15,6 +15,7 @@ pub enum AppPlatform {
     Dos16,
     AndroidApk,
     NativeElf,
+    LinuxFlatpak,
     Unknown,
 }
 
@@ -27,6 +28,7 @@ impl AppPlatform {
             AppPlatform::Dos16 => "dos16",
             AppPlatform::AndroidApk => "android_apk",
             AppPlatform::NativeElf => "native_elf",
+            AppPlatform::LinuxFlatpak => "linux_flatpak",
             AppPlatform::Unknown => "unknown",
         }
     }
@@ -39,6 +41,7 @@ impl AppPlatform {
             "dos16" => Ok(AppPlatform::Dos16),
             "android_apk" => Ok(AppPlatform::AndroidApk),
             "native_elf" => Ok(AppPlatform::NativeElf),
+            "linux_flatpak" => Ok(AppPlatform::LinuxFlatpak),
             "unknown" => Ok(AppPlatform::Unknown),
             other => Err(format!("Unknown platform '{other}'")),
         }
@@ -117,7 +120,10 @@ impl BinaryInfo {
                 let compatible = compatible_native_arches(host_arch);
                 !compatible.contains(&self.arch.as_str())
             }
-            AppPlatform::Dos16 | AppPlatform::WindowsMsi | AppPlatform::Unknown => false,
+            AppPlatform::Dos16
+            | AppPlatform::WindowsMsi
+            | AppPlatform::LinuxFlatpak
+            | AppPlatform::Unknown => false,
         }
     }
 }

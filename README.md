@@ -1,16 +1,17 @@
-# UniCore OS (`0.3.0`)
+# UniCore OS (`0.4.0`)
 
-**UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`)**, **MS-DOS (`.exe`/`.com`/`.bat` embedded seamlessly without third-party launcher branding)**, **Android (`.apk`)**, and **native Linux (`ELF`)** applications inside per-app Zero-Trust `bubblewrap` sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern PCs**.
+**UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern x86_64 & ARM64 PCs**.
 
 ## Key Capabilities
 
-* **Multi-Platform App Center, Quick Settings & 1-Click Store (`unicore-center`)**:
-  * Play Store / Microsoft Store-inspired storefront with **Featured Hero Pick**, Discover grid, inline detail view, bilingual UI (**EN / Bahasa Melayu**), **Google Antigravity `2.35.2`**, LibreOffice `26.8.3`, VSCodium, KeePassXC, VLC, SumatraPDF, Notepad++, 7-Zip, Android tools (`F-Droid`, `NewPipe`), and a dedicated **Retro Games Marketplace**.
-  * Win11-style **`--quick-settings` tray popup**, built-in graphical **File Picker**, and per-app advanced launch arguments, environment variables, Wine prefix reset, and save-data archive backup/restore.
-* **Daily Laptop Pack (Multi-User A/B Sync, Power & S.M.A.R.T.)**:
-  * Smart Multi-User login (`unicore-users` + `--login` greeter synced across A/B slots), `swayidle` auto-lock & battery-only sleep, **Power Saver / Balanced / Performance** profiles (`unicore-power`), and on-demand **S.M.A.R.T.** disk health checks (`unicore-smart`).
-* **Developer Environments & Local AI (`0 MB` Idle RAM)**:
-  * Built-in `git`, `python3`, `openssh-client`, `jq`, and rootless **Podman DevBoxes** (`Python`, `Node.js`, `Rust`, `Ubuntu` in `/data/dev`), plus on-demand **Local AI (Ollama)** in `/data/ai` with RAM-aware model recommendations and `127.0.0.1:11434` endpoint.
+* **Tier-1 Desktop UX, Safe Dual-Boot & GRUB Recovery (`v0.4.0`)**:
+  * **Safe Non-Destructive Windows Dual-Boot (`--mode alongside`)**: Installs A/B slots into `>= 10 GiB` unallocated GPT space without shrinking NTFS, reuses the Windows ESP safely, and auto-adds **Windows Boot Manager** + **UniCore Recovery & Advanced Options** (Slot A, Slot B Rollback, Reset OS Settings `unicore_reset_overlay=1` preserving `/data/home`, Safe VESA/Serial) to GRUB.
+  * **Modern Desktop Polish**: `Papirus-Dark`/`Papirus-Light` icon themes, selectable **Docked (Win11)** vs **Floating Pill (macOS)** taskbar styles, `swaylock-effects` frosted blur+clock lockscreen, `labwc` drag-to-edge window snapping + preview Alt+Tab switcher, upgraded `--quick-settings` 2×3 tile tray & `--login` greeter, **TLP** laptop battery optimizer, ARM64 Vulkan (`panfrost`, `broadcom`, `freedreno`), and full **Xbox/PlayStation/Switch** gamepad support.
+* **Universal 32-App Store, On-Demand Flatpak & GE-Proton (`unicore-center`)**:
+  * Unified storefront combining **on-demand Flatpak (Flathub)** in `/data/flatpak` (`0 MB` ISO bloat — **Steam**, **Heroic**, **Lutris**, **Prism Launcher**, **RetroArch**, **GIMP**, **OBS Studio**, **Inkscape**, **Audacity**, **Blender**, **Kdenlive**, **Vesktop**, **Telegram**, **Thunderbird**, **LibreOffice Native**, **Flatseal**) plus SHA-256 verified Win32/Android/DOS apps across 9 categories with automatic `x86_64`/`aarch64` filtering, 1-click Uninstall, and built-in **GE-Proton Manager** (`unicore-proton`).
+* **Multi-Provider System AI Copilot (`Win+A` / Waybar `AI` pill) & DevBox (`0 MB` Idle RAM)**:
+  * Supports **Local Offline Ollama** (`0 MB` idle RAM) PLUS optional **Google Gemini API** and **OpenAI-Compatible API** (keys stored `chmod 600` in `/data/ai/provider.conf`) so even 512 MB–2 GB legacy PCs get bilingual EN/BM AI diagnostics with read-only live telemetry and safe 1-click navigation actions.
+  * Built-in `git`, `python3`, `openssh-client`, `jq`, and rootless **Podman DevBoxes** (`Python`, `Node.js`, `Rust`, `Ubuntu` in `/data/dev`).
 * **Windows, Retro Gaming & Seamless MS-DOS (`uniload` + Wine/DXVK/VKD3D/OTVDM/DOS)**:
   * Windows era profiles (`Win98`, `WinXP`, `Win7`, `Win10`), offline **DXVK `v2.4.1`** (`d3d8.dll`–`d3d11.dll`), **VKD3D-Proton `v2.13`**, **`cnc-ddraw`**, **`otvdm`** (Win16 `NE`), **`winetricks`** (DX9/VC++), MangoHud FPS overlay, Game Mode CPU governor, and an embedded MS-DOS subsystem (`uniload-dos`).
 * **Productivity, Office & Hardware Settings**:

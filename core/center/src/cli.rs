@@ -16,6 +16,7 @@ pub enum LaunchMode {
     LoginGreeter,
     OobeWizard,
     TaskManager,
+    AiAssistant,
     CheckOnly(Option<PathBuf>),
 }
 
@@ -68,7 +69,7 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
     let mut apps_dir = default_apps_dir();
     let mut desktop_dir = default_desktop_dir();
     let mut uniload_bin = default_uniload_bin();
-    let mut host_arch = "x86_64".to_string();
+    let mut host_arch = std::env::consts::ARCH.to_string();
     let mut positional_file: Option<PathBuf> = None;
 
     let mut idx = 0usize;
@@ -94,6 +95,9 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
             "--taskmgr" => {
                 mode = LaunchMode::TaskManager;
             }
+            "--ai" => {
+                mode = LaunchMode::AiAssistant;
+            }
             "--tab" => {
                 let raw = next_value(args, &mut idx, "--tab")?;
                 let lower = raw.to_ascii_lowercase();
@@ -113,9 +117,12 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
                     initial_tab = 4;
                     initial_store_category = match sub {
                         "all" | "discover" => "all".to_string(),
-                        "retro" | "games" => "retro".to_string(),
-                        "utilities" | "office" | "android" => sub.to_string(),
-                        _ => return Err(format!("Unknown store category '{sub}'. Choose all, retro, utilities, office, or android.")),
+                        "retro" => "retro".to_string(),
+                        "gaming" | "games" => "gaming".to_string(),
+                        "creative" | "social" | "dev" | "utilities" | "office" | "android" => {
+                            sub.to_string()
+                        }
+                        _ => return Err(format!("Unknown store category '{sub}'. Choose all, gaming, creative, social, dev, office, android, retro, or utilities.")),
                     };
                 } else {
                     initial_tab = match lower.as_str() {

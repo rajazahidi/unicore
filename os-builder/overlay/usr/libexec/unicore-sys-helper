@@ -227,14 +227,24 @@ case "$1" in
             echo "Denied invalid install disk path: $2" >&2
             exit 1
         fi
-        exec /usr/sbin/unicore-install --disk "$2" --yes-wipe
+        exec /usr/sbin/unicore-install --disk "$2" --mode wipe --yes-wipe
         ;;
-    install-disk-encrypted)
+    install-disk-alongside)
         [ "$#" -eq 2 ] || exit 2
         if ! printf '%s' "$2" | grep -Eq '^/dev/(sd[a-z]|hd[a-z]|vd[a-z]|nvme[0-9]+n[0-9]+|mmcblk[0-9]+)$'; then
             echo "Denied invalid install disk path: $2" >&2
             exit 1
         fi
+        exec /usr/sbin/unicore-install --disk "$2" --mode alongside --yes-install
+        ;;
+    install-disk-encrypted|install-disk-alongside-encrypted)
+        [ "$#" -eq 2 ] || exit 2
+        if ! printf '%s' "$2" | grep -Eq '^/dev/(sd[a-z]|hd[a-z]|vd[a-z]|nvme[0-9]+n[0-9]+|mmcblk[0-9]+)$'; then
+            echo "Denied invalid install disk path: $2" >&2
+            exit 1
+        fi
+        mode_arg="wipe"
+        [ "$1" = "install-disk-alongside-encrypted" ] && mode_arg="alongside"
         PASS_TMP="/tmp/.unicore-luks.$$"
         cleanup_pass() { rm -f "${PASS_TMP}"; }
         trap cleanup_pass EXIT
@@ -248,7 +258,7 @@ case "$1" in
             printf '%s' "${pass_val}" > "${PASS_TMP}"
         )
         unset pass_val
-        /usr/sbin/unicore-install --disk "$2" --yes-wipe --encrypt-data --passphrase-file "${PASS_TMP}"
+        /usr/sbin/unicore-install --disk "$2" --mode "${mode_arg}" --yes-wipe --encrypt-data --passphrase-file "${PASS_TMP}"
         ;;
     apply-oobe)
         [ "$#" -eq 3 ] || exit 2

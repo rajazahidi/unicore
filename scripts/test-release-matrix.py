@@ -239,7 +239,7 @@ command -v smartctl
 /usr/libexec/unicore-devbox status | grep -q '^projects_dir=/data/dev/projects$'
 /usr/libexec/unicore-ai status | grep -q '^endpoint=http://127.0.0.1:11434$'
 modinfo ath9k forcedeth nouveau sata_nv snd_hda_intel >/dev/null
-echo "Checking v0.3.0 Secure Boot MOK, Auto-OTA, Browser Manager, Win32 Diagnoser & Desktop Actions..."
+echo "Checking v0.3.0-v0.4.0 Secure Boot MOK, Auto-OTA, Browser Manager, Win32 Diagnoser, Flatpak, GE-Proton, TLP, Papirus, Gamepads & AI Copilot..."
 test -f /etc/unicore/update.pub
 test -f /etc/unicore/mok.der
 grep -q 'unicore-manifest-x86_64.json' /etc/unicore/update.conf
@@ -249,15 +249,26 @@ test -x /usr/libexec/unicore-update-check
 test -x /usr/libexec/unicore-secureboot
 test -x /usr/libexec/unicore-browser-mgr
 test -x /usr/bin/unicore-browser
+test -x /usr/libexec/unicore-flatpak
+test -x /usr/libexec/unicore-proton
+test -f /etc/udev/rules.d/60-unicore-gamepads.rules
+test -d /usr/share/icons/Papirus-Dark
 test -f /usr/share/file-manager/actions/unicore-open-sandbox.desktop
+command -v flatpak
+command -v tlp
+command -v swaylock
 /usr/libexec/unicore-secureboot status | grep -q '^mok_cert=1$'
 /usr/libexec/unicore-secureboot status | grep -q '^shim_bundled=1$'
 /usr/libexec/unicore-browser-mgr status | grep -q '^default_browser=epiphany$'
+/usr/libexec/unicore-flatpak status | grep -q '^installed=1$'
+/usr/libexec/unicore-proton status | grep -q '^dir=/data/gaming/proton-ge$'
+/usr/libexec/unicore-ai status | grep -q '^provider=ollama$'
+/usr/libexec/unicore-ai context | grep -q 'UniCore OS Live Read-Only System Diagnostics'
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
 rm -f /tmp/fake_win32.log
-echo "Verified all v0.2.0-v0.3.0 helpers, Secure Boot MOK, Win32 auto-diagnoser & dx2355/TL-WN851ND drivers OK"
+echo "Verified all v0.2.0-v0.4.0 helpers, Flatpak, GE-Proton, TLP, Papirus, Gamepads, AI Copilot & dx2355/TL-WN851ND drivers OK"
 
 echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
 mkdir -p /data/unicore
@@ -271,7 +282,7 @@ test -S /run/user/1000/wayland-0
 pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
 sleep 0.5
 
-echo "[3/5] Applying Phase 20D Light Theme, Daylight Wallpaper, Malay Keyboard & Input settings..."
+echo "[3/5] Applying Phase 20D/v0.4.0 Light Theme, Floating Pill Taskbar, Papirus Icons, Daylight Wallpaper & Input settings..."
 su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
     /usr/libexec/unicore-personalize set \
@@ -280,17 +291,21 @@ su -s /bin/sh unicore -c '
         --kb-layout my \
         --natural-scroll no \
         --tap yes \
-        --pointer-speed 0.3
+        --pointer-speed 0.3 \
+        --taskbar-style floating
 '
 grep -q '^UNICORE_THEME=light$' /data/home/.config/unicore/personalize.conf
+grep -q '^UNICORE_TASKBAR_STYLE=floating$' /data/home/.config/unicore/personalize.conf
 grep -q '^UNICORE_KB_LAYOUT=my$' /data/home/.config/unicore/personalize.conf
 grep -q '^UNICORE_NATURAL_SCROLL=no$' /data/home/.config/unicore/personalize.conf
 grep -q 'gtk-application-prefer-dark-theme=0' /home/unicore/.config/gtk-3.0/settings.ini
+grep -q 'gtk-icon-theme-name=Papirus-Light' /home/unicore/.config/gtk-3.0/settings.ini
 grep -q '<name>UniCore-Light</name>' /home/unicore/.config/labwc/rc.xml
 grep -q '<naturalScroll>no</naturalScroll>' /home/unicore/.config/labwc/rc.xml
 grep -q '<pointerSpeed>0.3</pointerSpeed>' /home/unicore/.config/labwc/rc.xml
 grep -q '^XKB_DEFAULT_LAYOUT=my$' /home/unicore/.config/labwc/environment
 grep -q '#f1f5f9' /home/unicore/.config/waybar/style.css
+grep -q 'border-radius: 14px' /home/unicore/.config/waybar/style.css
 
 echo "[4/5] Capturing live Wayland Light-Mode screenshot of Settings -> Display & Style..."
 pkill -u unicore -x unicore-center >/dev/null 2>&1 || true

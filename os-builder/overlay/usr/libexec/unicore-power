@@ -57,6 +57,13 @@ apply_cpu_profile() {
     if [ -x /usr/libexec/unicore-sys-helper ] && [ "$(id -u)" -eq 0 ]; then
         /usr/libexec/unicore-sys-helper set-cpu-governor "${gov}" >/dev/null 2>&1 || true
     fi
+    if command -v tlp >/dev/null 2>&1 && [ "$(id -u)" -eq 0 ]; then
+        case "${POWER_PROFILE}" in
+            powersave) tlp bat >/dev/null 2>&1 || true ;;
+            performance) tlp ac >/dev/null 2>&1 || true ;;
+            *) tlp start >/dev/null 2>&1 || true ;;
+        esac
+    fi
 }
 
 battery_info() {
@@ -89,9 +96,11 @@ case "${cmd}" in
         on_ac="$(printf '%s' "${bi}" | awk -F'\t' '{print $2}')"
         idle_running=0
         pgrep -x swayidle >/dev/null 2>&1 && idle_running=1 || true
-        printf 'profile=%s\nscreen_min=%s\nlock_min=%s\nsuspend_bat_min=%s\nbattery=%s\non_ac=%s\nswayidle_running=%s\n' \
+        tlp_avail=0
+        command -v tlp >/dev/null 2>&1 && tlp_avail=1 || true
+        printf 'profile=%s\nscreen_min=%s\nlock_min=%s\nsuspend_bat_min=%s\nbattery=%s\non_ac=%s\nswayidle_running=%s\ntlp_available=%s\n' \
             "${POWER_PROFILE}" "${IDLE_SCREEN_MIN}" "${IDLE_LOCK_MIN}" "${IDLE_SUSPEND_BAT_MIN}" \
-            "${bat_pct}" "${on_ac}" "${idle_running}"
+            "${bat_pct}" "${on_ac}" "${idle_running}" "${tlp_avail}"
         ;;
 
     set-profile)

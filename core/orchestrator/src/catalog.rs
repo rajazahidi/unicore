@@ -31,13 +31,32 @@ pub struct CatalogApp {
     pub filename: String,
     pub archive_entry: String,
     pub bundled_path: String,
+    pub flatpak_id: String,
+    pub arches: Vec<String>,
     pub summary_en: String,
     pub summary_ms: String,
 }
 
 impl CatalogApp {
     pub fn is_offline_bundled(&self) -> bool {
-        !self.bundled_path.is_empty() && self.download_url.is_empty()
+        !self.bundled_path.is_empty() && self.download_url.is_empty() && self.flatpak_id.is_empty()
+    }
+
+    pub fn is_flatpak(&self) -> bool {
+        self.platform == AppPlatform::LinuxFlatpak && !self.flatpak_id.is_empty()
+    }
+
+    pub fn matches_arch(&self, host_arch: &str) -> bool {
+        if self.arches.is_empty() || host_arch.trim().is_empty() {
+            return true;
+        }
+        let lowered = host_arch.trim().to_ascii_lowercase();
+        let norm = match lowered.as_str() {
+            "amd64" | "x86_64" => "x86_64",
+            "arm64" | "aarch64" => "aarch64",
+            other => other,
+        };
+        self.arches.iter().any(|a| a.eq_ignore_ascii_case(norm))
     }
 
     pub fn summary(&self, is_ms: bool) -> &str {
@@ -50,11 +69,20 @@ impl CatalogApp {
 
     pub fn to_json(&self) -> JsonValue {
         let mut map = BTreeMap::new();
+        if !self.arches.is_empty() {
+            map.insert(
+                "arches".to_string(),
+                JsonValue::Array(self.arches.iter().cloned().map(JsonValue::Str).collect()),
+            );
+        }
         map.insert("archive_entry".to_string(), JsonValue::Str(self.archive_entry.clone()));
         map.insert("bundled_path".to_string(), JsonValue::Str(self.bundled_path.clone()));
         map.insert("category".to_string(), JsonValue::Str(self.category.clone()));
         map.insert("download_url".to_string(), JsonValue::Str(self.download_url.clone()));
         map.insert("filename".to_string(), JsonValue::Str(self.filename.clone()));
+        if !self.flatpak_id.is_empty() {
+            map.insert("flatpak_id".to_string(), JsonValue::Str(self.flatpak_id.clone()));
+        }
         map.insert("id".to_string(), JsonValue::Str(self.id.clone()));
         map.insert("name".to_string(), JsonValue::Str(self.name.clone()));
         map.insert(
@@ -103,6 +131,31 @@ impl CatalogApp {
             Some(raw) if !raw.trim().is_empty() => Some(WinEra::parse(raw.trim())?),
             _ => None,
         };
+        let flatpak_id = opt_str("flatpak_id");
+        let filename = if platform == AppPlatform::LinuxFlatpak {
+            let f = opt_str("filename");
+            if f.is_empty() {
+                if flatpak_id.is_empty() {
+                    return Err(format!("Flatpak catalog entry '{id}' missing 'flatpak_id'"));
+                }
+                flatpak_id.clone()
+            } else {
+                f
+            }
+        } else {
+            req_str("filename")?
+        };
+        let arches = obj
+            .get("arches")
+            .and_then(JsonValue::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(JsonValue::as_str)
+                    .map(|s| s.trim().to_ascii_lowercase())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
 
         Ok(Self {
             id,
@@ -114,9 +167,11 @@ impl CatalogApp {
             win_era,
             download_url: opt_str("download_url"),
             sha256: opt_str("sha256").to_ascii_lowercase(),
-            filename: req_str("filename")?,
+            filename,
             archive_entry: opt_str("archive_entry"),
             bundled_path: opt_str("bundled_path"),
+            flatpak_id,
+            arches,
             summary_en: opt_str("summary_en"),
             summary_ms: opt_str("summary_ms"),
         })
@@ -235,13 +290,21 @@ pub fn load_catalog(override_path: Option<&Path>) -> Result<AppCatalog, String> 
     parse_catalog_json(EMBEDDED_CATALOG_JSON)
 }
 
-/// Filter catalog entries by category (`all|utilities|office|android|windows`) and text search query.
-pub fn filter_catalog_apps(apps: &[CatalogApp], category: &str, query: &str) -> Vec<CatalogApp> {
+/// Filter catalog entries by category, search query, and optional host architecture.
+pub fn filter_catalog_apps_for_arch(
+    apps: &[CatalogApp],
+    category: &str,
+    query: &str,
+    host_arch: &str,
+) -> Vec<CatalogApp> {
     let cat = category.trim().to_ascii_lowercase();
     let q = query.trim().to_ascii_lowercase();
 
     apps.iter()
         .filter(|app| {
+            if !app.matches_arch(host_arch) {
+                return false;
+            }
             let cat_ok = match cat.as_str() {
                 "" | "all" => true,
                 "windows" => matches!(
@@ -250,6 +313,10 @@ pub fn filter_catalog_apps(apps: &[CatalogApp], category: &str, query: &str) -> 
                         | AppPlatform::WindowsNe16
                         | AppPlatform::WindowsMsi
                         | AppPlatform::Dos16
+                ),
+                "linux" | "flatpak" => matches!(
+                    app.platform,
+                    AppPlatform::NativeElf | AppPlatform::LinuxFlatpak
                 ),
                 other => app.category == other,
             };
@@ -264,9 +331,31 @@ pub fn filter_catalog_apps(apps: &[CatalogApp], category: &str, query: &str) -> 
                 || app.summary_en.to_ascii_lowercase().contains(&q)
                 || app.summary_ms.to_ascii_lowercase().contains(&q)
                 || app.category.to_ascii_lowercase().contains(&q)
+                || app.flatpak_id.to_ascii_lowercase().contains(&q)
         })
         .cloned()
         .collect()
+}
+
+/// Filter catalog entries by category and text search query (all architectures).
+pub fn filter_catalog_apps(apps: &[CatalogApp], category: &str, query: &str) -> Vec<CatalogApp> {
+    filter_catalog_apps_for_arch(apps, category, query, "")
+}
+
+pub fn validate_flatpak_id(id: &str) -> Result<(), String> {
+    let clean = id.trim();
+    let parts: Vec<&str> = clean.split('.').collect();
+    if parts.len() < 3
+        || parts.iter().any(|p| {
+            p.is_empty()
+                || !p
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+        })
+    {
+        return Err(format!("Invalid Flatpak application ID '{id}'"));
+    }
+    Ok(())
 }
 
 pub fn find_catalog_app<'a>(catalog: &'a AppCatalog, id: &str) -> Result<&'a CatalogApp, String> {
@@ -280,6 +369,10 @@ pub fn find_catalog_app<'a>(catalog: &'a AppCatalog, id: &str) -> Result<&'a Cat
 
 fn validate_remote_entry(app: &CatalogApp, allow_insecure_http: bool) -> Result<(), String> {
     validate_catalog_id(&app.id)?;
+    if app.platform == AppPlatform::LinuxFlatpak {
+        validate_flatpak_id(&app.flatpak_id)?;
+        return Ok(());
+    }
     validate_single_filename(&app.filename)?;
     if !app.archive_entry.is_empty() {
         validate_safe_rel_path(&app.archive_entry)?;

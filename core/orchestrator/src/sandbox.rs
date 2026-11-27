@@ -671,7 +671,7 @@ fn platform_to_subsystem(platform: AppPlatform) -> Option<SubsystemKind> {
         }
         AppPlatform::Dos16 => Some(SubsystemKind::Dos),
         AppPlatform::AndroidApk => Some(SubsystemKind::AndroidArt),
-        AppPlatform::NativeElf => Some(SubsystemKind::Native),
+        AppPlatform::NativeElf | AppPlatform::LinuxFlatpak => Some(SubsystemKind::Native),
         AppPlatform::Unknown => None,
     }
 }

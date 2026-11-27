@@ -1248,23 +1248,36 @@ fn inspect_and_launch_embedded_dos_subsystem() {
 #[test]
 fn catalog_parse_filter_sha256_and_offline_install() {
     use uniload::catalog::{
-        filter_catalog_apps, install_catalog_app, parse_catalog_json, validate_safe_rel_path,
-        verify_file_sha256, CatalogApp, EMBEDDED_CATALOG_JSON,
+        filter_catalog_apps, filter_catalog_apps_for_arch, install_catalog_app,
+        parse_catalog_json, validate_flatpak_id, validate_safe_rel_path, verify_file_sha256,
+        CatalogApp, EMBEDDED_CATALOG_JSON,
     };
 
     let catalog = parse_catalog_json(EMBEDDED_CATALOG_JSON).unwrap();
-    assert_eq!(catalog.version, 1);
-    assert_eq!(catalog.apps.len(), 16);
+    assert_eq!(catalog.version, 2);
+    assert_eq!(catalog.apps.len(), 32);
     for app in &catalog.apps {
         if !app.download_url.is_empty() {
             assert!(app.download_url.starts_with("https://"), "{}", app.id);
             assert_eq!(app.sha256.len(), 64, "{}", app.id);
         }
+        if app.is_flatpak() {
+            assert!(validate_flatpak_id(&app.flatpak_id).is_ok(), "{}", app.id);
+        }
     }
 
+    let dev = filter_catalog_apps(&catalog.apps, "dev", "");
+    assert_eq!(dev.len(), 3);
+    assert!(dev.iter().any(|a| a.id == "antigravity" && a.version == "2.35.2"));
     let office = filter_catalog_apps(&catalog.apps, "office", "");
-    assert_eq!(office.len(), 5);
-    assert!(office.iter().any(|a| a.id == "antigravity" && a.version == "2.35.2"));
+    assert_eq!(office.len(), 3);
+    assert!(office.iter().any(|a| a.id == "libreoffice-native" && a.is_flatpak()));
+    let gaming_x64 = filter_catalog_apps_for_arch(&catalog.apps, "gaming", "", "x86_64");
+    assert_eq!(gaming_x64.len(), 5);
+    let gaming_arm = filter_catalog_apps_for_arch(&catalog.apps, "gaming", "", "aarch64");
+    assert_eq!(gaming_arm.len(), 2);
+    assert!(validate_flatpak_id("com.valvesoftware.Steam").is_ok());
+    assert!(validate_flatpak_id("bad;rm").is_err());
     let pdf = filter_catalog_apps(&catalog.apps, "all", "pdf");
     assert_eq!(pdf.len(), 1);
     assert_eq!(pdf[0].id, "sumatrapdf");
@@ -1284,7 +1297,7 @@ fn catalog_parse_filter_sha256_and_offline_install() {
 
     let list_out = run_cli(&["store".to_string(), "list".to_string()]).unwrap();
     let list_json = parse_json(&list_out).unwrap();
-    assert_eq!(list_json.as_object().unwrap().get("apps").and_then(JsonValue::as_array).unwrap().len(), 16);
+    assert_eq!(list_json.as_object().unwrap().get("apps").and_then(JsonValue::as_array).unwrap().len(), 32);
 
     let dry_out = run_cli(&[
         "store".to_string(),
@@ -1318,6 +1331,8 @@ fn catalog_parse_filter_sha256_and_offline_install() {
         category: "utilities".to_string(),
         platform: AppPlatform::WindowsPe,
         win_era: Some(WinEra::Win7),
+        flatpak_id: String::new(),
+        arches: Vec::new(),
         download_url: String::new(),
         sha256: real_sha,
         filename: "tool.exe".to_string(),

@@ -8,9 +8,21 @@
 
   <theme>
     <name>UniCore-Dark</name>
-    <cornerRadius>8</cornerRadius>
+    <cornerRadius>10</cornerRadius>
     <font name="Sans" size="10" />
   </theme>
+
+  <snapping>
+    <range>10</range>
+    <overlay enabled="yes">
+      <box>
+        <inner borderWidth="2" color="#38bdf8" />
+      </box>
+    </overlay>
+    <topMaximize>yes</topMaximize>
+  </snapping>
+
+  <windowSwitcher show="yes" preview="yes" outlines="yes" />
 
   <keyboard>
     <default />
@@ -18,7 +30,7 @@
       <action name="Execute" command="pkill -x fuzzel || fuzzel" />
     </keybind>
     <keybind key="W-a">
-      <action name="Execute" command="fuzzel" />
+      <action name="Execute" command="/usr/bin/unicore-center --ai" />
     </keybind>
     <keybind key="A-space">
       <action name="Execute" command="fuzzel" />

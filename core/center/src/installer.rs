@@ -64,6 +64,9 @@ pub struct InstallDisk {
     pub model: String,
     pub eligible: bool,
     pub reason: String,
+    pub free_gb: String,
+    pub dualboot_eligible: bool,
+    pub windows_detected: bool,
 }
 
 fn is_clean_disk_name(name: &str) -> bool {
@@ -121,6 +124,11 @@ pub fn parse_install_disks(tsv: &str) -> Vec<InstallDisk> {
         let eligible_raw = cols[4].trim();
         let eligible = eligible_raw == "1" || eligible_raw.eq_ignore_ascii_case("true");
         let reason = cols.get(5).copied().unwrap_or("").trim().to_string();
+        let free_gb = cols.get(6).copied().unwrap_or("0.0 GB").trim().to_string();
+        let dualboot_raw = cols.get(7).copied().unwrap_or("0").trim();
+        let dualboot_eligible = dualboot_raw == "1" || dualboot_raw.eq_ignore_ascii_case("true");
+        let win_raw = cols.get(8).copied().unwrap_or("0").trim();
+        let windows_detected = win_raw == "1" || win_raw.eq_ignore_ascii_case("true");
         disks.push(InstallDisk {
             device,
             name,
@@ -128,6 +136,9 @@ pub fn parse_install_disks(tsv: &str) -> Vec<InstallDisk> {
             model,
             eligible,
             reason,
+            free_gb,
+            dualboot_eligible,
+            windows_detected,
         });
     }
     disks
@@ -221,6 +232,67 @@ pub fn run_disk_install(device: &str) -> Result<String, String> {
 
     Ok(format!(
         "UniCore OS installed cleanly to {dev_clean} (Hybrid BIOS+UEFI GPT A/B). Remove Live USB/ISO and reboot."
+    ))
+}
+
+pub fn run_disk_install_alongside(device: &str) -> Result<String, String> {
+    let dev_clean = validate_target_device(device)?;
+
+    let out = Command::new("doas")
+        .args([SYS_HELPER_BIN, "install-disk-alongside", dev_clean])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("Failed to launch Dual-Boot installer: {e}"))?;
+
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(if detail.is_empty() {
+            format!("Dual-Boot installation failed with status {}", out.status)
+        } else {
+            detail
+        });
+    }
+
+    Ok(format!(
+        "UniCore OS installed cleanly alongside Windows in unallocated space on {dev_clean} (A/B + GRUB Dual-Boot). Remove Live USB and reboot."
+    ))
+}
+
+pub fn run_disk_install_alongside_encrypted(device: &str, passphrase: &str) -> Result<String, String> {
+    let dev_clean = validate_target_device(device)?;
+    validate_luks_passphrase(passphrase, passphrase)?;
+
+    let mut child = Command::new("doas")
+        .args([SYS_HELPER_BIN, "install-disk-alongside-encrypted", dev_clean])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to launch encrypted Dual-Boot installer: {e}"))?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        writeln!(stdin, "{passphrase}")
+            .map_err(|e| format!("Failed to pass LUKS passphrase to helper: {e}"))?;
+    }
+
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("Failed waiting for encrypted Dual-Boot installer: {e}"))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(if detail.is_empty() {
+            format!("Encrypted Dual-Boot installation failed with status {}", out.status)
+        } else {
+            detail
+        });
+    }
+
+    Ok(format!(
+        "UniCore OS installed cleanly alongside Windows on {dev_clean} with LUKS2 encrypted /data. Remove Live USB and reboot."
     ))
 }
 

@@ -919,6 +919,7 @@ pub struct PersonalizeConfig {
     pub tap_to_click: bool,
     pub pointer_speed: f32,
     pub desktop_icons: bool,
+    pub taskbar_style: String,
 }
 
 impl Default for PersonalizeConfig {
@@ -931,7 +932,18 @@ impl Default for PersonalizeConfig {
             tap_to_click: true,
             pointer_speed: 0.0,
             desktop_icons: true,
+            taskbar_style: "docked".to_string(),
         }
+    }
+}
+
+pub fn validate_taskbar_style(raw: &str) -> Result<String, String> {
+    let lower = raw.trim().to_ascii_lowercase();
+    match lower.as_str() {
+        "docked" | "floating" => Ok(lower),
+        _ => Err(format!(
+            "Unsupported taskbar style '{raw}'. Choose docked or floating."
+        )),
     }
 }
 
@@ -1022,6 +1034,11 @@ pub fn parse_personalize_conf(raw: &str) -> PersonalizeConfig {
                     "1" | "true" | "yes" | "on"
                 );
             }
+            "UNICORE_TASKBAR_STYLE" => {
+                if let Ok(ts) = validate_taskbar_style(val) {
+                    cfg.taskbar_style = ts;
+                }
+            }
             _ => {}
         }
     }
@@ -1040,9 +1057,10 @@ pub fn render_personalize_conf(cfg: &PersonalizeConfig) -> String {
     let ns = if cfg.natural_scroll { "yes" } else { "no" };
     let tap = if cfg.tap_to_click { "yes" } else { "no" };
     let di = if cfg.desktop_icons { "yes" } else { "no" };
+    let ts = validate_taskbar_style(&cfg.taskbar_style).unwrap_or_else(|_| "docked".to_string());
     let speed = clamp_pointer_speed(cfg.pointer_speed);
     format!(
-        "UNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\nUNICORE_DESKTOP_ICONS={di}\n"
+        "UNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\nUNICORE_DESKTOP_ICONS={di}\nUNICORE_TASKBAR_STYLE={ts}\n"
     )
 }
 
@@ -1064,6 +1082,7 @@ pub fn save_and_apply_personalize(
         tap_to_click: cfg.tap_to_click,
         pointer_speed: clamp_pointer_speed(cfg.pointer_speed),
         desktop_icons: cfg.desktop_icons,
+        taskbar_style: validate_taskbar_style(&cfg.taskbar_style)?,
     };
     fs::create_dir_all(cfg_dir)
         .map_err(|e| format!("Failed to create config dir: {e}"))?;
@@ -1093,6 +1112,8 @@ pub fn save_and_apply_personalize(
                 &speed,
                 "--desktop-icons",
                 di,
+                "--taskbar-style",
+                &clean.taskbar_style,
             ],
             Duration::from_secs(8),
         )?;

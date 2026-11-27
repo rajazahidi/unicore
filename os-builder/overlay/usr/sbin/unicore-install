@@ -1,5 +1,6 @@
 #!/bin/sh
 # UniCore OS bare-metal GPT Hybrid (BIOS + UEFI) A/B disk installer.
+# Supports both Whole-Disk Wipe (--mode wipe) and Safe Non-Destructive Dual-Boot (--mode alongside).
 set -eu
 
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
@@ -7,19 +8,18 @@ ARCH="$(uname -m 2>/dev/null || echo x86_64)"
 
 usage() {
     cat <<'EOF'
-unicore-install - UniCore OS bare-metal A/B disk installer
+unicore-install - UniCore OS bare-metal A/B & Safe Dual-Boot installer
 
 USAGE:
   unicore-install --list
   unicore-install --list-tsv
-  unicore-install --disk /dev/<DISK> --yes-wipe [--encrypt-data --passphrase-file <PATH>]
+  unicore-install --disk /dev/<DISK> [--mode wipe|alongside] --yes-wipe [--encrypt-data --passphrase-file <PATH>]
 
-LAYOUT (GPT Hybrid Legacy BIOS + UEFI, >= 8 GiB):
-  1: bios_grub     (1 MiB)    - Legacy BIOS GRUB core.img area
-  2: UNICORE_EFI   (256 MiB)  - FAT32 ESP (/EFI/BOOT/BOOTX64.EFI + GRUB + kernels)
-  3: UNICORE_SYS_A (3.0 GiB)  - Active immutable SquashFS slot A
-  4: UNICORE_SYS_B (3.0 GiB)  - Standby immutable SquashFS slot B (A/B fallback)
-  5: UNICORE_DATA  (Remainder)- Persistent /data (apps, home, network, bluetooth)
+MODES:
+  wipe       - Erases target disk and creates GPT Hybrid BIOS+UEFI A/B layout (>= 8 GiB)
+  alongside  - Non-destructive Dual-Boot into >= 10 GiB unallocated free space on a GPT disk;
+               reuses existing Windows EFI System Partition safely (never resizes NTFS!) and
+               auto-adds Windows Boot Manager + UniCore Recovery submenu to GRUB.
 EOF
 }
 
@@ -44,11 +44,93 @@ resolve_parent_disk_name() {
     fi
 }
 
+part_path() {
+    disk="$1"
+    num="$2"
+    case "${disk}" in
+        *[0-9]) printf '%sp%s\n' "${disk}" "${num}" ;;
+        *) printf '%s%s\n' "${disk}" "${num}" ;;
+    esac
+}
+
 BOOT_PARENT_NAME="$(resolve_parent_disk_name "${BOOT_MEDIA}")"
 DATA_DEV="$(awk '$2=="/data"{print $1}' /proc/mounts 2>/dev/null | head -n1 || true)"
 DATA_PARENT_NAME="$(resolve_parent_disk_name "${DATA_DEV}")"
 
 MIN_BYTES=8589934592
+DUALBOOT_MIN_BYTES=10737418240
+
+# Prints "<start_bytes> <end_bytes> <size_bytes>" for the largest free unallocated gap on a GPT disk.
+find_largest_gpt_free_gap() {
+    dev="$1"
+    parted -ms "${dev}" unit B print free 2>/dev/null | awk -F: '
+        NR == 2 && $6 != "gpt" { exit }
+        $5 == "free;" || $5 == "free" {
+            s = $2; e = $3; sz = $4
+            gsub(/B/, "", s); gsub(/B/, "", e); gsub(/B/, "", sz)
+            if (sz + 0 > best_sz) {
+                best_sz = sz + 0
+                best_s = s + 0
+                best_e = e + 0
+            }
+        }
+        END {
+            if (best_sz > 0) printf "%.0f %.0f %.0f\n", best_s, best_e, best_sz
+            else print "0 0 0"
+        }
+    '
+}
+
+# Detect if a disk has an existing EFI System Partition (returns partition device path or empty).
+find_existing_esp_on_disk() {
+    dev="$1"
+    pnum="$(parted -ms "${dev}" print 2>/dev/null | awk -F: '
+        $1 ~ /^[0-9]+$/ && ($7 ~ /esp/ || $7 ~ /boot/) && $5 ~ /fat/ { print $1; exit }
+    ' || true)"
+    if [ -n "${pnum}" ]; then
+        cand="$(part_path "${dev}" "${pnum}")"
+        [ -b "${cand}" ] && { printf '%s\n' "${cand}"; return 0; }
+    fi
+    return 0
+}
+
+# Detect whether Windows Boot Manager (\EFI\Microsoft\Boot\bootmgfw.efi) exists on a given disk or any disk.
+# Prints "<esp_dev>\t<esp_uuid>\t<rel_efi_path>" when found.
+find_windows_boot_manager() {
+    filter_disk="${1:-}"
+    probe_mnt="/tmp/unicore-winprobe.$$"
+    mkdir -p "${probe_mnt}"
+    found=""
+    for vdev in $(blkid -t TYPE=vfat -o device 2>/dev/null || true); do
+        [ -b "${vdev}" ] || continue
+        if [ -n "${filter_disk}" ]; then
+            case "${vdev}" in
+                "${filter_disk}"*) ;;
+                *) continue ;;
+            esac
+        fi
+        if mount -t vfat -o ro "${vdev}" "${probe_mnt}" 2>/dev/null; then
+            rel=""
+            for cand in \
+                EFI/Microsoft/Boot/bootmgfw.efi \
+                efi/Microsoft/Boot/bootmgfw.efi \
+                EFI/MICROSOFT/BOOT/BOOTMGFW.EFI; do
+                if [ -f "${probe_mnt}/${cand}" ]; then
+                    rel="/${cand}"
+                    break
+                fi
+            done
+            umount "${probe_mnt}" 2>/dev/null || true
+            if [ -n "${rel}" ]; then
+                uuid="$(blkid -s UUID -o value "${vdev}" 2>/dev/null || true)"
+                found="${vdev}	${uuid}	${rel}"
+                break
+            fi
+        fi
+    done
+    rmdir "${probe_mnt}" 2>/dev/null || true
+    printf '%s' "${found}"
+}
 
 emit_disk_tsv() {
     lsblk -P -b -d -n -o NAME,SIZE,MODEL,TYPE 2>/dev/null | while IFS= read -r line; do
@@ -81,12 +163,30 @@ emit_disk_tsv() {
             REASON="too-small-min-8GB"
         fi
 
-        printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${DEV}" "${NAME}" "${SIZE_GB}" "${CLEAN_MODEL}" "${ELIGIBLE}" "${REASON}"
+        FREE_BYTES="0"
+        DUALBOOT_OK="0"
+        WIN_FOUND="0"
+        if [ "${ELIGIBLE}" = "1" ]; then
+            gap="$(find_largest_gpt_free_gap "${DEV}")"
+            FREE_BYTES="$(printf '%s' "${gap}" | awk '{print $3}')"
+            if [ -n "${FREE_BYTES}" ] && [ "${FREE_BYTES}" -ge "${DUALBOOT_MIN_BYTES}" ] 2>/dev/null; then
+                DUALBOOT_OK="1"
+            fi
+            if [ -n "$(find_windows_boot_manager "${DEV}")" ]; then
+                WIN_FOUND="1"
+            fi
+        fi
+        FREE_GB="$(awk -v s="${FREE_BYTES:-0}" 'BEGIN { printf "%.1f GB", s / 1073741824 }')"
+
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "${DEV}" "${NAME}" "${SIZE_GB}" "${CLEAN_MODEL}" "${ELIGIBLE}" "${REASON}" \
+            "${FREE_GB}" "${DUALBOOT_OK}" "${WIN_FOUND}"
     done
 }
 
 LIST_MODE=""
 TARGET_DISK=""
+INSTALL_MODE="wipe"
 CONFIRMED="0"
 ENCRYPT_DATA="0"
 PASS_FILE=""
@@ -110,7 +210,15 @@ while [ "$#" -gt 0 ]; do
             [ -n "${TARGET_DISK}" ] || { echo "Error: --disk requires <DEVICE>" >&2; exit 2; }
             shift 2
             ;;
-        --yes-wipe)
+        --mode)
+            INSTALL_MODE="${2:-}"
+            case "${INSTALL_MODE}" in
+                wipe|alongside) ;;
+                *) echo "Error: --mode must be 'wipe' or 'alongside'" >&2; exit 2 ;;
+            esac
+            shift 2
+            ;;
+        --yes-wipe|--yes-install)
             CONFIRMED="1"
             shift
             ;;
@@ -138,8 +246,8 @@ fi
 
 if [ "${LIST_MODE}" = "human" ] || [ -z "${TARGET_DISK}" ]; then
     echo "Boot Mode: ${UNICORE_BOOT_MODE:-unknown} | Boot Media: ${BOOT_MEDIA:-none}"
-    echo "Available disks (DEVICE | SIZE | MODEL | ELIGIBLE | REASON):"
-    emit_disk_tsv | awk -F'\t' '{ printf "  %-12s  %-9s  %-24s  eligible=%s (%s)\n", $1, $3, $4, $5, $6 }'
+    echo "Available disks (DEVICE | SIZE | MODEL | ELIGIBLE | FREE | DUALBOOT | WINDOWS):"
+    emit_disk_tsv | awk -F'\t' '{ printf "  %-12s  %-9s  %-22s  eligible=%s (%s)  free=%-8s  dualboot=%s  win=%s\n", $1, $3, $4, $5, $6, $7, $8, $9 }'
     exit 0
 fi
 
@@ -149,7 +257,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 if [ "${CONFIRMED}" != "1" ]; then
-    echo "Error: Pass --yes-wipe to confirm erasing ${TARGET_DISK}." >&2
+    echo "Error: Pass --yes-wipe (or --yes-install) to confirm installing on ${TARGET_DISK}." >&2
     exit 2
 fi
 
@@ -178,7 +286,7 @@ TARGET_INFO="$(emit_disk_tsv | awk -F'\t' -v d="${TARGET_DISK}" '$1==d {print $0
 IS_ELIGIBLE="$(printf '%s' "${TARGET_INFO}" | awk -F'\t' '{print $5}')"
 REASON="$(printf '%s' "${TARGET_INFO}" | awk -F'\t' '{print $6}')"
 if [ "${IS_ELIGIBLE}" != "1" ]; then
-    echo "Error: Refusing to overwrite ${TARGET_DISK} (${REASON})." >&2
+    echo "Error: Refusing to install on ${TARGET_DISK} (${REASON})." >&2
     exit 1
 fi
 
@@ -206,62 +314,129 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Unmount any stale auto-mounted partitions or swap on target disk
-for mp in $(awk -v dev="${TARGET_DISK}" 'index($1, dev) == 1 {print $2}' /proc/mounts 2>/dev/null | sort -r); do
-    umount "${mp}" 2>/dev/null || umount -l "${mp}" 2>/dev/null || true
-done
-for sw in $(awk -v dev="${TARGET_DISK}" 'NR>1 && index($1, dev) == 1 {print $1}' /proc/swaps 2>/dev/null); do
-    swapoff "${sw}" 2>/dev/null || true
-done
+EFI_PART=""
+SYSA_PART=""
+SYSB_PART=""
+DATA_PART=""
+SHARED_ESP="0"
 
-echo "==> Wiping and creating GPT Hybrid BIOS+UEFI A/B partition table on ${TARGET_DISK}"
-if command -v wipefs >/dev/null 2>&1; then
-    wipefs -a "${TARGET_DISK}" >/dev/null 2>&1 || true
-fi
+if [ "${INSTALL_MODE}" = "alongside" ]; then
+    echo "==> Safe Non-Destructive Dual-Boot into unallocated GPT free space on ${TARGET_DISK}"
+    gap="$(find_largest_gpt_free_gap "${TARGET_DISK}")"
+    GAP_START_B="$(printf '%s' "${gap}" | awk '{print $1}')"
+    GAP_END_B="$(printf '%s' "${gap}" | awk '{print $2}')"
+    GAP_SIZE_B="$(printf '%s' "${gap}" | awk '{print $3}')"
+    if [ -z "${GAP_SIZE_B}" ] || [ "${GAP_SIZE_B}" -lt "${DUALBOOT_MIN_BYTES}" ] 2>/dev/null; then
+        echo "Error: Safe Dual-Boot requires at least 10 GiB of unallocated free space on a GPT disk. Shrink your Windows volume inside Windows Disk Management first, then retry." >&2
+        exit 1
+    fi
 
-parted -s "${TARGET_DISK}" \
-    mklabel gpt \
-    mkpart bios_grub 1MiB 2MiB \
-    set 1 bios_grub on \
-    mkpart UNICORE_EFI fat32 2MiB 258MiB \
-    set 2 esp on \
-    mkpart UNICORE_SYS_A ext4 258MiB 3330MiB \
-    mkpart UNICORE_SYS_B ext4 3330MiB 6402MiB \
-    mkpart UNICORE_DATA ext4 6402MiB 100%
+    # Align start upward to MiB boundary and end downward to MiB boundary (never touch adjacent Windows partition!)
+    CUR_MIB="$(awk -v b="${GAP_START_B}" 'BEGIN { m = int((b + 1048575) / 1048576); if (m < 2) m = 2; printf "%.0f", m }')"
+    END_MIB="$(awk -v b="${GAP_END_B}" 'BEGIN { printf "%.0f", int(b / 1048576) - 1 }')"
 
-partprobe "${TARGET_DISK}" 2>/dev/null || blockdev --rereadpt "${TARGET_DISK}" 2>/dev/null || true
-if command -v udevadm >/dev/null 2>&1; then
+    EXISTING_ESP="$(find_existing_esp_on_disk "${TARGET_DISK}")"
+    if [ -n "${EXISTING_ESP}" ]; then
+        EFI_PART="${EXISTING_ESP}"
+        SHARED_ESP="1"
+        echo "==> Reusing existing EFI System Partition ${EFI_PART} (non-destructive; Windows files preserved)"
+    else
+        ESP_END=$((CUR_MIB + 256))
+        parted -s "${TARGET_DISK}" mkpart UNICORE_EFI fat32 "${CUR_MIB}MiB" "${ESP_END}MiB"
+        partprobe "${TARGET_DISK}" 2>/dev/null || blockdev --rereadpt "${TARGET_DISK}" 2>/dev/null || true
+        udevadm settle 2>/dev/null || true
+        esp_num="$(parted -ms "${TARGET_DISK}" print 2>/dev/null | awk -F: '$6=="UNICORE_EFI"{print $1; exit}')"
+        [ -n "${esp_num}" ] && parted -s "${TARGET_DISK}" set "${esp_num}" esp on
+        EFI_PART="$(part_path "${TARGET_DISK}" "${esp_num}")"
+        CUR_MIB="${ESP_END}"
+    fi
+
+    SYSA_END=$((CUR_MIB + 3072))
+    SYSB_END=$((SYSA_END + 3072))
+    if [ "${SYSB_END}" -ge $((END_MIB - 1024)) ]; then
+        echo "Error: Insufficient contiguous free space after alignment for Slot A + Slot B + /data." >&2
+        exit 1
+    fi
+
+    parted -s "${TARGET_DISK}" \
+        mkpart UNICORE_SYS_A ext4 "${CUR_MIB}MiB" "${SYSA_END}MiB" \
+        mkpart UNICORE_SYS_B ext4 "${SYSA_END}MiB" "${SYSB_END}MiB" \
+        mkpart UNICORE_DATA ext4 "${SYSB_END}MiB" "${END_MIB}MiB"
+
+    partprobe "${TARGET_DISK}" 2>/dev/null || blockdev --rereadpt "${TARGET_DISK}" 2>/dev/null || true
     udevadm settle 2>/dev/null || true
+
+    sysa_num="$(parted -ms "${TARGET_DISK}" print 2>/dev/null | awk -F: '$6=="UNICORE_SYS_A"{p=$1} END{print p}')"
+    sysb_num="$(parted -ms "${TARGET_DISK}" print 2>/dev/null | awk -F: '$6=="UNICORE_SYS_B"{p=$1} END{print p}')"
+    data_num="$(parted -ms "${TARGET_DISK}" print 2>/dev/null | awk -F: '$6=="UNICORE_DATA"{p=$1} END{print p}')"
+
+    SYSA_PART="$(part_path "${TARGET_DISK}" "${sysa_num}")"
+    SYSB_PART="$(part_path "${TARGET_DISK}" "${sysb_num}")"
+    DATA_PART="$(part_path "${TARGET_DISK}" "${data_num}")"
+
+    for _try in $(seq 1 25); do
+        [ -b "${EFI_PART}" ] && [ -b "${SYSA_PART}" ] && [ -b "${SYSB_PART}" ] && [ -b "${DATA_PART}" ] && break
+        sleep 0.3
+    done
+    if [ ! -b "${DATA_PART}" ]; then
+        echo "Error: Kernel did not expose newly created Dual-Boot partitions on ${TARGET_DISK}." >&2
+        exit 1
+    fi
+
+    if [ "${SHARED_ESP}" != "1" ]; then
+        mkfs.vfat -F 32 -n UNICORE_EFI "${EFI_PART}" >/dev/null
+    fi
+else
+    # Whole-disk wipe mode: unmount any stale mounts/swap on target disk
+    for mp in $(awk -v dev="${TARGET_DISK}" 'index($1, dev) == 1 {print $2}' /proc/mounts 2>/dev/null | sort -r); do
+        umount "${mp}" 2>/dev/null || umount -l "${mp}" 2>/dev/null || true
+    done
+    for sw in $(awk -v dev="${TARGET_DISK}" 'NR>1 && index($1, dev) == 1 {print $1}' /proc/swaps 2>/dev/null); do
+        swapoff "${sw}" 2>/dev/null || true
+    done
+
+    echo "==> Wiping and creating GPT Hybrid BIOS+UEFI A/B partition table on ${TARGET_DISK}"
+    if command -v wipefs >/dev/null 2>&1; then
+        wipefs -a "${TARGET_DISK}" >/dev/null 2>&1 || true
+    fi
+
+    parted -s "${TARGET_DISK}" \
+        mklabel gpt \
+        mkpart bios_grub 1MiB 2MiB \
+        set 1 bios_grub on \
+        mkpart UNICORE_EFI fat32 2MiB 258MiB \
+        set 2 esp on \
+        mkpart UNICORE_SYS_A ext4 258MiB 3330MiB \
+        mkpart UNICORE_SYS_B ext4 3330MiB 6402MiB \
+        mkpart UNICORE_DATA ext4 6402MiB 100%
+
+    partprobe "${TARGET_DISK}" 2>/dev/null || blockdev --rereadpt "${TARGET_DISK}" 2>/dev/null || true
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm settle 2>/dev/null || true
+    fi
+
+    EFI_PART="$(part_path "${TARGET_DISK}" 2)"
+    SYSA_PART="$(part_path "${TARGET_DISK}" 3)"
+    SYSB_PART="$(part_path "${TARGET_DISK}" 4)"
+    DATA_PART="$(part_path "${TARGET_DISK}" 5)"
+
+    for _try in $(seq 1 25); do
+        [ -b "${EFI_PART}" ] && [ -b "${SYSA_PART}" ] && [ -b "${SYSB_PART}" ] && [ -b "${DATA_PART}" ] && break
+        sleep 0.3
+    done
+    if [ ! -b "${DATA_PART}" ]; then
+        echo "Error: Kernel did not expose new GPT partitions on ${TARGET_DISK}." >&2
+        exit 1
+    fi
+
+    echo "==> Formatting UNICORE_EFI (${EFI_PART})"
+    mkfs.vfat -F 32 -n UNICORE_EFI "${EFI_PART}" >/dev/null
 fi
 
-part_path() {
-    disk="$1"
-    num="$2"
-    case "${disk}" in
-        *[0-9]) printf '%sp%s\n' "${disk}" "${num}" ;;
-        *) printf '%s%s\n' "${disk}" "${num}" ;;
-    esac
-}
-
-P2="$(part_path "${TARGET_DISK}" 2)"
-P3="$(part_path "${TARGET_DISK}" 3)"
-P4="$(part_path "${TARGET_DISK}" 4)"
-P5="$(part_path "${TARGET_DISK}" 5)"
-
-for _try in $(seq 1 25); do
-    [ -b "${P2}" ] && [ -b "${P3}" ] && [ -b "${P4}" ] && [ -b "${P5}" ] && break
-    sleep 0.3
-done
-if [ ! -b "${P5}" ]; then
-    echo "Error: Kernel did not expose new GPT partitions on ${TARGET_DISK}." >&2
-    exit 1
-fi
-
-echo "==> Formatting UNICORE_EFI, UNICORE_SYS_A, UNICORE_SYS_B, and UNICORE_DATA"
-mkfs.vfat -F 32 -n UNICORE_EFI "${P2}" >/dev/null
-mkfs.ext4 -F -L UNICORE_SYS_A "${P3}" >/dev/null
-mkfs.ext4 -F -L UNICORE_SYS_B "${P4}" >/dev/null
-DATA_TARGET="${P5}"
+echo "==> Formatting UNICORE_SYS_A (${SYSA_PART}), UNICORE_SYS_B (${SYSB_PART}), and UNICORE_DATA (${DATA_PART})"
+mkfs.ext4 -F -L UNICORE_SYS_A "${SYSA_PART}" >/dev/null
+mkfs.ext4 -F -L UNICORE_SYS_B "${SYSB_PART}" >/dev/null
+DATA_TARGET="${DATA_PART}"
 if [ "${ENCRYPT_DATA}" = "1" ]; then
     echo "==> Encrypting UNICORE_DATA with LUKS2"
     cryptsetup luksFormat \
@@ -271,16 +446,16 @@ if [ "${ENCRYPT_DATA}" = "1" ]; then
         --label UNICORE_DATA_LUKS \
         --batch-mode \
         --key-file "${PASS_FILE}" \
-        "${P5}"
-    cryptsetup open --disable-locks --key-file "${PASS_FILE}" "${P5}" unicore_data
+        "${DATA_PART}"
+    cryptsetup open --disable-locks --key-file "${PASS_FILE}" "${DATA_PART}" unicore_data
     command -v dmsetup >/dev/null 2>&1 && dmsetup mknodes 2>/dev/null || true
     DATA_TARGET="/dev/mapper/unicore_data"
 fi
 mkfs.ext4 -F -L UNICORE_DATA "${DATA_TARGET}" >/dev/null
 
 mkdir -p "${MNT}/efi" "${MNT}/sys_a" "${MNT}/data"
-mount -t vfat "${P2}" "${MNT}/efi"
-mount -t ext4 "${P3}" "${MNT}/sys_a"
+mount -t vfat "${EFI_PART}" "${MNT}/efi"
+mount -t ext4 "${SYSA_PART}" "${MNT}/sys_a"
 mount -t ext4 "${DATA_TARGET}" "${MNT}/data"
 
 echo "==> Installing immutable SquashFS to Slot A and kernels to EFI boot"
@@ -288,6 +463,7 @@ mkdir -p "${MNT}/sys_a/unicore" "${MNT}/efi/boot/slot_a" "${MNT}/efi/boot/slot_b
 cp "${SQUASH_SRC}" "${MNT}/sys_a/unicore/unicore-rootfs-${ARCH}.squashfs"
 cp "${VMLINUZ_SRC}" "${MNT}/efi/boot/slot_a/vmlinuz-${ARCH}"
 cp "${INITRD_SRC}" "${MNT}/efi/boot/slot_a/initramfs-${ARCH}.img"
+printf 'unicore-installed\n' > "${MNT}/efi/boot/grub/unicore-installed.marker"
 
 mkdir -p \
     "${MNT}/data/uniload" \
@@ -298,6 +474,9 @@ mkdir -p \
     "${MNT}/data/unicore" \
     "${MNT}/data/network" \
     "${MNT}/data/bluetooth" \
+    "${MNT}/data/flatpak" \
+    "${MNT}/data/gaming/proton-ge" \
+    "${MNT}/data/ai" \
     "${MNT}/data/sys_overlay/slot_a/upper" \
     "${MNT}/data/sys_overlay/slot_a/work" \
     "${MNT}/data/sys_overlay/slot_b/upper" \
@@ -315,9 +494,9 @@ chmod 0700 "${MNT}/data/network" "${MNT}/data/bluetooth"
 if [ -d /data/network ]; then
     cp -a /data/network/. "${MNT}/data/network/" 2>/dev/null || true
 fi
-chown -R 1000:1000 "${MNT}/data/uniload" "${MNT}/data/home" "${MNT}/data/unicore"
+chown -R 1000:1000 "${MNT}/data/uniload" "${MNT}/data/home" "${MNT}/data/unicore" "${MNT}/data/flatpak" "${MNT}/data/gaming" "${MNT}/data/ai"
 
-OS_VERSION="0.3.0"
+OS_VERSION="0.4.0"
 if [ -r /etc/os-release ]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || true)"
     [ -n "${parsed_ver}" ] && OS_VERSION="${parsed_ver}"
@@ -326,39 +505,49 @@ fi
 
 if [ "${ARCH}" = "aarch64" ] || [ "${ARCH}" = "arm64" ]; then
     echo "==> Installing UEFI GRUB bootloader (arm64-efi)"
-    grub-install --target=arm64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --removable --no-nvram
+    if [ "${SHARED_ESP}" != "1" ] || [ ! -f "${MNT}/efi/EFI/BOOT/BOOTAA64.EFI" ]; then
+        grub-install --target=arm64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --removable --no-nvram
+    fi
     if [ -d /sys/firmware/efi/efivars ]; then
         grub-install --target=arm64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --bootloader-id=UniCore || true
     fi
     if [ -f /usr/share/unicore/secureboot/shimaa64.efi ] && [ -f /usr/share/unicore/secureboot/grubaa64.efi ]; then
         echo "==> Installing UEFI Secure Boot shim + MOK chain (arm64)"
-        mkdir -p "${MNT}/efi/EFI/BOOT"
-        cp /usr/share/unicore/secureboot/shimaa64.efi "${MNT}/efi/EFI/BOOT/BOOTAA64.EFI"
-        [ -f /usr/share/unicore/secureboot/mmaa64.efi ] && cp /usr/share/unicore/secureboot/mmaa64.efi "${MNT}/efi/EFI/BOOT/mmaa64.efi"
-        cp /usr/share/unicore/secureboot/grubaa64.efi "${MNT}/efi/EFI/BOOT/grubaa64.efi"
-        if [ -d "${MNT}/efi/EFI/UniCore" ]; then
-            cp /usr/share/unicore/secureboot/shimaa64.efi "${MNT}/efi/EFI/UniCore/shimaa64.efi"
-            [ -f /usr/share/unicore/secureboot/mmaa64.efi ] && cp /usr/share/unicore/secureboot/mmaa64.efi "${MNT}/efi/EFI/UniCore/mmaa64.efi"
-            cp /usr/share/unicore/secureboot/grubaa64.efi "${MNT}/efi/EFI/UniCore/grubaa64.efi"
+        mkdir -p "${MNT}/efi/EFI/UniCore"
+        cp /usr/share/unicore/secureboot/shimaa64.efi "${MNT}/efi/EFI/UniCore/shimaa64.efi"
+        [ -f /usr/share/unicore/secureboot/mmaa64.efi ] && cp /usr/share/unicore/secureboot/mmaa64.efi "${MNT}/efi/EFI/UniCore/mmaa64.efi"
+        cp /usr/share/unicore/secureboot/grubaa64.efi "${MNT}/efi/EFI/UniCore/grubaa64.efi"
+        if [ "${SHARED_ESP}" != "1" ] || [ ! -f "${MNT}/efi/EFI/BOOT/BOOTAA64.EFI" ]; then
+            mkdir -p "${MNT}/efi/EFI/BOOT"
+            cp /usr/share/unicore/secureboot/shimaa64.efi "${MNT}/efi/EFI/BOOT/BOOTAA64.EFI"
+            [ -f /usr/share/unicore/secureboot/mmaa64.efi ] && cp /usr/share/unicore/secureboot/mmaa64.efi "${MNT}/efi/EFI/BOOT/mmaa64.efi"
+            cp /usr/share/unicore/secureboot/grubaa64.efi "${MNT}/efi/EFI/BOOT/grubaa64.efi"
         fi
     fi
 else
-    echo "==> Installing Hybrid GRUB bootloader (Legacy BIOS i386-pc + UEFI x86_64-efi)"
-    grub-install --target=i386-pc --boot-directory="${MNT}/efi/boot" --recheck "${TARGET_DISK}"
-    grub-install --target=x86_64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --removable --no-nvram
+    if [ "${INSTALL_MODE}" = "wipe" ]; then
+        echo "==> Installing Hybrid GRUB bootloader (Legacy BIOS i386-pc + UEFI x86_64-efi)"
+        grub-install --target=i386-pc --boot-directory="${MNT}/efi/boot" --recheck "${TARGET_DISK}"
+    else
+        echo "==> Installing UEFI GRUB bootloader for Dual-Boot (preserving existing Windows boot manager)"
+    fi
+    if [ "${SHARED_ESP}" != "1" ] || [ ! -f "${MNT}/efi/EFI/BOOT/BOOTX64.EFI" ]; then
+        grub-install --target=x86_64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --removable --no-nvram
+    fi
     if [ -d /sys/firmware/efi/efivars ]; then
         grub-install --target=x86_64-efi --efi-directory="${MNT}/efi" --boot-directory="${MNT}/efi/boot" --bootloader-id=UniCore || true
     fi
     if [ -f /usr/share/unicore/secureboot/shimx64.efi ] && [ -f /usr/share/unicore/secureboot/grubx64.efi ]; then
         echo "==> Installing UEFI Secure Boot shim + MOK chain (x86_64)"
-        mkdir -p "${MNT}/efi/EFI/BOOT"
-        cp /usr/share/unicore/secureboot/shimx64.efi "${MNT}/efi/EFI/BOOT/BOOTX64.EFI"
-        [ -f /usr/share/unicore/secureboot/mmx64.efi ] && cp /usr/share/unicore/secureboot/mmx64.efi "${MNT}/efi/EFI/BOOT/mmx64.efi"
-        cp /usr/share/unicore/secureboot/grubx64.efi "${MNT}/efi/EFI/BOOT/grubx64.efi"
-        if [ -d "${MNT}/efi/EFI/UniCore" ]; then
-            cp /usr/share/unicore/secureboot/shimx64.efi "${MNT}/efi/EFI/UniCore/shimx64.efi"
-            [ -f /usr/share/unicore/secureboot/mmx64.efi ] && cp /usr/share/unicore/secureboot/mmx64.efi "${MNT}/efi/EFI/UniCore/mmx64.efi"
-            cp /usr/share/unicore/secureboot/grubx64.efi "${MNT}/efi/EFI/UniCore/grubx64.efi"
+        mkdir -p "${MNT}/efi/EFI/UniCore"
+        cp /usr/share/unicore/secureboot/shimx64.efi "${MNT}/efi/EFI/UniCore/shimx64.efi"
+        [ -f /usr/share/unicore/secureboot/mmx64.efi ] && cp /usr/share/unicore/secureboot/mmx64.efi "${MNT}/efi/EFI/UniCore/mmx64.efi"
+        cp /usr/share/unicore/secureboot/grubx64.efi "${MNT}/efi/EFI/UniCore/grubx64.efi"
+        if [ "${SHARED_ESP}" != "1" ] || [ ! -f "${MNT}/efi/EFI/BOOT/BOOTX64.EFI" ]; then
+            mkdir -p "${MNT}/efi/EFI/BOOT"
+            cp /usr/share/unicore/secureboot/shimx64.efi "${MNT}/efi/EFI/BOOT/BOOTX64.EFI"
+            [ -f /usr/share/unicore/secureboot/mmx64.efi ] && cp /usr/share/unicore/secureboot/mmx64.efi "${MNT}/efi/EFI/BOOT/mmx64.efi"
+            cp /usr/share/unicore/secureboot/grubx64.efi "${MNT}/efi/EFI/BOOT/grubx64.efi"
         fi
     fi
 fi
@@ -366,10 +555,47 @@ if [ -f /etc/unicore/mok.der ]; then
     cp /etc/unicore/mok.der "${MNT}/efi/ENROLL_UNICORE_MOK.cer"
 fi
 
+# Detect Windows Boot Manager on the mounted ESP first, then across all other disks
+WIN_ESP_UUID=""
+WIN_EFI_REL=""
+for cand in EFI/Microsoft/Boot/bootmgfw.efi efi/Microsoft/Boot/bootmgfw.efi EFI/MICROSOFT/BOOT/BOOTMGFW.EFI; do
+    if [ -f "${MNT}/efi/${cand}" ]; then
+        WIN_ESP_UUID="$(blkid -s UUID -o value "${EFI_PART}" 2>/dev/null || true)"
+        WIN_EFI_REL="/${cand}"
+        break
+    fi
+done
+if [ -z "${WIN_EFI_REL}" ]; then
+    win_probe="$(find_windows_boot_manager)"
+    if [ -n "${win_probe}" ]; then
+        WIN_ESP_UUID="$(printf '%s' "${win_probe}" | awk -F'\t' '{print $2}')"
+        WIN_EFI_REL="$(printf '%s' "${win_probe}" | awk -F'\t' '{print $3}')"
+    fi
+fi
+
+SERIAL_DEV="ttyS0"
+if [ "${ARCH}" = "aarch64" ] || [ "${ARCH}" = "arm64" ]; then
+    SERIAL_DEV="ttyAMA0"
+fi
+
+WIN_ENTRY=""
+if [ -n "${WIN_ESP_UUID}" ] && [ -n "${WIN_EFI_REL}" ]; then
+    echo "==> Windows Boot Manager detected (${WIN_EFI_REL}, UUID=${WIN_ESP_UUID}); adding Dual-Boot GRUB entry!"
+    WIN_ENTRY="
+menuentry \"Windows Boot Manager\" {
+    insmod part_gpt
+    insmod fat
+    insmod chain
+    search --no-floppy --fs-uuid --set=win_esp ${WIN_ESP_UUID}
+    chainloader (\${win_esp})${WIN_EFI_REL}
+}
+"
+fi
+
 cat <<EOF > "${MNT}/efi/boot/grub/grub.cfg"
-set timeout=3
+set timeout=4
 set default=0
-search --no-floppy --label --set=root UNICORE_EFI
+search --no-floppy --file --set=root /boot/grub/unicore-installed.marker
 
 set active_slot=UNICORE_SYS_A
 set pending_slot=""
@@ -400,25 +626,32 @@ else
 fi
 
 menuentry "UniCore OS (Active / Trial Slot)" {
-    linux /boot/\${boot_dir}/vmlinuz-${ARCH} unicore_slot=\${boot_target} console=tty1 console=ttyS0 quiet
+    linux /boot/\${boot_dir}/vmlinuz-${ARCH} unicore_slot=\${boot_target} console=tty1 console=${SERIAL_DEV} quiet
     initrd /boot/\${boot_dir}/initramfs-${ARCH}.img
 }
+${WIN_ENTRY}
+submenu "UniCore Recovery & Advanced Options" {
+    menuentry "UniCore OS - Boot Slot A (Primary System)" {
+        linux /boot/slot_a/vmlinuz-${ARCH} unicore_slot=UNICORE_SYS_A console=tty1 console=${SERIAL_DEV} quiet
+        initrd /boot/slot_a/initramfs-${ARCH}.img
+    }
 
-menuentry "UniCore OS (Slot A)" {
-    linux /boot/slot_a/vmlinuz-${ARCH} unicore_slot=UNICORE_SYS_A console=tty1 console=ttyS0 quiet
-    initrd /boot/slot_a/initramfs-${ARCH}.img
-}
+    menuentry "UniCore OS - Rollback to Slot B (Standby System)" {
+        linux /boot/slot_b/vmlinuz-${ARCH} unicore_slot=UNICORE_SYS_B console=tty1 console=${SERIAL_DEV} quiet
+        initrd /boot/slot_b/initramfs-${ARCH}.img
+    }
 
-menuentry "UniCore OS (Slot B - Fallback / Standby)" {
-    linux /boot/slot_b/vmlinuz-${ARCH} unicore_slot=UNICORE_SYS_B console=tty1 console=ttyS0 quiet
-    initrd /boot/slot_b/initramfs-${ARCH}.img
-}
+    menuentry "UniCore Recovery - Reset OS Settings (Keep /data/home, Files & Apps)" {
+        linux /boot/\${boot_dir}/vmlinuz-${ARCH} unicore_slot=\${boot_target} unicore_reset_overlay=1 console=tty1 console=${SERIAL_DEV}
+        initrd /boot/\${boot_dir}/initramfs-${ARCH}.img
+    }
 
-menuentry "UniCore OS (Safe / Legacy VESA Mode)" {
-    linux /boot/\${boot_dir}/vmlinuz-${ARCH} unicore_slot=\${boot_target} console=tty1 console=ttyS0 nomodeset
-    initrd /boot/\${boot_dir}/initramfs-${ARCH}.img
+    menuentry "UniCore Recovery - Safe VESA Graphics & Serial Debug Mode" {
+        linux /boot/\${boot_dir}/vmlinuz-${ARCH} unicore_slot=\${boot_target} console=tty1 console=${SERIAL_DEV} nomodeset
+        initrd /boot/\${boot_dir}/initramfs-${ARCH}.img
+    }
 }
 EOF
 
 sync
-echo "==> UniCore OS installation complete on ${TARGET_DISK}!"
+echo "==> UniCore OS installation (${INSTALL_MODE}) complete on ${TARGET_DISK}!"

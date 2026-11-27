@@ -886,13 +886,13 @@ fn phase20c_office_store_catalog_and_antigravity_work() {
     assert_eq!(store_icon_meta("keepassxc", "KeePassXC Portable", "utilities").0, "KPX");
     assert_eq!(store_icon_meta("vlc", "VLC Media Player", "utilities").0, "VLC");
 
-    // 2. Embedded catalog includes Google Antigravity 2.35.2 + Office/Utility apps with valid 64-hex SHA-256
+    // 2. Embedded catalog includes Google Antigravity 2.35.2 + 32 Universal Store apps (Flatpak + Win32/Android/DOS)
     let catalog = parse_catalog_json(EMBEDDED_CATALOG_JSON).expect("embedded catalog valid");
-    assert!(catalog.apps.len() >= 16);
+    assert!(catalog.apps.len() >= 32);
 
     let agy = find_catalog_app(&catalog, "antigravity").expect("antigravity in catalog");
     assert_eq!(agy.version, "2.35.2");
-    assert_eq!(agy.category, "office");
+    assert_eq!(agy.category, "dev");
     assert!(agy.download_url.starts_with("https://"));
     assert!(validate_sha256_hex(&agy.sha256).is_ok());
 
@@ -955,6 +955,7 @@ fn phase20d_personalization_theme_wallpaper_and_input_work() {
         tap_to_click: true,
         pointer_speed: 0.4,
         desktop_icons: false,
+        taskbar_style: "floating".to_string(),
     };
     let saved = save_and_apply_personalize(&root, &custom).unwrap();
     assert_eq!(saved, custom);
@@ -1106,4 +1107,76 @@ fn v030_secureboot_browsers_auto_ota_and_win32_diag_work() {
     let diag = diagnose_win32_log("err:module:import_dll Library vcruntime140.dll not found");
     assert!(diag.issue_detected);
     assert!(diag.recommended_verbs.contains(&"vcrun2022".to_string()));
+}
+
+#[test]
+fn v040_dualboot_taskbar_flatpak_proton_and_ai_copilot_work() {
+    use unicore_center::dev_ai::parse_ai_status;
+    use unicore_center::installer::parse_install_disks;
+    use unicore_center::settings::validate_taskbar_style;
+    use unicore_center::store::{
+        load_store_views_for_arch, parse_flatpak_status, parse_proton_status,
+    };
+
+    // 1. CLI --ai drawer & expanded --tab store:<category>
+    let ai_parsed = parse_args(&["--ai".to_string()]).unwrap().unwrap();
+    assert_eq!(ai_parsed.mode, LaunchMode::AiAssistant);
+    for cat in ["gaming", "creative", "social", "dev", "office", "android", "retro", "utilities"] {
+        let p = parse_args(&["--tab".to_string(), format!("store:{cat}")])
+            .unwrap()
+            .unwrap();
+        assert_eq!(p.initial_tab, 4);
+        assert_eq!(p.initial_store_category, cat);
+    }
+
+    // 2. 9-column Safe Dual-Boot disk TSV parsing
+    let tsv = "\
+/dev/nvme0n1\tnvme0n1\t512.0 GB\tWD Black SN850\t1\teligible\t48.5 GB\t1\t1
+/dev/sda\tsda\t256.0 GB\tKingston SSD\t1\teligible\t0.0 GB\t0\t1
+";
+    let disks = parse_install_disks(tsv);
+    assert_eq!(disks.len(), 2);
+    assert!(disks[0].dualboot_eligible);
+    assert!(disks[0].windows_detected);
+    assert_eq!(disks[0].free_gb, "48.5 GB");
+    assert!(!disks[1].dualboot_eligible);
+    assert!(disks[1].windows_detected);
+
+    // 3. Taskbar style validator
+    assert_eq!(validate_taskbar_style("docked").unwrap(), "docked");
+    assert_eq!(validate_taskbar_style("FLOATING").unwrap(), "floating");
+    assert!(validate_taskbar_style("invalid").is_err());
+
+    // 4. Flatpak & GE-Proton status parsers + arch-filtered 32-app Universal Store
+    let fp = parse_flatpak_status("installed=1\nflathub_ready=1\napp_count=4\nflatpak_dir=/data/flatpak\n");
+    assert!(fp.installed && fp.flathub_ready);
+    assert_eq!(fp.app_count, 4);
+
+    let pr = parse_proton_status(
+        "dir=/data/gaming/proton-ge\ninstalled_count=2\nversions=GE-Proton9-25,GE-Proton9-26\nsteam_linked=1\n",
+    );
+    assert_eq!(pr.installed_count, 2);
+    assert!(pr.steam_linked);
+    assert_eq!(pr.versions.len(), 2);
+
+    let root = make_temp_dir("v040_store_arch");
+    let x64_gaming =
+        load_store_views_for_arch(&[], &root, "gaming", "", false, "x86_64", None).unwrap();
+    assert_eq!(x64_gaming.len(), 5);
+    assert!(x64_gaming.iter().any(|a| a.id == "steam" && a.is_flatpak));
+    let arm_gaming =
+        load_store_views_for_arch(&[], &root, "gaming", "", false, "aarch64", None).unwrap();
+    assert_eq!(arm_gaming.len(), 2);
+    assert!(!arm_gaming.iter().any(|a| a.id == "steam"));
+    assert!(arm_gaming.iter().any(|a| a.id == "prism-launcher"));
+    let _ = fs::remove_dir_all(&root);
+
+    // 5. Multi-Provider AI Copilot status parser
+    let ai = parse_ai_status(
+        "installed=0\nrunning=0\nendpoint=http://127.0.0.1:11434\nprovider=gemini\nactive_model=gemini-2.5-flash\nbase_url=https://api.openai.com/v1\napi_key_set=1\nram_mb=1024\n",
+    );
+    assert_eq!(ai.provider, "gemini");
+    assert_eq!(ai.active_model, "gemini-2.5-flash");
+    assert!(ai.api_key_set);
+    assert_eq!(ai.ram_mb, 1024);
 }

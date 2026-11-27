@@ -1,0 +1,88 @@
+#!/bin/sh
+# UniCore OS On-Demand Flatpak (Flathub) Manager in /data/flatpak.
+# Keeps base ISO lean (~1.2-1.3 GB) while running full glibc Linux & Gaming apps natively on Alpine musl.
+set -eu
+
+export FLATPAK_USER_DIR="${UNICORE_FLATPAK_DIR:-/data/flatpak}"
+export XDG_DATA_DIRS="${FLATPAK_USER_DIR}/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
+
+validate_app_id() {
+    printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_]+(\.[A-Za-z0-9_-]+){2,}$'
+}
+
+ensure_dirs() {
+    mkdir -p "${FLATPAK_USER_DIR}"
+}
+
+ensure_flathub() {
+    ensure_dirs
+    command -v flatpak >/dev/null 2>&1 || { echo "flatpak binary is not installed in this image." >&2; exit 1; }
+    flatpak --user remote-add --if-not-exists flathub "${FLATHUB_URL}" >/dev/null
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        installed=0
+        flathub_ready=0
+        app_count=0
+        if command -v flatpak >/dev/null 2>&1; then
+            installed=1
+            if flatpak --user remotes --columns=name 2>/dev/null | grep -qx 'flathub'; then
+                flathub_ready=1
+            fi
+            app_count="$(flatpak --user list --app --columns=application 2>/dev/null | sed '/^$/d' | wc -l | tr -d ' ')"
+        fi
+        printf 'installed=%s\nflathub_ready=%s\napp_count=%s\nflatpak_dir=%s\n' \
+            "${installed}" "${flathub_ready}" "${app_count:-0}" "${FLATPAK_USER_DIR}"
+        ;;
+
+    list)
+        command -v flatpak >/dev/null 2>&1 || exit 0
+        flatpak --user list --app --columns=application 2>/dev/null | sed '/^$/d' || true
+        ;;
+
+    ensure-flathub)
+        ensure_flathub
+        echo "Flathub remote ready in ${FLATPAK_USER_DIR}."
+        ;;
+
+    install)
+        app_id="${1:-}"
+        validate_app_id "${app_id}" || { echo "Invalid Flatpak application ID: '${app_id}'" >&2; exit 2; }
+        ensure_flathub
+        echo "==> Installing ${app_id} from Flathub into ${FLATPAK_USER_DIR}..."
+        flatpak --user install -y --noninteractive flathub "${app_id}"
+        echo "==> Installed ${app_id} cleanly!"
+        ;;
+
+    uninstall)
+        app_id="${1:-}"
+        validate_app_id "${app_id}" || { echo "Invalid Flatpak application ID: '${app_id}'" >&2; exit 2; }
+        command -v flatpak >/dev/null 2>&1 || { echo "flatpak is not installed." >&2; exit 1; }
+        flatpak --user uninstall -y --noninteractive "${app_id}"
+        echo "==> Uninstalled ${app_id}."
+        ;;
+
+    run)
+        app_id="${1:-}"
+        validate_app_id "${app_id}" || { echo "Invalid Flatpak application ID: '${app_id}'" >&2; exit 2; }
+        shift || true
+        command -v flatpak >/dev/null 2>&1 || { echo "flatpak is not installed." >&2; exit 1; }
+        exec flatpak --user run "${app_id}" "$@"
+        ;;
+
+    update)
+        command -v flatpak >/dev/null 2>&1 || { echo "flatpak is not installed." >&2; exit 1; }
+        flatpak --user update -y --noninteractive
+        echo "==> Flatpak apps updated."
+        ;;
+
+    *)
+        echo "Usage: unicore-flatpak <status|list|ensure-flathub|install <id>|uninstall <id>|run <id>|update>" >&2
+        exit 2
+        ;;
+esac

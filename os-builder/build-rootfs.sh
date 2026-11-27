@@ -86,6 +86,7 @@ DESKTOP_PKGS=(
     shared-mime-info
     desktop-file-utils
     adwaita-icon-theme
+    papirus-icon-theme
     doas
     networkmanager
     networkmanager-wifi
@@ -106,6 +107,8 @@ DESKTOP_PKGS=(
     grub
     grub-efi
     parted
+    gptfdisk
+    sfdisk
     dosfstools
     efibootmgr
     mokutil
@@ -119,7 +122,7 @@ DESKTOP_PKGS=(
     swaybg
     mako
     libnotify
-    swaylock
+    swaylock-effects
     wl-clipboard
     slurp
     wlrctl
@@ -130,6 +133,11 @@ DESKTOP_PKGS=(
     polkit
     polkit-openrc
     xdg-user-dirs
+    xdg-desktop-portal
+    xdg-desktop-portal-wlr
+    xdg-desktop-portal-gtk
+    flatpak
+    tlp
     mousepad
     imv
     xarchiver
@@ -137,6 +145,7 @@ DESKTOP_PKGS=(
     vulkan-tools
     mesa-vulkan-ati
     mesa-va-gallium
+    mesa-vdpau-gallium
     mpv
     celluloid
     ffmpeg
@@ -187,6 +196,8 @@ DESKTOP_PKGS=(
 
 if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]]; then
     DESKTOP_PKGS+=(grub-bios mesa-vulkan-intel intel-media-driver libva-intel-driver)
+elif [[ "${ARCH}" == "aarch64" || "${ARCH}" == "arm64" ]]; then
+    DESKTOP_PKGS+=(mesa-vulkan-panfrost mesa-vulkan-broadcom mesa-vulkan-freedreno)
 fi
 
 BASE_PKGS=(
@@ -380,6 +391,9 @@ insmod linux
 set unicore_boot=""
 search --no-floppy --label --set=unicore_boot UNICORE_OS
 if [ -z "${unicore_boot}" ]; then
+    search --no-floppy --file --set=unicore_boot /boot/grub/unicore-installed.marker
+fi
+if [ -z "${unicore_boot}" ]; then
     search --no-floppy --label --set=unicore_boot UNICORE_EFI
 fi
 if [ -n "${unicore_boot}" ]; then
@@ -445,6 +459,8 @@ chmod 0755 \
     "${ROOTFS_DIR}/usr/libexec/unicore-smart" \
     "${ROOTFS_DIR}/usr/libexec/unicore-devbox" \
     "${ROOTFS_DIR}/usr/libexec/unicore-ai" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-flatpak" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-proton" \
     "${ROOTFS_DIR}/etc/local.d/unicore-binfmt.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-android.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-hwprofile.start" \
@@ -768,7 +784,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="0.3.0"
+OS_VERSION="0.4.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

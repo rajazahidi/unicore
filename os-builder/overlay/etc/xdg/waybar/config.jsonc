@@ -18,6 +18,7 @@
     "network",
     "pulseaudio",
     "battery",
+    "custom/ai",
     "custom/quick",
     "clock",
     "custom/power",
@@ -81,6 +82,11 @@
     "format": "Bat {capacity}%",
     "tooltip-format": "Power & Battery Settings",
     "on-click": "/usr/bin/unicore-center --tab settings:power"
+  },
+  "custom/ai": {
+    "format": "AI",
+    "tooltip-format": "UniCore AI Assistant (Win+A — Local Ollama / Gemini / OpenAI)",
+    "on-click": "pkill -f 'unicore-center --ai' || /usr/bin/unicore-center --ai &"
   },
   "custom/quick": {
     "format": "Quick",

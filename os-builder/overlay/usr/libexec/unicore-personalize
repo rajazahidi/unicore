@@ -19,10 +19,18 @@ UNICORE_NATURAL_SCROLL="yes"
 UNICORE_TAP_TO_CLICK="yes"
 UNICORE_POINTER_SPEED="0.0"
 UNICORE_DESKTOP_ICONS="yes"
+UNICORE_TASKBAR_STYLE="docked"
 
 validate_theme() {
     case "$1" in
         dark|light) printf '%s\n' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_taskbar_style() {
+    case "$1" in
+        docked|floating) printf '%s\n' "$1" ;;
         *) return 1 ;;
     esac
 }
@@ -72,43 +80,33 @@ load_conf() {
     UNICORE_TAP_TO_CLICK="yes"
     UNICORE_POINTER_SPEED="0.0"
     UNICORE_DESKTOP_ICONS="yes"
+    UNICORE_TASKBAR_STYLE="docked"
     if [ -r "${CONF_PATH}" ]; then
         while IFS='=' read -r k v; do
             case "${k}" in
                 UNICORE_THEME)
-                    if t="$(validate_theme "${v}" 2>/dev/null)"; then
-                        UNICORE_THEME="${t}"
-                    fi
+                    if t="$(validate_theme "${v}" 2>/dev/null)"; then UNICORE_THEME="${t}"; fi
                     ;;
                 UNICORE_WALLPAPER)
-                    if wp="$(validate_wallpaper "${v}" 2>/dev/null)"; then
-                        UNICORE_WALLPAPER="${wp}"
-                    fi
+                    if wp="$(validate_wallpaper "${v}" 2>/dev/null)"; then UNICORE_WALLPAPER="${wp}"; fi
                     ;;
                 UNICORE_KB_LAYOUT)
-                    if kb="$(validate_kb_layout "${v}" 2>/dev/null)"; then
-                        UNICORE_KB_LAYOUT="${kb}"
-                    fi
+                    if kb="$(validate_kb_layout "${v}" 2>/dev/null)"; then UNICORE_KB_LAYOUT="${kb}"; fi
                     ;;
                 UNICORE_NATURAL_SCROLL)
-                    if ns="$(validate_bool_yn "${v}" 2>/dev/null)"; then
-                        UNICORE_NATURAL_SCROLL="${ns}"
-                    fi
+                    if ns="$(validate_bool_yn "${v}" 2>/dev/null)"; then UNICORE_NATURAL_SCROLL="${ns}"; fi
                     ;;
                 UNICORE_TAP_TO_CLICK)
-                    if tp="$(validate_bool_yn "${v}" 2>/dev/null)"; then
-                        UNICORE_TAP_TO_CLICK="${tp}"
-                    fi
+                    if tp="$(validate_bool_yn "${v}" 2>/dev/null)"; then UNICORE_TAP_TO_CLICK="${tp}"; fi
                     ;;
                 UNICORE_POINTER_SPEED)
-                    if ps="$(clamp_pointer_speed "${v}" 2>/dev/null)"; then
-                        UNICORE_POINTER_SPEED="${ps}"
-                    fi
+                    if ps="$(clamp_pointer_speed "${v}" 2>/dev/null)"; then UNICORE_POINTER_SPEED="${ps}"; fi
                     ;;
                 UNICORE_DESKTOP_ICONS)
-                    if di="$(validate_bool_yn "${v}" 2>/dev/null)"; then
-                        UNICORE_DESKTOP_ICONS="${di}"
-                    fi
+                    if di="$(validate_bool_yn "${v}" 2>/dev/null)"; then UNICORE_DESKTOP_ICONS="${di}"; fi
+                    ;;
+                UNICORE_TASKBAR_STYLE)
+                    if ts="$(validate_taskbar_style "${v}" 2>/dev/null)"; then UNICORE_TASKBAR_STYLE="${ts}"; fi
                     ;;
             esac
         done < "${CONF_PATH}"
@@ -125,6 +123,7 @@ UNICORE_NATURAL_SCROLL=${UNICORE_NATURAL_SCROLL}
 UNICORE_TAP_TO_CLICK=${UNICORE_TAP_TO_CLICK}
 UNICORE_POINTER_SPEED=${UNICORE_POINTER_SPEED}
 UNICORE_DESKTOP_ICONS=${UNICORE_DESKTOP_ICONS}
+UNICORE_TASKBAR_STYLE=${UNICORE_TASKBAR_STYLE}
 EOF
 }
 
@@ -134,31 +133,89 @@ apply_configs() {
     USER_HOME="${HOME:-/home/unicore}"
     CFG_ROOT="${XDG_CONFIG_HOME:-${USER_HOME}/.config}"
     export XDG_CONFIG_HOME="${CFG_ROOT}"
-    mkdir -p "${CFG_ROOT}/gtk-3.0" "${CFG_ROOT}/waybar" "${CFG_ROOT}/fuzzel" "${CFG_ROOT}/labwc"
+    mkdir -p "${CFG_ROOT}/gtk-3.0" "${CFG_ROOT}/waybar" "${CFG_ROOT}/fuzzel" "${CFG_ROOT}/labwc" "${CFG_ROOT}/libfm"
 
     if [ "${UNICORE_THEME}" = "light" ]; then
         GTK_THEME="Adwaita"
         GTK_PREFER_DARK="0"
         OPENBOX_THEME="UniCore-Light"
+        ICON_THEME="Papirus-Light"
+        [ -d /usr/share/icons/Papirus-Light ] || ICON_THEME="Adwaita"
     else
         GTK_THEME="Adwaita-dark"
         GTK_PREFER_DARK="1"
         OPENBOX_THEME="UniCore-Dark"
+        ICON_THEME="Papirus-Dark"
+        [ -d /usr/share/icons/Papirus-Dark ] || ICON_THEME="Adwaita"
     fi
 
     cat <<EOF > "${CFG_ROOT}/gtk-3.0/settings.ini"
 [Settings]
 gtk-theme-name=${GTK_THEME}
-gtk-icon-theme-name=Adwaita
+gtk-icon-theme-name=${ICON_THEME}
 gtk-font-name=DejaVu Sans 10
 gtk-application-prefer-dark-theme=${GTK_PREFER_DARK}
 EOF
 
+    cat <<EOF > "${CFG_ROOT}/libfm/libfm.conf"
+[config]
+quick_exec=1
+single_click=0
+
+[ui]
+icon_theme=${ICON_THEME}
+EOF
+
     if [ -f "/usr/share/unicore/themes/waybar-${UNICORE_THEME}.css" ]; then
         cp "/usr/share/unicore/themes/waybar-${UNICORE_THEME}.css" "${CFG_ROOT}/waybar/style.css"
+        if [ "${UNICORE_TASKBAR_STYLE}" = "floating" ]; then
+            if [ "${UNICORE_THEME}" = "light" ]; then
+                FLOAT_BORDER="rgba(148, 163, 184, 0.55)"
+            else
+                FLOAT_BORDER="rgba(56, 189, 248, 0.35)"
+            fi
+            cat <<EOF >> "${CFG_ROOT}/waybar/style.css"
+
+/* Floating macOS-style Pill Taskbar Override */
+window#waybar {
+    margin: 6px 14px;
+    border-radius: 14px;
+    border: 1px solid ${FLOAT_BORDER};
+}
+EOF
+        fi
     fi
+
+    if [ -r /etc/xdg/waybar/config.jsonc ]; then
+        if [ "${UNICORE_TASKBAR_STYLE}" = "floating" ]; then
+            awk '{
+                if ($0 ~ /"height": 40,/) {
+                    print "  \"height\": 42,"
+                    print "  \"margin-bottom\": 6,"
+                    print "  \"margin-left\": 14,"
+                    print "  \"margin-right\": 14,"
+                } else {
+                    print
+                }
+            }' /etc/xdg/waybar/config.jsonc > "${CFG_ROOT}/waybar/config.jsonc"
+        else
+            cp /etc/xdg/waybar/config.jsonc "${CFG_ROOT}/waybar/config.jsonc"
+        fi
+    fi
+
     if [ -f "/usr/share/unicore/themes/fuzzel-${UNICORE_THEME}.ini" ]; then
         cp "/usr/share/unicore/themes/fuzzel-${UNICORE_THEME}.ini" "${CFG_ROOT}/fuzzel/fuzzel.ini"
+        if [ -d "/usr/share/icons/${ICON_THEME}" ]; then
+            if grep -q '^icon-theme=' "${CFG_ROOT}/fuzzel/fuzzel.ini" 2>/dev/null; then
+                sed -i "s|^icon-theme=.*|icon-theme=${ICON_THEME}|" "${CFG_ROOT}/fuzzel/fuzzel.ini"
+            else
+                awk -v ic="${ICON_THEME}" '{
+                    print
+                    if ($0 == "[main]") print "icon-theme=" ic
+                }' "${CFG_ROOT}/fuzzel/fuzzel.ini" > "${CFG_ROOT}/fuzzel/fuzzel.ini.tmp" \
+                    && mv "${CFG_ROOT}/fuzzel/fuzzel.ini.tmp" "${CFG_ROOT}/fuzzel/fuzzel.ini"
+            fi
+        fi
     fi
 
     if [ -r /etc/xdg/labwc/rc.xml ]; then
@@ -230,10 +287,10 @@ shift || true
 case "${cmd}" in
     status)
         load_conf
-        printf 'theme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\n' \
+        printf 'theme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\ntaskbar_style=%s\n' \
             "${UNICORE_THEME}" "${UNICORE_WALLPAPER}" "${UNICORE_KB_LAYOUT}" \
             "${UNICORE_NATURAL_SCROLL}" "${UNICORE_TAP_TO_CLICK}" "${UNICORE_POINTER_SPEED}" \
-            "${UNICORE_DESKTOP_ICONS}"
+            "${UNICORE_DESKTOP_ICONS}" "${UNICORE_TASKBAR_STYLE}"
         ;;
     apply)
         no_reload=0
@@ -274,6 +331,10 @@ case "${cmd}" in
                     shift || { echo "Missing value for --desktop-icons" >&2; exit 2; }
                     UNICORE_DESKTOP_ICONS="$(validate_bool_yn "$1")" || { echo "Invalid desktop-icons value: $1" >&2; exit 2; }
                     ;;
+                --taskbar-style)
+                    shift || { echo "Missing value for --taskbar-style" >&2; exit 2; }
+                    UNICORE_TASKBAR_STYLE="$(validate_taskbar_style "$1")" || { echo "Invalid taskbar-style value: $1" >&2; exit 2; }
+                    ;;
                 *)
                     echo "Unknown option: $1" >&2
                     exit 2
@@ -285,7 +346,7 @@ case "${cmd}" in
         apply_configs 0
         ;;
     *)
-        echo "Usage: unicore-personalize <status|apply [--no-reload]|set [--theme dark|light] [--wallpaper PATH] [--kb-layout us|my|gb|de|fr|jp] [--natural-scroll yes|no] [--tap yes|no] [--pointer-speed -0.8..0.8]>" >&2
+        echo "Usage: unicore-personalize <status|apply [--no-reload]|set [--theme dark|light] [--wallpaper PATH] [--kb-layout us|my|gb|de|fr|jp] [--natural-scroll yes|no] [--tap yes|no] [--pointer-speed -0.8..0.8] [--desktop-icons yes|no] [--taskbar-style docked|floating]>" >&2
         exit 2
         ;;
 esac

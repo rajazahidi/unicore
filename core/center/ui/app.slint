@@ -57,6 +57,8 @@ export struct StoreEntry {
     category: string,
     icon-text: string,
     accent-color: color,
+    is-flatpak: bool,
+    flatpak-id: string,
     is-installed: bool,
     installed-app-id: string,
 }
@@ -505,14 +507,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))));
-    preferred-width: root.login-dialog-only ? 440px : (root.quick-settings-only ? 390px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1020px))));
-    preferred-height: root.login-dialog-only ? 320px : (root.quick-settings-only ? 460px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 640px))));
+    title: root.ai-dialog-only ? "UniCore AI Assistant" : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center))))));
+    preferred-width: root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 410px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px)))));
+    preferred-height: root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 520px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px)))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -530,6 +532,7 @@ export component MainWindow inherits Window {
     in-out property <bool> power-dialog-only: false;
     in-out property <bool> quick-settings-only: false;
     in-out property <bool> login-dialog-only: false;
+    in-out property <bool> ai-dialog-only: false;
     in-out property <bool> oobe-dialog-only: false;
     in-out property <bool> taskmgr-dialog-only: false;
     in-out property <bool> picker-open: false;
@@ -540,6 +543,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
+    in-out property <string> login-clock-text: "UniCore OS v0.4.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -640,7 +644,7 @@ export component MainWindow inherits Window {
     in-out property <string> sys-cpu-governor: "-";
 
     // A/B OS Updater & Rollback state (Tab 2)
-    in-out property <string> upd-current-version: "0.3.0";
+    in-out property <string> upd-current-version: "0.4.0";
     in-out property <string> upd-active-slot: "UNICORE_SYS_A";
     in-out property <string> upd-standby-slot: "UNICORE_SYS_B";
     in-out property <string> upd-pending-summary: "Checking...";
@@ -764,10 +768,23 @@ export component MainWindow inherits Window {
     in-out property <bool> set-backup-busy: false;
     in-out property <string> set-backup-status: "";
     in-out property <bool> set-desktop-icons: true;
+    in-out property <int> set-taskbar-style-idx: 0;
+    in-out property <int> inst-mode-idx: 0;
+    in-out property <string> inst-dualboot-hint: "";
     in-out property <string> set-sb-summary: "Checking UEFI Secure Boot...";
     in-out property <bool> set-sb-can-enroll: false;
     in-out property <string> set-sb-mok-pass: "";
     in-out property <string> set-sb-status: "";
+
+    // Multi-provider AI Copilot & Proton-GE / Flatpak state
+    in-out property <int> ai-provider-idx: 0;
+    in-out property <string> ai-base-url-input: "https://api.openai.com/v1";
+    in-out property <string> ai-api-key-input: "";
+    in-out property <bool> ai-api-key-set: false;
+    in-out property <bool> ai-include-context: true;
+    in-out property <string> store-flatpak-summary: "Flatpak (Flathub) on-demand in /data/flatpak";
+    in-out property <string> store-proton-summary: "GE-Proton: Not installed yet";
+    in-out property <bool> store-proton-busy: false;
 
     // App Catalog / Store state (Tab 4)
     in-out property <[StoreEntry]> store-entries: [];
@@ -836,7 +853,7 @@ export component MainWindow inherits Window {
     callback apply-display(int, int, int);
     callback brightness-changed(int);
     callback nightlight-changed(bool, int);
-    callback apply-personalize(int, int, string, int, bool, bool, int, bool);
+    callback apply-personalize(int, int, string, int, bool, bool, int, bool, int);
     callback toggle-cups(bool);
     callback scan-printers();
     callback open-document-scanner();
@@ -855,7 +872,7 @@ export component MainWindow inherits Window {
     callback restore-backup(string, string);
     callback power-action(string);
     callback refresh-install-disks();
-    callback start-disk-install(int, string, bool, string, string);
+    callback start-disk-install(int, int, string, bool, string, string);
     callback refresh-update-status();
     callback check-ota-update(string);
     callback apply-ota-update(string);
@@ -863,8 +880,14 @@ export component MainWindow inherits Window {
     callback rollback-os-slot();
     callback store-filter-changed(string, string);
     callback store-install-app(string);
-    callback store-launch-app(string);
+    callback store-uninstall-app(string, string);
+    callback store-launch-app(string, bool);
     callback store-sync-catalog(string);
+    callback install-latest-proton();
+    callback ai-save-provider(int, string, string, string);
+    callback ai-copilot-ask(string, bool);
+    callback ai-quick-nav(string);
+    callback lock-screen-now();
     callback toggle-auto-check-updates(bool);
     callback enroll-secureboot-mok(string);
     callback install-native-browser(string);
@@ -901,7 +924,7 @@ export component MainWindow inherits Window {
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -985,7 +1008,7 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Win11-style Quick Settings Popup (--quick-settings)
+        // Tier-1 Win11/macOS Quick Settings Control Center (--quick-settings)
         if root.quick-settings-only : VerticalLayout {
             spacing: 10px;
             vertical-stretch: 1;
@@ -994,47 +1017,148 @@ export component MainWindow inherits Window {
                 vertical-stretch: 1;
                 VerticalLayout {
                     padding: 14px;
-                    spacing: 10px;
-
-                    Text {
-                        text: root.tr.title-quick;
-                        color: UiTheme.text-primary;
-                        font-size: 15px;
-                        font-weight: 700;
-                    }
+                    spacing: 12px;
 
                     HorizontalLayout {
-                        spacing: 10px;
-                        Switch {
-                            text: "Wi-Fi";
-                            checked <=> root.set-wifi-enabled;
-                            enabled: root.set-net-available;
-                            toggled => { root.toggle-wifi-radio(self.checked); }
+                        spacing: 8px;
+                        Text {
+                            text: root.tr.title-quick;
+                            color: UiTheme.text-primary;
+                            font-size: 16px;
+                            font-weight: 800;
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
                         }
-                        Switch {
-                            text: "Bluetooth";
-                            checked <=> root.set-bt-powered;
-                            toggled => { root.toggle-bluetooth(self.checked); }
-                        }
-                    }
-
-                    HorizontalLayout {
-                        spacing: 10px;
-                        Switch {
-                            text: "Night Light";
-                            checked <=> root.set-nightlight-enabled;
-                            toggled => { root.nightlight-changed(self.checked, Math.round(root.set-nightlight-temp)); }
-                        }
-                        Switch {
-                            text: "Light Mode";
-                            checked: UiTheme.light;
-                            toggled => { root.quick-toggle-theme(self.checked); }
+                        Button {
+                            text: "AI (Win+A)";
+                            clicked => {
+                                root.quick-settings-only = false;
+                                root.ai-dialog-only = true;
+                                root.refresh-dev-ai();
+                            }
                         }
                     }
 
+                    // 2x3 Quick-Toggle Tiles Grid
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 46px;
+                            border-radius: 8px;
+                            background: root.set-wifi-enabled ? #0284c7 : UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: root.set-wifi-enabled ? #38bdf8 : UiTheme.card-border;
+                            TouchArea { clicked => { if (root.set-net-available) { root.set-wifi-enabled = !root.set-wifi-enabled; root.toggle-wifi-radio(root.set-wifi-enabled); } } }
+                            Text {
+                                text: root.set-wifi-enabled ? "Wi-Fi: ON" : "Wi-Fi: OFF";
+                                color: root.set-wifi-enabled ? #ffffff : UiTheme.text-primary;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 46px;
+                            border-radius: 8px;
+                            background: root.set-bt-powered ? #0284c7 : UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: root.set-bt-powered ? #38bdf8 : UiTheme.card-border;
+                            TouchArea { clicked => { root.set-bt-powered = !root.set-bt-powered; root.toggle-bluetooth(root.set-bt-powered); } }
+                            Text {
+                                text: root.set-bt-powered ? "Bluetooth: ON" : "Bluetooth: OFF";
+                                color: root.set-bt-powered ? #ffffff : UiTheme.text-primary;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 46px;
+                            border-radius: 8px;
+                            background: root.set-nightlight-enabled ? #d97706 : UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: root.set-nightlight-enabled ? #fbbf24 : UiTheme.card-border;
+                            TouchArea { clicked => { root.set-nightlight-enabled = !root.set-nightlight-enabled; root.nightlight-changed(root.set-nightlight-enabled, Math.round(root.set-nightlight-temp)); } }
+                            Text {
+                                text: root.set-nightlight-enabled ? "Night Light: ON" : "Night Light: OFF";
+                                color: root.set-nightlight-enabled ? #ffffff : UiTheme.text-primary;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 46px;
+                            border-radius: 8px;
+                            background: UiTheme.light ? #0ea5e9 : UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: UiTheme.light ? #38bdf8 : UiTheme.card-border;
+                            TouchArea { clicked => { root.quick-toggle-theme(!UiTheme.light); } }
+                            Text {
+                                text: UiTheme.light ? "Theme: Light" : "Theme: Dark";
+                                color: UiTheme.light ? #ffffff : UiTheme.text-primary;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 42px;
+                            border-radius: 8px;
+                            background: root.gaming-mode-enabled ? #16a34a : UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: root.gaming-mode-enabled ? #4ade80 : UiTheme.card-border;
+                            TouchArea { clicked => { root.gaming-mode-enabled = !root.gaming-mode-enabled; root.toggle-game-mode(root.gaming-mode-enabled); } }
+                            Text {
+                                text: root.gaming-mode-enabled ? "Game Mode: ON" : "Game Mode: OFF";
+                                color: root.gaming-mode-enabled ? #ffffff : UiTheme.text-primary;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 42px;
+                            border-radius: 8px;
+                            background: UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: UiTheme.card-border;
+                            TouchArea { clicked => { root.lock-screen-now(); } }
+                            Text {
+                                text: "Lock Screen (Win+L)";
+                                color: UiTheme.text-primary;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 1px; background: UiTheme.card-border; }
+
                     HorizontalLayout {
                         spacing: 10px;
-                        Text { text: "Volume (" + Math.round(root.set-audio-volume) + "%)"; color: UiTheme.text-secondary; font-size: 12px; width: 110px; vertical-alignment: center; }
+                        Text { text: "Volume (" + Math.round(root.set-audio-volume) + "%)"; color: UiTheme.text-secondary; font-size: 12px; width: 112px; vertical-alignment: center; }
                         Slider {
                             minimum: 0;
                             maximum: 100;
@@ -1047,7 +1171,7 @@ export component MainWindow inherits Window {
 
                     HorizontalLayout {
                         spacing: 10px;
-                        Text { text: "Brightness (" + Math.round(root.set-brightness-pct) + "%)"; color: UiTheme.text-secondary; font-size: 12px; width: 110px; vertical-alignment: center; }
+                        Text { text: "Brightness (" + Math.round(root.set-brightness-pct) + "%)"; color: UiTheme.text-secondary; font-size: 12px; width: 112px; vertical-alignment: center; }
                         Slider {
                             minimum: 5;
                             maximum: 100;
@@ -1061,9 +1185,9 @@ export component MainWindow inherits Window {
 
                     HorizontalLayout {
                         spacing: 10px;
-                        Text { text: "Power Profile:"; color: UiTheme.text-muted; font-size: 12px; width: 110px; vertical-alignment: center; }
+                        Text { text: "Power Profile:"; color: UiTheme.text-muted; font-size: 12px; width: 112px; vertical-alignment: center; }
                         ComboBox {
-                            model: ["Power Saver", "Balanced", "Performance"];
+                            model: ["Power Saver (TLP)", "Balanced", "Performance"];
                             current-index <=> root.pwr-profile-idx;
                             selected => { root.set-power-profile(self.current-index); }
                             horizontal-stretch: 1;
@@ -1082,6 +1206,13 @@ export component MainWindow inherits Window {
                         root.refresh-settings();
                     }
                 }
+                Button {
+                    text: "Power";
+                    clicked => {
+                        root.quick-settings-only = false;
+                        root.power-dialog-only = true;
+                    }
+                }
                 Rectangle { horizontal-stretch: 1; }
                 Button {
                     text: root.tr.btn-close;
@@ -1090,10 +1221,36 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Multi-User Sign-In Greeter (--login)
+        // Tier-1 Multi-User Sign-In Greeter (--login)
         if root.login-dialog-only : VerticalLayout {
             spacing: 12px;
             vertical-stretch: 1;
+
+            Rectangle {
+                height: 110px;
+                border-radius: 12px;
+                background: @linear-gradient(135deg, #0f172a 0%, #0c4a6e 55%, #312e81 100%);
+                border-width: 1px;
+                border-color: #38bdf8;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 4px;
+                    alignment: center;
+                    Text {
+                        text: root.login-clock-text;
+                        color: #ffffff;
+                        font-size: 22px;
+                        font-weight: 800;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: root.tr.title-login + " • Universal OS";
+                        color: #bae6fd;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
 
             Card {
                 vertical-stretch: 1;
@@ -1102,17 +1259,29 @@ export component MainWindow inherits Window {
                     spacing: 12px;
                     alignment: center;
 
-                    Text {
-                        text: root.tr.title-login;
-                        color: UiTheme.text-primary;
-                        font-size: 16px;
-                        font-weight: 700;
-                        horizontal-alignment: center;
+                    HorizontalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 56px;
+                            height: 56px;
+                            border-radius: 28px;
+                            background: #0284c7;
+                            border-width: 2px;
+                            border-color: #7dd3fc;
+                            Text {
+                                text: "UC";
+                                color: #ffffff;
+                                font-size: 18px;
+                                font-weight: 800;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
                     }
 
                     HorizontalLayout {
                         spacing: 10px;
-                        Text { text: "Account:"; color: UiTheme.text-muted; font-size: 13px; width: 90px; vertical-alignment: center; }
+                        Text { text: "Account:"; color: UiTheme.text-muted; font-size: 13px; width: 84px; vertical-alignment: center; }
                         ComboBox {
                             model: root.login-user-names;
                             current-index <=> root.login-user-idx;
@@ -1122,12 +1291,13 @@ export component MainWindow inherits Window {
 
                     HorizontalLayout {
                         spacing: 10px;
-                        Text { text: "Password:"; color: UiTheme.text-muted; font-size: 13px; width: 90px; vertical-alignment: center; }
+                        Text { text: "Password:"; color: UiTheme.text-muted; font-size: 13px; width: 84px; vertical-alignment: center; }
                         LineEdit {
                             text <=> root.login-password;
-                            placeholder-text: "Enter password (or leave empty if passwordless)";
+                            placeholder-text: "Enter password & press Enter";
                             input-type: InputType.password;
                             horizontal-stretch: 1;
+                            accepted => { root.attempt-login(root.login-user-idx, root.login-password); }
                         }
                     }
 
@@ -1141,6 +1311,10 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         spacing: 10px;
                         Button {
+                            text: root.tr.btn-reboot;
+                            clicked => { root.power-action("reboot"); }
+                        }
+                        Button {
                             text: root.tr.btn-shutdown;
                             clicked => { root.power-action("poweroff"); }
                         }
@@ -1150,6 +1324,145 @@ export component MainWindow inherits Window {
                             primary: true;
                             clicked => { root.attempt-login(root.login-user-idx, root.login-password); }
                         }
+                    }
+                }
+            }
+        }
+
+        // Bilingual Multi-Provider System AI Copilot Drawer (--ai / Win+A)
+        if root.ai-dialog-only : VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Rectangle {
+                height: 62px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #312e81 0%, #1d4ed8 60%, #0284c7 100%);
+                border-width: 1px;
+                border-color: #38bdf8;
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        Text {
+                            text: "UniCore AI System Assistant (Win+A)";
+                            color: #ffffff;
+                            font-size: 15px;
+                            font-weight: 800;
+                        }
+                        Text {
+                            text: "Offline Ollama (0 MB idle) + Optional Gemini / OpenAI API for Low-RAM PCs";
+                            color: #e0f2fe;
+                            font-size: 11px;
+                        }
+                    }
+                    Button {
+                        text: "Full Center";
+                        clicked => {
+                            root.ai-dialog-only = false;
+                            root.active-tab = 5;
+                            root.refresh-dev-ai();
+                        }
+                    }
+                }
+            }
+
+            Card {
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        ComboBox {
+                            model: ["Local Offline (Ollama)", "Google Gemini API", "OpenAI-Compatible API"];
+                            current-index <=> root.ai-provider-idx;
+                            width: 195px;
+                        }
+                        LineEdit {
+                            text <=> root.ai-model-input;
+                            placeholder-text: root.ai-provider-idx == 1 ? "gemini-2.5-flash" : (root.ai-provider-idx == 2 ? "gpt-4o-mini" : "llama3.2:1b");
+                            horizontal-stretch: 1;
+                        }
+                        Button {
+                            text: "Save Provider";
+                            clicked => { root.ai-save-provider(root.ai-provider-idx, root.ai-model-input, root.ai-base-url-input, root.ai-api-key-input); }
+                        }
+                    }
+                    if root.ai-provider-idx != 0 : HorizontalLayout {
+                        spacing: 8px;
+                        LineEdit {
+                            text <=> root.ai-api-key-input;
+                            placeholder-text: root.ai-api-key-set ? "API key saved securely (leave blank to keep)" : "Paste API key (stored chmod 600 in /data/ai)";
+                            input-type: InputType.password;
+                            horizontal-stretch: 1;
+                        }
+                        if root.ai-provider-idx == 2 : LineEdit {
+                            text <=> root.ai-base-url-input;
+                            placeholder-text: "https://api.openai.com/v1";
+                            width: 205px;
+                        }
+                    }
+                    CheckBox {
+                        text: "Include live read-only diagnostics (Hardware, Wi-Fi, Power, Secure Boot, Storage)";
+                        checked <=> root.ai-include-context;
+                    }
+                }
+            }
+
+            Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        LineEdit {
+                            text <=> root.ai-prompt-input;
+                            placeholder-text: "Tanya apa sahaja (BM/EN) — cth: Kenapa Wi-Fi perlahan / baiki ralat .exe...";
+                            enabled: !root.ai-busy;
+                            horizontal-stretch: 1;
+                            accepted => { root.ai-copilot-ask(root.ai-prompt-input, root.ai-include-context); }
+                        }
+                        Button {
+                            text: root.ai-busy ? "Thinking..." : "Ask AI";
+                            primary: true;
+                            enabled: !root.ai-busy && root.ai-prompt-input != "";
+                            clicked => { root.ai-copilot-ask(root.ai-prompt-input, root.ai-include-context); }
+                        }
+                    }
+                    if root.ai-busy : ProgressIndicator {
+                        indeterminate: true;
+                        height: 6px;
+                    }
+                    Rectangle {
+                        vertical-stretch: 1;
+                        background: UiTheme.surface-subtle;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: UiTheme.card-border;
+                        ScrollView {
+                            Text {
+                                text: root.ai-response-text != "" ? root.ai-response-text : "Tip: Pilih pembekal di atas (Ollama tempatan untuk PC >=4 GB RAM, atau Gemini/OpenAI API untuk PC lama 512 MB–2 GB RAM). Semua tindakan sistem hanya dijalankan selepas anda klik butang selamat di bawah.";
+                                color: UiTheme.text-primary;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                                x: 10px;
+                                y: 8px;
+                                width: parent.width - 20px;
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        Button { text: "Wi-Fi Settings"; clicked => { root.ai-quick-nav("wifi"); } }
+                        Button { text: "Win32 / Apps"; clicked => { root.ai-quick-nav("apps"); } }
+                        Button { text: "Power & Health"; clicked => { root.ai-quick-nav("power"); } }
+                        Button { text: "App Store"; clicked => { root.ai-quick-nav("store"); } }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button { text: root.tr.btn-close; clicked => { root.cancel-open(); } }
                     }
                 }
             }
@@ -2093,15 +2406,33 @@ export component MainWindow inherits Window {
                         padding: 14px;
                         spacing: 8px;
                         Text {
-                            text: "Install UniCore OS to Disk (A/B Hybrid BIOS + UEFI)";
+                            text: "Install UniCore OS to Disk (A/B Hybrid BIOS + UEFI / Safe Windows Dual-Boot)";
                             color: UiTheme.text-primary;
                             font-size: 15px;
                             font-weight: 700;
                         }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Text { text: "Install Mode:"; color: UiTheme.text-muted; font-size: 12px; width: 92px; vertical-alignment: center; }
+                            ComboBox {
+                                model: ["Erase Whole Disk (Hybrid BIOS + UEFI A/B)", "Safe Dual-Boot Alongside Windows (Uses >= 10 GB Unallocated GPT Space)"];
+                                current-index <=> root.inst-mode-idx;
+                                enabled: root.inst-has-disk && !root.inst-busy;
+                                horizontal-stretch: 1;
+                            }
+                        }
                         Text {
-                            text: "Creates GPT Hybrid BIOS + UEFI layout with Slot A (UNICORE_SYS_A), Slot B fallback (UNICORE_SYS_B), and persistent UNICORE_DATA. ALL existing data on the selected disk will be erased; active Live media is automatically excluded.";
-                            color: #fbbf24;
+                            text: root.inst-mode-idx == 1
+                                ? "SAFE DUAL-BOOT: Installs A/B slots into unallocated GPT free space (>= 10 GB) without touching or resizing any Windows NTFS partition, reuses Windows ESP, and auto-adds Windows Boot Manager + UniCore Recovery to GRUB. Need free space? Shrink C: inside Windows Disk Management first."
+                                : "WHOLE-DISK MODE: Creates GPT Hybrid BIOS + UEFI layout with Slot A (UNICORE_SYS_A), Slot B fallback (UNICORE_SYS_B), UniCore Recovery submenu, and persistent UNICORE_DATA. ALL existing data on the selected disk will be erased.";
+                            color: root.inst-mode-idx == 1 ? #38bdf8 : #fbbf24;
                             font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        if root.inst-dualboot-hint != "" : Text {
+                            text: root.inst-dualboot-hint;
+                            color: UiTheme.text-ok;
+                            font-size: 11px;
                             wrap: word-wrap;
                         }
                         HorizontalLayout {
@@ -2144,15 +2475,15 @@ export component MainWindow inherits Window {
                             spacing: 10px;
                             LineEdit {
                                 text <=> root.inst-confirm-input;
-                                placeholder-text: "Type device name to confirm (e.g. sda or vda)";
+                                placeholder-text: "Type device name to confirm (e.g. sda or nvme0n1)";
                                 enabled: root.inst-has-disk && !root.inst-busy;
                                 horizontal-stretch: 1;
                             }
                             Button {
-                                text: root.inst-busy ? "Installing..." : "Install UniCore OS to Disk";
+                                text: root.inst-busy ? "Installing..." : (root.inst-mode-idx == 1 ? "Install Alongside Windows" : "Erase & Install UniCore OS");
                                 primary: true;
                                 enabled: root.inst-has-disk && !root.inst-busy;
-                                clicked => { root.start-disk-install(root.inst-disk-idx, root.inst-confirm-input, root.inst-encrypt-data, root.inst-luks-pass, root.inst-luks-confirm); }
+                                clicked => { root.start-disk-install(root.inst-disk-idx, root.inst-mode-idx, root.inst-confirm-input, root.inst-encrypt-data, root.inst-luks-pass, root.inst-luks-confirm); }
                             }
                         }
                         if root.inst-status != "" : Text {
@@ -2948,6 +3279,22 @@ export component MainWindow inherits Window {
                             }
 
                             HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: "Taskbar Style:";
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["Docked Bar (Windows 11)", "Floating Pill Dock (macOS)"];
+                                    current-index <=> root.set-taskbar-style-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
                                 spacing: 18px;
                                 Switch {
                                     text: root.tr.chk-natural-scroll;
@@ -2995,7 +3342,8 @@ export component MainWindow inherits Window {
                                             root.set-natural-scroll,
                                             root.set-tap-to-click,
                                             Math.round(root.set-pointer-speed-tenths),
-                                            root.set-desktop-icons
+                                            root.set-desktop-icons,
+                                            root.set-taskbar-style-idx
                                         );
                                     }
                                 }
@@ -3570,19 +3918,58 @@ export component MainWindow inherits Window {
                         padding: 14px;
                         spacing: 8px;
 
-                        Text {
-                            text: root.tr.hdr-local-ai;
-                            color: UiTheme.text-primary;
-                            font-size: 15px;
-                            font-weight: 700;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: root.tr.hdr-local-ai;
+                                color: UiTheme.text-primary;
+                                font-size: 15px;
+                                font-weight: 700;
+                                horizontal-stretch: 1;
+                                vertical-alignment: center;
+                            }
+                            Button {
+                                text: "Open AI Copilot (Win+A)";
+                                primary: true;
+                                clicked => { root.ai-dialog-only = true; }
+                            }
                         }
                         InfoRow {
                             label: "Engine Status:";
-                            value: root.ai-running ? ("Running (" + root.ai-endpoint + ")") : (root.ai-installed ? "Installed / Idle (0 MB RAM)" : "Not installed yet (1-click install to /data/ai)");
-                            value-color: root.ai-running ? UiTheme.text-ok : UiTheme.text-accent;
+                            value: root.ai-provider-idx == 1
+                                ? ("Google Gemini Cloud API (" + (root.ai-api-key-set ? "Key Configured" : "Key Missing") + ")")
+                                : (root.ai-provider-idx == 2
+                                    ? ("OpenAI-Compatible API (" + (root.ai-api-key-set ? "Key Configured" : "Key Missing") + ")")
+                                    : (root.ai-running ? ("Running (" + root.ai-endpoint + ")") : (root.ai-installed ? "Installed / Idle (0 MB RAM)" : "Not installed yet (1-click install to /data/ai)")));
+                            value-color: (root.ai-running || (root.ai-provider-idx != 0 && root.ai-api-key-set)) ? UiTheme.text-ok : UiTheme.text-accent;
                         }
                         InfoRow { label: "Recommended:"; value: root.ai-recommended-model; }
                         InfoRow { label: "Downloaded Models:"; value: root.ai-models-summary; }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            ComboBox {
+                                model: ["Local Offline (Ollama)", "Google Gemini API", "OpenAI-Compatible API"];
+                                current-index <=> root.ai-provider-idx;
+                                width: 195px;
+                            }
+                            if root.ai-provider-idx != 0 : LineEdit {
+                                text <=> root.ai-api-key-input;
+                                placeholder-text: root.ai-api-key-set ? "API key saved (leave blank to keep)" : "Paste API key (chmod 600)";
+                                input-type: InputType.password;
+                                horizontal-stretch: 1;
+                            }
+                            if root.ai-provider-idx == 2 : LineEdit {
+                                text <=> root.ai-base-url-input;
+                                placeholder-text: "https://api.openai.com/v1";
+                                width: 190px;
+                            }
+                            Button {
+                                text: "Save Provider";
+                                enabled: !root.ai-busy;
+                                clicked => { root.ai-save-provider(root.ai-provider-idx, root.ai-model-input, root.ai-base-url-input, root.ai-api-key-input); }
+                            }
+                        }
 
                         HorizontalLayout {
                             spacing: 8px;
@@ -3604,7 +3991,7 @@ export component MainWindow inherits Window {
                             }
                             LineEdit {
                                 text <=> root.ai-model-input;
-                                placeholder-text: "Model (e.g. qwen2.5:0.5b)";
+                                placeholder-text: "Model (e.g. llama3.2:1b or gemini-2.5-flash)";
                                 enabled: !root.ai-busy;
                                 horizontal-stretch: 1;
                             }
@@ -3619,14 +4006,14 @@ export component MainWindow inherits Window {
                             spacing: 8px;
                             LineEdit {
                                 text <=> root.ai-prompt-input;
-                                placeholder-text: "Ask your local offline AI a question...";
-                                enabled: root.ai-running && !root.ai-busy;
+                                placeholder-text: "Ask UniCore AI Assistant (local Ollama or Gemini/OpenAI API)...";
+                                enabled: (root.ai-running || (root.ai-provider-idx != 0 && root.ai-api-key-set)) && !root.ai-busy;
                                 horizontal-stretch: 1;
                             }
                             Button {
                                 text: root.ai-busy ? "Working..." : "Ask AI";
                                 primary: true;
-                                enabled: root.ai-running && !root.ai-busy && root.ai-prompt-input != "";
+                                enabled: (root.ai-running || (root.ai-provider-idx != 0 && root.ai-api-key-set)) && !root.ai-busy && root.ai-prompt-input != "";
                                 clicked => { root.ai-ask(root.ai-model-input, root.ai-prompt-input); }
                             }
                         }
@@ -3763,21 +4150,39 @@ export component MainWindow inherits Window {
                         }
                     }
                     StoreNavItem {
-                        label: root.tr.store-cat-retro;
-                        active: root.store-category == "retro";
+                        label: "Gaming";
+                        active: root.store-category == "gaming";
                         clicked => {
                             root.store-detail-open = false;
-                            root.store-category = "retro";
-                            root.store-filter-changed("retro", root.store-search-query);
+                            root.store-category = "gaming";
+                            root.store-filter-changed("gaming", root.store-search-query);
                         }
                     }
                     StoreNavItem {
-                        label: root.tr.store-cat-util;
-                        active: root.store-category == "utilities";
+                        label: "Creative";
+                        active: root.store-category == "creative";
                         clicked => {
                             root.store-detail-open = false;
-                            root.store-category = "utilities";
-                            root.store-filter-changed("utilities", root.store-search-query);
+                            root.store-category = "creative";
+                            root.store-filter-changed("creative", root.store-search-query);
+                        }
+                    }
+                    StoreNavItem {
+                        label: "Social";
+                        active: root.store-category == "social";
+                        clicked => {
+                            root.store-detail-open = false;
+                            root.store-category = "social";
+                            root.store-filter-changed("social", root.store-search-query);
+                        }
+                    }
+                    StoreNavItem {
+                        label: "Developer";
+                        active: root.store-category == "dev";
+                        clicked => {
+                            root.store-detail-open = false;
+                            root.store-category = "dev";
+                            root.store-filter-changed("dev", root.store-search-query);
                         }
                     }
                     StoreNavItem {
@@ -3796,6 +4201,24 @@ export component MainWindow inherits Window {
                             root.store-detail-open = false;
                             root.store-category = "android";
                             root.store-filter-changed("android", root.store-search-query);
+                        }
+                    }
+                    StoreNavItem {
+                        label: root.tr.store-cat-retro;
+                        active: root.store-category == "retro";
+                        clicked => {
+                            root.store-detail-open = false;
+                            root.store-category = "retro";
+                            root.store-filter-changed("retro", root.store-search-query);
+                        }
+                    }
+                    StoreNavItem {
+                        label: root.tr.store-cat-util;
+                        active: root.store-category == "utilities";
+                        clicked => {
+                            root.store-detail-open = false;
+                            root.store-category = "utilities";
+                            root.store-filter-changed("utilities", root.store-search-query);
                         }
                     }
 
@@ -3997,8 +4420,48 @@ export component MainWindow inherits Window {
                                         }
                                         if root.store-featured.is-installed : Button {
                                             text: root.tr.store-btn-open;
-                                            clicked => { root.store-launch-app(root.store-featured.installed-app-id); }
+                                            clicked => { root.store-launch-app(root.store-featured.installed-app-id, root.store-featured.is-flatpak); }
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Modern Gaming & GE-Proton / Flatpak Banner
+                        if root.store-category == "gaming" && root.store-search-query == "" : Rectangle {
+                            height: 112px;
+                            border-radius: 12px;
+                            background: @linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #0369a1 100%);
+                            border-width: 1px;
+                            border-color: #38bdf8;
+                            HorizontalLayout {
+                                padding: 14px;
+                                spacing: 14px;
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+                                    spacing: 4px;
+                                    Text {
+                                        text: "Modern PC Gaming • Flatpak + GE-Proton + Xbox/PS/Switch Gamepads";
+                                        color: #ffffff;
+                                        font-size: 14px;
+                                        font-weight: 800;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: root.store-flatpak-summary + " | " + root.store-proton-summary;
+                                        color: #bae6fd;
+                                        font-size: 11px;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    Button {
+                                        text: root.store-proton-busy ? "Installing GE-Proton..." : "Install Latest GE-Proton";
+                                        primary: true;
+                                        enabled: !root.store-proton-busy && !root.store-busy;
+                                        clicked => { root.install-latest-proton(); }
                                     }
                                 }
                             }
@@ -4080,7 +4543,7 @@ export component MainWindow inherits Window {
                                     root.store-detail-open = true;
                                 }
                                 install-clicked(id) => { root.store-install-app(id); }
-                                launch-clicked(app-id) => { root.store-launch-app(app-id); }
+                                launch-clicked(app-id) => { root.store-launch-app(app-id, row.a.is-flatpak); }
                             }
                             if !row.has-a : Rectangle { horizontal-stretch: 1; }
 
@@ -4095,7 +4558,7 @@ export component MainWindow inherits Window {
                                     root.store-detail-open = true;
                                 }
                                 install-clicked(id) => { root.store-install-app(id); }
-                                launch-clicked(app-id) => { root.store-launch-app(app-id); }
+                                launch-clicked(app-id) => { root.store-launch-app(app-id, row.b.is-flatpak); }
                             }
                             if !row.has-b : Rectangle { horizontal-stretch: 1; }
 
@@ -4110,7 +4573,7 @@ export component MainWindow inherits Window {
                                     root.store-detail-open = true;
                                 }
                                 install-clicked(id) => { root.store-install-app(id); }
-                                launch-clicked(app-id) => { root.store-launch-app(app-id); }
+                                launch-clicked(app-id) => { root.store-launch-app(app-id, row.c.is-flatpak); }
                             }
                             if !row.has-c : Rectangle { horizontal-stretch: 1; }
                         }
@@ -4176,7 +4639,8 @@ export component MainWindow inherits Window {
                                             font-weight: 600;
                                         }
                                     }
-                                    VerticalLayout {
+                                    HorizontalLayout {
+                                        spacing: 8px;
                                         alignment: center;
                                         if !root.store-detail.is-installed : Button {
                                             text: root.tr.btn-store-install;
@@ -4187,7 +4651,12 @@ export component MainWindow inherits Window {
                                         if root.store-detail.is-installed : Button {
                                             text: root.tr.btn-store-launch;
                                             primary: true;
-                                            clicked => { root.store-launch-app(root.store-detail.installed-app-id); }
+                                            clicked => { root.store-launch-app(root.store-detail.installed-app-id, root.store-detail.is-flatpak); }
+                                        }
+                                        if root.store-detail.is-installed : Button {
+                                            text: root.tr.btn-uninstall;
+                                            enabled: !root.store-busy;
+                                            clicked => { root.store-uninstall-app(root.store-detail.id, root.store-detail.installed-app-id); }
                                         }
                                     }
                                 }

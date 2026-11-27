@@ -84,6 +84,33 @@ find_label_dev() {
     blkid -t "LABEL=$1" -o device 2>/dev/null | head -n1 || true
 }
 
+find_efi_dev() {
+    dev="$(find_label_dev UNICORE_EFI)"
+    if [ -n "${dev}" ]; then
+        printf '%s\n' "${dev}"
+        return 0
+    fi
+    probe_mnt="${WORK}/efi_probe"
+    mkdir -p "${probe_mnt}"
+    for cand in $(blkid -t TYPE=vfat -o device 2>/dev/null || true); do
+        [ -b "${cand}" ] || continue
+        if mount -t vfat -o ro "${cand}" "${probe_mnt}" 2>/dev/null; then
+            ok=0
+            if [ -f "${probe_mnt}/boot/grub/unicore-installed.marker" ] || [ -f "${probe_mnt}/boot/grub/grubenv" ]; then
+                ok=1
+            fi
+            umount "${probe_mnt}" 2>/dev/null || true
+            if [ "${ok}" = "1" ]; then
+                rmdir "${probe_mnt}" 2>/dev/null || true
+                printf '%s\n' "${cand}"
+                return 0
+            fi
+        fi
+    done
+    rmdir "${probe_mnt}" 2>/dev/null || true
+    return 0
+}
+
 check_standby_ready() {
     standby="$1"
     efi_mounted="$2"
@@ -113,7 +140,7 @@ flash_standby_slot() {
 
     target_slot="$(other_slot "${BOOT_SLOT}")"
     target_dir="$(slot_dir_name "${target_slot}")"
-    efi_dev="$(find_label_dev UNICORE_EFI)"
+    efi_dev="$(find_efi_dev)"
     slot_dev="$(find_label_dev "${target_slot}")"
 
     [ -n "${efi_dev}" ] || { echo "Error: UNICORE_EFI partition not found." >&2; exit 1; }
@@ -222,7 +249,7 @@ done
 case "${MODE}" in
     status|"")
         mkdir -p "${WORK}" "${EFI_MNT}"
-        efi_dev="$(find_label_dev UNICORE_EFI)"
+        efi_dev="$(find_efi_dev)"
         efi_mounted="0"
         grubenv_arg=""
         if [ -n "${efi_dev}" ] && mount -t vfat -o ro "${efi_dev}" "${EFI_MNT}" 2>/dev/null; then
@@ -388,7 +415,7 @@ case "${MODE}" in
             echo "Error: Wayland/seatd not ready yet; deferring boot confirmation." >&2
             exit 1
         fi
-        efi_dev="$(find_label_dev UNICORE_EFI)"
+        efi_dev="$(find_efi_dev)"
         [ -n "${efi_dev}" ] || exit 0
         mkdir -p "${EFI_MNT}"
         mount -t vfat -o ro "${efi_dev}" "${EFI_MNT}"
@@ -412,7 +439,7 @@ case "${MODE}" in
 
     rollback)
         require_installed_root
-        efi_dev="$(find_label_dev UNICORE_EFI)"
+        efi_dev="$(find_efi_dev)"
         [ -n "${efi_dev}" ] || { echo "Error: UNICORE_EFI partition not found." >&2; exit 1; }
         mkdir -p "${EFI_MNT}"
         mount -t vfat -o rw "${efi_dev}" "${EFI_MNT}"

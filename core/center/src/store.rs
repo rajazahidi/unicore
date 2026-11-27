@@ -1,11 +1,13 @@
-//! Backend helpers for UniCore OS 1-Click App Catalog & Storefront.
+//! Backend helpers for UniCore OS 1-Click Universal App Catalog, Flatpak & GE-Proton Storefront.
 
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
 use uniload::catalog::{
-    filter_catalog_apps, find_catalog_app, install_catalog_app, load_catalog,
-    sync_catalog_verified, CatalogApp, DEFAULT_DATA_CATALOG, OFFICIAL_CATALOG_URL,
+    filter_catalog_apps_for_arch, find_catalog_app, install_catalog_app, load_catalog,
+    sync_catalog_verified, validate_flatpak_id, CatalogApp, DEFAULT_DATA_CATALOG,
+    OFFICIAL_CATALOG_URL,
 };
 use uniload::inspector::{AppPlatform, WinEra};
 use uniload::sandbox::{AppSandbox, SandboxManager};
@@ -13,6 +15,9 @@ use uniload::sandbox::{AppSandbox, SandboxManager};
 use crate::backend::{CenterBackend, CenterConfig};
 use crate::desktop::platform_display_name;
 use crate::settings::SYS_HELPER_BIN;
+
+pub const FLATPAK_HELPER_BIN: &str = "/usr/libexec/unicore-flatpak";
+pub const PROTON_HELPER_BIN: &str = "/usr/libexec/unicore-proton";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoreItemView {
@@ -28,13 +33,69 @@ pub struct StoreItemView {
     pub icon_text: String,
     pub accent_rgb: (u8, u8, u8),
     pub is_offline: bool,
+    pub is_flatpak: bool,
+    pub flatpak_id: String,
     pub is_installed: bool,
     pub installed_app_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FlatpakOverview {
+    pub installed: bool,
+    pub flathub_ready: bool,
+    pub app_count: u32,
+    pub flatpak_dir: String,
+}
+
+impl Default for FlatpakOverview {
+    fn default() -> Self {
+        Self {
+            installed: false,
+            flathub_ready: false,
+            app_count: 0,
+            flatpak_dir: "/data/flatpak".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProtonOverview {
+    pub dir: String,
+    pub installed_count: u32,
+    pub versions: Vec<String>,
+    pub steam_linked: bool,
+}
+
+impl Default for ProtonOverview {
+    fn default() -> Self {
+        Self {
+            dir: "/data/gaming/proton-ge".to_string(),
+            installed_count: 0,
+            versions: Vec::new(),
+            steam_linked: false,
+        }
+    }
 }
 
 /// Derive a crisp monogram icon label and accent RGB color for a Store app tile.
 pub fn store_icon_meta(id: &str, name: &str, category: &str) -> (String, (u8, u8, u8)) {
     match id {
+        "steam" => ("STM".to_string(), (29, 78, 216)),
+        "heroic" => ("HGL".to_string(), (3, 105, 161)),
+        "lutris" => ("LUT".to_string(), (217, 119, 6)),
+        "prism-launcher" => ("MC".to_string(), (22, 163, 74)),
+        "retroarch" => ("RA".to_string(), (71, 85, 105)),
+        "gimp" => ("GMP".to_string(), (109, 40, 217)),
+        "obs-studio" => ("OBS".to_string(), (30, 41, 59)),
+        "inkscape" => ("SVG".to_string(), (15, 118, 110)),
+        "audacity" => ("AUD".to_string(), (37, 99, 235)),
+        "blender" => ("3D".to_string(), (234, 88, 12)),
+        "kdenlive" => ("KDN".to_string(), (2, 132, 199)),
+        "vesktop" => ("DSC".to_string(), (88, 101, 242)),
+        "telegram" => ("TG".to_string(), (14, 165, 233)),
+        "thunderbird" => ("TB".to_string(), (37, 99, 235)),
+        "libreoffice-native" | "libreoffice" => ("LO".to_string(), (22, 163, 74)),
+        "flatseal" => ("FSL".to_string(), (79, 70, 229)),
         "7zip" => ("7Z".to_string(), (5, 150, 105)),
         "notepadpp" => ("N++".to_string(), (22, 163, 74)),
         "sumatrapdf" => ("PDF".to_string(), (217, 119, 6)),
@@ -47,7 +108,6 @@ pub fn store_icon_meta(id: &str, name: &str, category: &str) -> (String, (u8, u8
         "cave-story" => ("CS".to_string(), (225, 29, 72)),
         "openra-red-alert" => ("RA".to_string(), (185, 28, 28)),
         "antigravity" => ("AGY".to_string(), (37, 99, 235)),
-        "libreoffice" => ("LO".to_string(), (22, 163, 74)),
         "vscodium" => ("VSC".to_string(), (14, 165, 233)),
         "keepassxc" => ("KPX".to_string(), (16, 185, 129)),
         "vlc" => ("VLC".to_string(), (234, 88, 12)),
@@ -64,6 +124,10 @@ pub fn store_icon_meta(id: &str, name: &str, category: &str) -> (String, (u8, u8
                 abbr
             };
             let color = match category {
+                "gaming" => (29, 78, 216),
+                "creative" => (124, 58, 237),
+                "social" => (14, 165, 233),
+                "dev" => (37, 99, 235),
                 "office" => (217, 119, 6),
                 "android" => (13, 148, 136),
                 "retro" => (147, 51, 234),
@@ -80,6 +144,7 @@ pub fn era_badge_name(platform: AppPlatform, win_era: Option<WinEra>) -> &'stati
         AppPlatform::WindowsNe16 => "Win16",
         AppPlatform::AndroidApk => "Android",
         AppPlatform::NativeElf => "Linux",
+        AppPlatform::LinuxFlatpak => "Flatpak",
         AppPlatform::WindowsPe | AppPlatform::WindowsMsi => match win_era {
             Some(WinEra::Win98) => "Win98",
             Some(WinEra::WinXp) => "WinXP",
@@ -94,7 +159,10 @@ pub fn platform_short_name(platform: AppPlatform) -> &'static str {
     era_badge_name(platform, None)
 }
 
-pub fn format_sha256_preview(sha256: &str) -> String {
+pub fn format_sha256_preview(sha256: &str, flatpak_id: &str) -> String {
+    if !flatpak_id.trim().is_empty() {
+        return format!("Flathub Signed OSTree ({})", flatpak_id.trim());
+    }
     let clean = sha256.trim();
     if clean.len() == 64 {
         format!("{}...{}", &clean[..12], &clean[56..])
@@ -116,6 +184,129 @@ pub fn chunk_into_triples<T: Clone>(items: &[T]) -> Vec<(Option<T>, Option<T>, O
     rows
 }
 
+pub fn parse_flatpak_status(raw: &str) -> FlatpakOverview {
+    let mut ov = FlatpakOverview::default();
+    for line in raw.lines() {
+        let Some((k, v)) = line.trim().split_once('=') else {
+            continue;
+        };
+        match k.trim() {
+            "installed" => ov.installed = v.trim() == "1",
+            "flathub_ready" => ov.flathub_ready = v.trim() == "1",
+            "app_count" => ov.app_count = v.trim().parse().unwrap_or(0),
+            "flatpak_dir" if !v.trim().is_empty() => ov.flatpak_dir = v.trim().to_string(),
+            _ => {}
+        }
+    }
+    ov
+}
+
+pub fn read_flatpak_overview() -> FlatpakOverview {
+    if !cfg!(target_os = "linux") || !Path::new(FLATPAK_HELPER_BIN).is_file() {
+        return FlatpakOverview::default();
+    }
+    Command::new(FLATPAK_HELPER_BIN)
+        .arg("status")
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| parse_flatpak_status(&String::from_utf8_lossy(&o.stdout)))
+        .unwrap_or_default()
+}
+
+pub fn list_installed_flatpak_ids() -> BTreeSet<String> {
+    if !cfg!(target_os = "linux") || !Path::new(FLATPAK_HELPER_BIN).is_file() {
+        return BTreeSet::new();
+    }
+    Command::new(FLATPAK_HELPER_BIN)
+        .arg("list")
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+pub fn parse_proton_status(raw: &str) -> ProtonOverview {
+    let mut ov = ProtonOverview::default();
+    for line in raw.lines() {
+        let Some((k, v)) = line.trim().split_once('=') else {
+            continue;
+        };
+        match k.trim() {
+            "dir" if !v.trim().is_empty() => ov.dir = v.trim().to_string(),
+            "installed_count" => ov.installed_count = v.trim().parse().unwrap_or(0),
+            "steam_linked" => ov.steam_linked = v.trim() == "1",
+            "versions" => {
+                ov.versions = v
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+                    .collect();
+            }
+            _ => {}
+        }
+    }
+    ov
+}
+
+pub fn read_proton_overview() -> ProtonOverview {
+    if !cfg!(target_os = "linux") || !Path::new(PROTON_HELPER_BIN).is_file() {
+        return ProtonOverview::default();
+    }
+    Command::new(PROTON_HELPER_BIN)
+        .arg("status")
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| parse_proton_status(&String::from_utf8_lossy(&o.stdout)))
+        .unwrap_or_default()
+}
+
+pub fn install_latest_proton_blocking() -> Result<String, String> {
+    if !cfg!(target_os = "linux") || !Path::new(PROTON_HELPER_BIN).is_file() {
+        return Err("GE-Proton manager is only available inside UniCore OS".to_string());
+    }
+    let out = Command::new(PROTON_HELPER_BIN)
+        .arg("install-latest")
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("Failed to invoke GE-Proton manager: {e}"))?;
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        return Err(if !stderr.is_empty() { stderr } else { stdout });
+    }
+    Ok(if stdout.is_empty() {
+        "Latest GE-Proton installed cleanly!".to_string()
+    } else {
+        stdout.lines().last().unwrap_or("Installed GE-Proton").to_string()
+    })
+}
+
+pub fn launch_flatpak_app(flatpak_id: &str) -> Result<(), String> {
+    validate_flatpak_id(flatpak_id)?;
+    Command::new(FLATPAK_HELPER_BIN)
+        .args(["run", flatpak_id])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Failed to launch Flatpak {flatpak_id}: {e}"))
+}
+
 fn find_installed_match<'a>(
     installed: &'a [AppSandbox],
     cat: &CatalogApp,
@@ -133,21 +324,32 @@ fn find_installed_match<'a>(
     })
 }
 
-/// Build UI view models for catalog apps matching `category` and `query`.
-pub fn load_store_views(
+/// Build UI view models for catalog apps matching `category`, `query`, and `host_arch`.
+pub fn load_store_views_for_arch(
     apps: &[AppSandbox],
     state_dir: &Path,
     category: &str,
     query: &str,
     is_ms: bool,
+    host_arch: &str,
     catalog_override: Option<&Path>,
 ) -> Result<Vec<StoreItemView>, String> {
     let catalog = load_catalog(catalog_override)?;
-    let filtered = filter_catalog_apps(&catalog.apps, category, query);
+    let filtered = filter_catalog_apps_for_arch(&catalog.apps, category, query, host_arch);
+    let installed_flatpaks = list_installed_flatpak_ids();
     Ok(filtered
         .iter()
         .map(|cat| {
-            let matched = find_installed_match(apps, cat, state_dir);
+            let (is_installed, installed_app_id) = if cat.is_flatpak() {
+                let present = installed_flatpaks.contains(&cat.flatpak_id);
+                (present, if present { cat.flatpak_id.clone() } else { String::new() })
+            } else {
+                let matched = find_installed_match(apps, cat, state_dir);
+                (
+                    matched.is_some(),
+                    matched.map(|m| m.app_id.clone()).unwrap_or_default(),
+                )
+            };
             let (icon_text, accent_rgb) = store_icon_meta(&cat.id, &cat.name, &cat.category);
             StoreItemView {
                 id: cat.id.clone(),
@@ -158,28 +360,89 @@ pub fn load_store_views(
                 platform_label: platform_display_name(cat.platform).to_string(),
                 platform_short: era_badge_name(cat.platform, cat.win_era).to_string(),
                 summary: cat.summary(is_ms).to_string(),
-                sha256_short: format_sha256_preview(&cat.sha256),
+                sha256_short: format_sha256_preview(&cat.sha256, &cat.flatpak_id),
                 icon_text,
                 accent_rgb,
                 is_offline: cat.is_offline_bundled(),
-                is_installed: matched.is_some(),
-                installed_app_id: matched.map(|m| m.app_id.clone()).unwrap_or_default(),
+                is_flatpak: cat.is_flatpak(),
+                flatpak_id: cat.flatpak_id.clone(),
+                is_installed,
+                installed_app_id,
             }
         })
         .collect())
 }
 
-/// Download/verify/extract a catalog app and register both its sandbox and `.desktop` shortcuts.
+/// Backward-compatible wrapper loading all architectures.
+pub fn load_store_views(
+    apps: &[AppSandbox],
+    state_dir: &Path,
+    category: &str,
+    query: &str,
+    is_ms: bool,
+    catalog_override: Option<&Path>,
+) -> Result<Vec<StoreItemView>, String> {
+    load_store_views_for_arch(apps, state_dir, category, query, is_ms, "", catalog_override)
+}
+
+/// Install a catalog app (Flatpak via Flathub OR sandboxed Win32/Android/DOS with SHA-256 verification).
 pub fn install_store_app_blocking(
     config: &CenterConfig,
     catalog_id: &str,
-) -> Result<AppSandbox, String> {
+) -> Result<String, String> {
     let catalog = load_catalog(None)?;
     let entry = find_catalog_app(&catalog, catalog_id)?;
+    if entry.is_flatpak() {
+        validate_flatpak_id(&entry.flatpak_id)?;
+        if !cfg!(target_os = "linux") || !Path::new(FLATPAK_HELPER_BIN).is_file() {
+            return Err("Flatpak installation is only available inside UniCore OS".to_string());
+        }
+        let out = Command::new(FLATPAK_HELPER_BIN)
+            .args(["install", &entry.flatpak_id])
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| format!("Failed to invoke unicore-flatpak: {e}"))?;
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        if !out.status.success() {
+            return Err(if !stderr.is_empty() { stderr } else { stdout });
+        }
+        return Ok(format!("{} (Flatpak) installed cleanly!", entry.name));
+    }
+
     let mut manager = SandboxManager::new(&config.state_dir, 30.0)?;
     let sandbox = install_catalog_app(&mut manager, entry, &config.state_dir.join("store"), false)?;
     CenterBackend::new(config.clone()).create_shortcuts_for_app(&sandbox)?;
-    Ok(sandbox)
+    Ok(format!("{} installed cleanly!", sandbox.name))
+}
+
+/// 1-click uninstall of a Store app (handles both Flatpak and sandboxed UniCore apps).
+pub fn uninstall_store_app_blocking(
+    config: &CenterConfig,
+    catalog_id: &str,
+    installed_app_id: &str,
+) -> Result<String, String> {
+    let catalog = load_catalog(None)?;
+    let entry = find_catalog_app(&catalog, catalog_id)?;
+    if entry.is_flatpak() {
+        validate_flatpak_id(&entry.flatpak_id)?;
+        let out = Command::new(FLATPAK_HELPER_BIN)
+            .args(["uninstall", &entry.flatpak_id])
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| format!("Failed to invoke unicore-flatpak uninstall: {e}"))?;
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        if !out.status.success() {
+            return Err(if !stderr.is_empty() { stderr } else { stdout });
+        }
+        return Ok(format!("Uninstalled {} (Flatpak).", entry.name));
+    }
+    if installed_app_id.trim().is_empty() {
+        return Err(format!("'{}' is not currently installed.", entry.name));
+    }
+    CenterBackend::new(config.clone()).uninstall_app(installed_app_id)?;
+    Ok(format!("Uninstalled {}.", entry.name))
 }
 
 /// Download, cryptographically verify (Ed25519 when pubkey configured), and store catalog JSON.

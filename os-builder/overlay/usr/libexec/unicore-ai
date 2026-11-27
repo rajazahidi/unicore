@@ -1,12 +1,20 @@
 #!/bin/sh
+# UniCore OS Multi-Provider System AI Assistant (Offline Ollama + Google Gemini API + OpenAI-Compatible API).
+# Zero idle RAM until started or queried; optional cloud API lets 512 MB-2 GB legacy PCs use full AI Copilot!
 set -eu
 
 AI_ROOT="${UNICORE_AI_ROOT:-/data/ai}"
 OLLAMA_DIR="${AI_ROOT}/ollama"
 OLLAMA_BIN="${OLLAMA_DIR}/bin/ollama"
 MODELS_DIR="${AI_ROOT}/models"
+PROVIDER_CONF="${AI_ROOT}/provider.conf"
 export OLLAMA_HOST="127.0.0.1:11434"
 export OLLAMA_MODELS="${MODELS_DIR}"
+
+AI_PROVIDER="ollama"
+AI_MODEL="llama3.2:1b"
+AI_API_KEY=""
+AI_BASE_URL="https://api.openai.com/v1"
 
 detect_ram_mb() {
     awk '/^MemTotal:/{printf "%d\n", int($2 / 1024); exit}' /proc/meminfo 2>/dev/null || echo 1024
@@ -15,7 +23,7 @@ detect_ram_mb() {
 recommend_model() {
     ram_mb="$(detect_ram_mb)"
     if [ "${ram_mb}" -lt 2500 ]; then
-        printf 'qwen2.5:0.5b (Low-RAM PC warning: %s MB)\n' "${ram_mb}"
+        printf 'gemini-2.5-flash (Low-RAM %s MB: Cloud API recommended, or qwen2.5:0.5b)\n' "${ram_mb}"
     elif [ "${ram_mb}" -lt 7500 ]; then
         printf 'llama3.2:1b\n'
     elif [ "${ram_mb}" -lt 15000 ]; then
@@ -26,7 +34,106 @@ recommend_model() {
 }
 
 validate_model() {
-    printf '%s' "$1" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,63}$'
+    printf '%s' "$1" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,95}$'
+}
+
+validate_base_url() {
+    printf '%s' "$1" | grep -Eq '^https?://[^[:space:]"'\''$`\\;<>|&]+$'
+}
+
+load_provider_conf() {
+    AI_PROVIDER="ollama"
+    AI_MODEL="llama3.2:1b"
+    AI_API_KEY=""
+    AI_BASE_URL="https://api.openai.com/v1"
+    if [ -r "${PROVIDER_CONF}" ]; then
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                AI_PROVIDER)
+                    case "${v}" in
+                        ollama|gemini|openai) AI_PROVIDER="${v}" ;;
+                    esac
+                    ;;
+                AI_MODEL)
+                    validate_model "${v}" && AI_MODEL="${v}" || true
+                    ;;
+                AI_API_KEY)
+                    AI_API_KEY="${v}"
+                    ;;
+                AI_BASE_URL)
+                    validate_base_url "${v}" && AI_BASE_URL="${v}" || true
+                    ;;
+            esac
+        done < "${PROVIDER_CONF}"
+    fi
+}
+
+save_provider_conf() {
+    mkdir -p "${AI_ROOT}"
+    (
+        umask 077
+        cat <<EOF > "${PROVIDER_CONF}"
+AI_PROVIDER=${AI_PROVIDER}
+AI_MODEL=${AI_MODEL}
+AI_BASE_URL=${AI_BASE_URL}
+AI_API_KEY=${AI_API_KEY}
+EOF
+    )
+    chmod 600 "${PROVIDER_CONF}" 2>/dev/null || true
+}
+
+collect_system_context() {
+    os_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || echo 0.4.0)"
+    arch="$(uname -m 2>/dev/null || echo x86_64)"
+    kern="$(uname -r 2>/dev/null || echo unknown)"
+    ram_mb="$(detect_ram_mb)"
+    tier="$(/usr/bin/uniload hw-profile --env 2>/dev/null | awk -F= '$1=="UNICORE_HW_TIER"{print $2; exit}' || echo unknown)"
+    sb="$(/usr/libexec/unicore-secureboot status 2>/dev/null | tr '\n' ' ' || true)"
+    pwr="$(/usr/libexec/unicore-power status 2>/dev/null | tr '\n' ' ' || true)"
+    net="$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status 2>/dev/null | head -n 4 | tr '\n' '; ' || true)"
+    disk="$(df -h /data 2>/dev/null | awk 'NR==2{print $2" total, "$4" free ("$5" used)"}' || echo N/A)"
+    fp="$(/usr/libexec/unicore-flatpak status 2>/dev/null | tr '\n' ' ' || true)"
+
+    cat <<EOF
+[UniCore OS Live Read-Only System Diagnostics]
+- OS: UniCore OS v${os_ver} (${arch}, kernel ${kern})
+- Hardware Tier: ${tier}, RAM: ${ram_mb} MB
+- /data Storage: ${disk}
+- Network: ${net:-offline}
+- Secure Boot: ${sb:-unknown}
+- Power & Battery: ${pwr:-unknown}
+- Flatpak: ${fp:-unavailable}
+EOF
+}
+
+query_ollama() {
+    model="$1"
+    prompt="$2"
+    payload="$(jq -nc --arg m "${model}" --arg p "${prompt}" '{model:$m, prompt:$p, stream:false}')"
+    resp="$(curl -fsS --connect-timeout 5 --max-time 120 -H 'Content-Type: application/json' -d "${payload}" "http://${OLLAMA_HOST}/api/generate")"
+    printf '%s\n' "${resp}" | jq -r '.response // empty'
+}
+
+query_gemini() {
+    model="$1"
+    prompt="$2"
+    [ -n "${AI_API_KEY}" ] || { echo "Gemini API key is not configured. Save your API key first." >&2; exit 1; }
+    payload="$(jq -nc --arg p "${prompt}" '{contents:[{parts:[{text:$p}]}]}')"
+    url="https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent"
+    cfg="$(printf 'header = "x-goog-api-key: %s"\nheader = "Content-Type: application/json"\n' "${AI_API_KEY}")"
+    resp="$(printf '%s' "${cfg}" | curl -fsS --connect-timeout 15 --max-time 90 --config - -d "${payload}" "${url}")"
+    printf '%s\n' "${resp}" | jq -r '[.candidates[0].content.parts[]?.text] | join("")'
+}
+
+query_openai() {
+    model="$1"
+    prompt="$2"
+    [ -n "${AI_API_KEY}" ] || { echo "OpenAI-compatible API key is not configured. Save your API key first." >&2; exit 1; }
+    base="${AI_BASE_URL%/}"
+    payload="$(jq -nc --arg m "${model}" --arg p "${prompt}" '{model:$m, messages:[{role:"system",content:"You are UniCore OS System Assistant. Answer concisely in the user language (Malay or English). Suggest safe, clear troubleshooting steps."},{role:"user",content:$p}]}')"
+    cfg="$(printf 'header = "Authorization: Bearer %s"\nheader = "Content-Type: application/json"\n' "${AI_API_KEY}")"
+    resp="$(printf '%s' "${cfg}" | curl -fsS --connect-timeout 15 --max-time 90 --config - -d "${payload}" "${base}/chat/completions")"
+    printf '%s\n' "${resp}" | jq -r '.choices[0].message.content // empty'
 }
 
 cmd="${1:-status}"
@@ -34,6 +141,7 @@ shift || true
 
 case "${cmd}" in
     status)
+        load_provider_conf
         installed=0
         running=0
         models=""
@@ -44,8 +152,53 @@ case "${cmd}" in
         if [ "${running}" -eq 1 ] && command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
             models="$(curl -fsS --max-time 2 "http://${OLLAMA_HOST}/api/tags" 2>/dev/null | jq -r '.models[]?.name' 2>/dev/null | paste -sd ',' - || true)"
         fi
-        printf 'installed=%s\nrunning=%s\nendpoint=http://%s\nrecommended_model=%s\nmodels=%s\n' \
-            "${installed}" "${running}" "${OLLAMA_HOST}" "$(recommend_model)" "${models}"
+        key_set=0
+        [ -n "${AI_API_KEY}" ] && key_set=1 || true
+        printf 'installed=%s\nrunning=%s\nendpoint=http://%s\nrecommended_model=%s\nmodels=%s\nprovider=%s\nactive_model=%s\nbase_url=%s\napi_key_set=%s\nram_mb=%s\n' \
+            "${installed}" "${running}" "${OLLAMA_HOST}" "$(recommend_model)" "${models}" \
+            "${AI_PROVIDER}" "${AI_MODEL}" "${AI_BASE_URL}" "${key_set}" "$(detect_ram_mb)"
+        ;;
+
+    set-provider)
+        prov="${1:-ollama}"
+        model="${2:-}"
+        base="${3:-}"
+        case "${prov}" in
+            ollama|gemini|openai) ;;
+            *) echo "Invalid AI provider '${prov}' (use ollama, gemini, or openai)." >&2; exit 2 ;;
+        esac
+        load_provider_conf
+        AI_PROVIDER="${prov}"
+        if [ -n "${model}" ]; then
+            validate_model "${model}" || { echo "Invalid AI model name '${model}'." >&2; exit 2; }
+            AI_MODEL="${model}"
+        else
+            case "${prov}" in
+                gemini) AI_MODEL="gemini-2.5-flash" ;;
+                openai) AI_MODEL="gpt-4o-mini" ;;
+                *) AI_MODEL="llama3.2:1b" ;;
+            esac
+        fi
+        if [ -n "${base}" ]; then
+            validate_base_url "${base}" || { echo "Invalid API base URL '${base}'." >&2; exit 2; }
+            AI_BASE_URL="${base}"
+        fi
+        # Optional API key passed securely via stdin (empty keeps existing key, "__CLEAR__" removes it)
+        if [ ! -t 0 ]; then
+            IFS= read -r new_key || new_key=""
+            new_key="$(printf '%s' "${new_key}" | tr -d '\r\n')"
+            if [ "${new_key}" = "__CLEAR__" ]; then
+                AI_API_KEY=""
+            elif [ -n "${new_key}" ]; then
+                AI_API_KEY="${new_key}"
+            fi
+        fi
+        save_provider_conf
+        echo "AI provider set to ${AI_PROVIDER} (model: ${AI_MODEL})."
+        ;;
+
+    context)
+        collect_system_context
         ;;
 
     install)
@@ -102,16 +255,49 @@ case "${cmd}" in
         prompt="$*"
         validate_model "${model}" || { echo "Invalid model name '${model}'." >&2; exit 2; }
         command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || {
-            echo "curl and jq are required for Local AI chat." >&2
+            echo "curl and jq are required for AI chat." >&2
             exit 1
         }
-        payload="$(jq -nc --arg m "${model}" --arg p "${prompt}" '{model:$m, prompt:$p, stream:false}')"
-        resp="$(curl -fsS --connect-timeout 5 --max-time 120 -H 'Content-Type: application/json' -d "${payload}" "http://${OLLAMA_HOST}/api/generate")"
-        printf '%s\n' "${resp}" | jq -r '.response // empty'
+        load_provider_conf
+        case "${AI_PROVIDER}" in
+            gemini) query_gemini "${model}" "${prompt}" ;;
+            openai) query_openai "${model}" "${prompt}" ;;
+            *) query_ollama "${model}" "${prompt}" ;;
+        esac
+        ;;
+
+    copilot)
+        include_ctx=1
+        if [ "${1:-}" = "--no-context" ]; then
+            include_ctx=0
+            shift
+        fi
+        [ "$#" -ge 1 ] || { echo "Usage: unicore-ai copilot [--no-context] <prompt>" >&2; exit 2; }
+        user_q="$*"
+        command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || {
+            echo "curl and jq are required for UniCore AI Assistant." >&2
+            exit 1
+        }
+        load_provider_conf
+        if [ "${include_ctx}" = "1" ]; then
+            sys_ctx="$(collect_system_context)"
+            full_prompt="You are UniCore OS System Assistant. Reply clearly and concisely in the same language as the user (Bahasa Melayu or English). Never assume you executed commands automatically; give clear 1-click steps.
+
+${sys_ctx}
+
+User Question: ${user_q}"
+        else
+            full_prompt="${user_q}"
+        fi
+        case "${AI_PROVIDER}" in
+            gemini) query_gemini "${AI_MODEL}" "${full_prompt}" ;;
+            openai) query_openai "${AI_MODEL}" "${full_prompt}" ;;
+            *) query_ollama "${AI_MODEL}" "${full_prompt}" ;;
+        esac
         ;;
 
     *)
-        echo "Usage: unicore-ai <status|install|start|stop|pull <model>|chat <model> <prompt>>" >&2
+        echo "Usage: unicore-ai <status|set-provider <ollama|gemini|openai> [model] [base_url]|context|install|start|stop|pull <model>|chat <model> <prompt>|copilot [--no-context] <prompt>>" >&2
         exit 2
         ;;
 esac

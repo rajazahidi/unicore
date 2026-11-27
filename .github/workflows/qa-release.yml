@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to verify (e.g. v0.3.0)'
+        description: 'Release tag to verify (e.g. v0.4.0)'
         required: true
-        default: 'v0.3.0'
+        default: 'v0.4.0'
 
 permissions:
   contents: read
@@ -77,3 +77,28 @@ jobs:
       - name: Run ARM64 UEFI + Shim/MOK + Box64/Wine live cmd.exe QEMU QA
         run: |
           python3 scripts/test-aarch64-qemu.py
+
+  qa-ab-dualboot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install QEMU & OVMF UEFI firmware (x86_64)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf
+
+      - name: Download published x86_64 release assets for A/B + LUKS2 + Dual-Boot + Recovery QA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p os-builder/out
+          gh release download "${{ inputs.tag }}" --dir os-builder/out --clobber \
+            -p "unicore-os-x86_64.iso" \
+            -p "vmlinuz-x86_64" \
+            -p "initramfs-x86_64.img"
+          ls -lh os-builder/out/
+
+      - name: Run Automated A/B OTA + LUKS2 + Safe Windows Dual-Boot + GRUB Recovery QEMU QA
+        run: |
+          python3 scripts/test-ab-dualboot-recovery-qemu.py

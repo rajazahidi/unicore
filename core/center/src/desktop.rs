@@ -24,6 +24,7 @@ pub fn platform_display_name(platform: AppPlatform) -> &'static str {
         AppPlatform::Dos16 => "MS-DOS Application (16-bit)",
         AppPlatform::AndroidApk => "Android APK Package",
         AppPlatform::NativeElf => "Native Linux App (ELF)",
+        AppPlatform::LinuxFlatpak => "Native Linux (Flatpak / Flathub)",
         AppPlatform::Unknown => "Unknown Binary",
     }
 }
@@ -71,7 +72,7 @@ pub fn desktop_icon_name(platform: AppPlatform) -> &'static str {
         AppPlatform::WindowsPe | AppPlatform::WindowsNe16 | AppPlatform::WindowsMsi => {
             "application-x-executable"
         }
-        AppPlatform::NativeElf | AppPlatform::Unknown => "system-run",
+        AppPlatform::NativeElf | AppPlatform::LinuxFlatpak | AppPlatform::Unknown => "system-run",
     }
 }
 

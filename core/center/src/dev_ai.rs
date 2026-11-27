@@ -1,6 +1,7 @@
 //! Developer Podman DevBox, Ollama Local AI helper wrappers & Pure-Rust File Picker.
 
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -36,6 +37,11 @@ pub struct LocalAiOverview {
     pub endpoint: String,
     pub recommended_model: String,
     pub models: Vec<String>,
+    pub provider: String,
+    pub active_model: String,
+    pub base_url: String,
+    pub api_key_set: bool,
+    pub ram_mb: u64,
 }
 
 impl Default for LocalAiOverview {
@@ -46,6 +52,11 @@ impl Default for LocalAiOverview {
             endpoint: "http://127.0.0.1:11434".to_string(),
             recommended_model: recommend_ai_model_for_ram(4096),
             models: Vec::new(),
+            provider: "ollama".to_string(),
+            active_model: "llama3.2:1b".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            api_key_set: false,
+            ram_mb: 4096,
         }
     }
 }
@@ -151,6 +162,13 @@ pub fn parse_ai_status(raw: &str) -> LocalAiOverview {
                     .map(str::to_string)
                     .collect();
             }
+            "provider" if matches!(val, "ollama" | "gemini" | "openai") => {
+                ov.provider = val.to_string();
+            }
+            "active_model" if !val.is_empty() => ov.active_model = val.to_string(),
+            "base_url" if !val.is_empty() => ov.base_url = val.to_string(),
+            "api_key_set" => ov.api_key_set = val == "1" || val.eq_ignore_ascii_case("true"),
+            "ram_mb" => ov.ram_mb = val.parse().unwrap_or(ov.ram_mb),
             _ => {}
         }
     }
@@ -246,6 +264,74 @@ pub fn run_ai_action(args: &[&str]) -> Result<String, String> {
         });
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+pub fn save_ai_provider(
+    provider: &str,
+    model: &str,
+    base_url: &str,
+    api_key: &str,
+) -> Result<String, String> {
+    let prov = provider.trim().to_ascii_lowercase();
+    if !matches!(prov.as_str(), "ollama" | "gemini" | "openai") {
+        return Err(format!("Unsupported AI provider '{provider}'"));
+    }
+    let clean_model = validate_ai_model_name(model)?;
+    if !cfg!(target_os = "linux") || !Path::new(AI_HELPER_BIN).is_file() {
+        return Ok(format!("AI provider set to {prov} ({clean_model})"));
+    }
+    let mut cmd = Command::new(AI_HELPER_BIN);
+    cmd.args(["set-provider", &prov, &clean_model]);
+    if !base_url.trim().is_empty() {
+        cmd.arg(base_url.trim());
+    }
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to save AI provider: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = writeln!(stdin, "{}", api_key.trim());
+    }
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("Failed waiting for unicore-ai: {e}"))?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        return Err(if err.is_empty() {
+            "Failed to save AI provider config".to_string()
+        } else {
+            err
+        });
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+pub fn read_ai_system_context() -> String {
+    if !cfg!(target_os = "linux") || !Path::new(AI_HELPER_BIN).is_file() {
+        return "Live diagnostics preview available inside UniCore OS.".to_string();
+    }
+    Command::new(AI_HELPER_BIN)
+        .arg("context")
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| "System diagnostics unavailable.".to_string())
+}
+
+pub fn run_ai_copilot(prompt: &str, include_context: bool) -> Result<String, String> {
+    let q = prompt.trim();
+    if q.is_empty() {
+        return Err("Enter a question for UniCore AI Assistant first.".to_string());
+    }
+    if include_context {
+        run_ai_action(&["copilot", q])
+    } else {
+        run_ai_action(&["copilot", "--no-context", q])
+    }
 }
 
 pub fn default_picker_dir() -> PathBuf {

@@ -1,12 +1,41 @@
 #!/bin/sh
 # UniCore OS Wayland screen lock helper (Super+L)
+# Uses swaylock-effects frosted blur + clock on modern/mid hardware, auto-degrading on legacy_ultra.
 set -eu
 
-if command -v swaylock >/dev/null 2>&1; then
-    exec swaylock -f -c 0f172a
+if ! command -v swaylock >/dev/null 2>&1; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -u normal -a "UniCore OS" "Screen Lock Unavailable" "swaylock is not installed in this image." || true
+    fi
+    exit 1
 fi
 
-if command -v notify-send >/dev/null 2>&1; then
-    notify-send -u normal -a "UniCore OS" "Screen Lock Unavailable" "swaylock is not installed in this image." || true
+if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ] && [ "${UNICORE_HW_TIER:-}" != "legacy_ultra" ]; then
+    if swaylock --help 2>&1 | grep -q -- '--effect-blur'; then
+        exec swaylock -f \
+            --screenshots \
+            --clock \
+            --timestr "%H:%M" \
+            --datestr "%A, %d %b %Y" \
+            --indicator \
+            --indicator-radius 105 \
+            --indicator-thickness 7 \
+            --effect-blur 7x5 \
+            --effect-vignette 0.5:0.5 \
+            --ring-color 38bdf8 \
+            --ring-ver-color 0ea5e9 \
+            --ring-wrong-color ef4444 \
+            --key-hl-color 22c55e \
+            --inside-color 0f172acc \
+            --inside-ver-color 0f172ae6 \
+            --inside-wrong-color 450a0ae6 \
+            --line-color 00000000 \
+            --separator-color 00000000 \
+            --text-color f8fafc \
+            --text-ver-color e0f2fe \
+            --text-wrong-color fecaca \
+            --fade-in 0.2
+    fi
 fi
-exit 1
+
+exec swaylock -f -c 0f172a

@@ -50,10 +50,14 @@ sleep 0.4
 
 UNICORE_SLOT=""
 FINDISO=""
+RESET_OVERLAY="0"
 for arg in $(cat /proc/cmdline 2>/dev/null || true); do
     case "${arg}" in
         unicore_slot=*)
             UNICORE_SLOT="${arg#unicore_slot=}"
+            ;;
+        unicore_reset_overlay=1|unicore_reset_overlay=true)
+            RESET_OVERLAY="1"
             ;;
         findiso=*)
             FINDISO="${arg#findiso=}"
@@ -386,6 +390,10 @@ if [ -n "${DATA_DEV}" ] && mount -t ext4 "${DATA_DEV}" /mnt/data 2>/dev/null; th
         UNICORE_SYS_B) OVERLAY_ROOT="/mnt/data/sys_overlay/slot_b" ;;
         *) OVERLAY_ROOT="/mnt/data/sys_overlay" ;;
     esac
+    if [ "${RESET_OVERLAY}" = "1" ]; then
+        echo "==> UniCore Recovery: Resetting OS system overlay (preserving /data/home, apps & settings)..."
+        rm -rf "${OVERLAY_ROOT}/upper" "${OVERLAY_ROOT}/work" 2>/dev/null || true
+    fi
     mkdir -p "${OVERLAY_ROOT}/upper" "${OVERLAY_ROOT}/work" /mnt/data/uniload /mnt/data/home /mnt/data/unicore
     chmod 0755 /mnt/data "${OVERLAY_ROOT}" "${OVERLAY_ROOT}/upper" 2>/dev/null || true
     mount -t overlay overlay \

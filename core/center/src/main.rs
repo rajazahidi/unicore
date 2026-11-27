@@ -13,8 +13,8 @@ use unicore_center::desktop::{
 };
 use unicore_center::dev_ai::{
     default_picker_dir, list_directory_entries, read_ai_overview, read_devbox_overview,
-    remove_devbox, run_ai_action, run_devbox_create, spawn_devbox_shell, validate_ai_model_name,
-    PickerEntry, DEVBOX_TEMPLATES,
+    remove_devbox, run_ai_action, run_ai_copilot, run_devbox_create, save_ai_provider,
+    spawn_devbox_shell, validate_ai_model_name, PickerEntry, DEVBOX_TEMPLATES,
 };
 use unicore_center::gaming::{
     apply_cpu_governor, default_gaming_dir, load_gaming_config, read_host_cpu_governor,
@@ -22,7 +22,8 @@ use unicore_center::gaming::{
 };
 use unicore_center::i18n::{detect_ui_lang, persist_ui_lang, UiLabels, UiLang};
 use unicore_center::installer::{
-    list_install_disks, read_boot_state, run_disk_install, run_disk_install_encrypted,
+    list_install_disks, read_boot_state, run_disk_install, run_disk_install_alongside,
+    run_disk_install_alongside_encrypted, run_disk_install_encrypted,
     validate_install_confirmation, validate_luks_passphrase, InstallDisk,
 };
 use unicore_center::oobe::{
@@ -45,9 +46,10 @@ use unicore_center::settings::{
     KB_LAYOUTS, WALLPAPER_PRESETS,
 };
 use unicore_center::store::{
-    chunk_into_triples, install_native_browser_blocking, install_store_app_blocking,
-    load_store_views, read_browser_overview, set_default_browser, sync_store_catalog_blocking,
-    StoreItemView,
+    chunk_into_triples, install_latest_proton_blocking, install_native_browser_blocking,
+    install_store_app_blocking, launch_flatpak_app, load_store_views_for_arch,
+    read_browser_overview, read_flatpak_overview, read_proton_overview, set_default_browser,
+    sync_store_catalog_blocking, uninstall_store_app_blocking, StoreItemView,
 };
 use unicore_center::taskmgr::{list_user_processes, terminate_process, ProcessInfo};
 use unicore_center::updater::{
@@ -252,6 +254,7 @@ fn refresh_boot_and_disks(ui: &MainWindow, disks_cell: &Rc<RefCell<Vec<InstallDi
         )])));
         ui.set_inst_disk_idx(0);
         ui.set_inst_has_disk(false);
+        ui.set_inst_dualboot_hint(SharedString::new());
         return;
     }
 
@@ -266,15 +269,48 @@ fn refresh_boot_and_disks(ui: &MainWindow, disks_cell: &Rc<RefCell<Vec<InstallDi
         )])));
         ui.set_inst_disk_idx(0);
         ui.set_inst_has_disk(false);
+        ui.set_inst_dualboot_hint(SharedString::new());
     } else {
         let labels: Vec<SharedString> = eligible
             .iter()
-            .map(|d| SharedString::from(format!("{} ({}) - {}", d.device, d.size_gb, d.model)))
+            .map(|d| {
+                let mut tags = Vec::new();
+                if d.dualboot_eligible {
+                    tags.push(format!("{} free", d.free_gb));
+                }
+                if d.windows_detected {
+                    tags.push("Windows".to_string());
+                }
+                if tags.is_empty() {
+                    SharedString::from(format!("{} ({}) - {}", d.device, d.size_gb, d.model))
+                } else {
+                    SharedString::from(format!(
+                        "{} ({}) - {} [{}]",
+                        d.device,
+                        d.size_gb,
+                        d.model,
+                        tags.join(" | ")
+                    ))
+                }
+            })
             .collect();
+        let dual_ready: Vec<String> = eligible
+            .iter()
+            .filter(|d| d.dualboot_eligible)
+            .map(|d| format!("{} ({} unallocated)", d.device, d.free_gb))
+            .collect();
+        let hint = if !dual_ready.is_empty() {
+            format!("Dual-Boot Ready: {}", dual_ready.join(", "))
+        } else if eligible.iter().any(|d| d.windows_detected) {
+            "Windows detected without >= 10 GB unallocated space. Shrink C: in Windows Disk Management for Safe Dual-Boot.".to_string()
+        } else {
+            String::new()
+        };
         *disks_cell.borrow_mut() = eligible;
         ui.set_inst_disk_labels(ModelRc::new(VecModel::from(labels)));
         ui.set_inst_disk_idx(0);
         ui.set_inst_has_disk(true);
+        ui.set_inst_dualboot_hint(SharedString::from(hint));
     }
 }
 
@@ -418,6 +454,19 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
     ui.set_set_tap_to_click(pers.tap_to_click);
     ui.set_set_pointer_speed_tenths((pers.pointer_speed * 10.0).round());
     ui.set_set_desktop_icons(pers.desktop_icons);
+    ui.set_set_taskbar_style_idx(if pers.taskbar_style == "floating" { 1 } else { 0 });
+
+    if cfg!(target_os = "linux") {
+        if let Ok(out) = std::process::Command::new("date")
+            .arg("+%H:%M  •  %a, %d %b")
+            .output()
+        {
+            let txt = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !txt.is_empty() {
+                ui.set_login_clock_text(SharedString::from(txt));
+            }
+        }
+    }
 
     let sb = read_secureboot_overview();
     ui.set_set_sb_summary(SharedString::from(sb.summary()));
@@ -528,6 +577,33 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
     state.users = users;
 }
 
+fn refresh_gaming_store_banners(ui: &MainWindow) {
+    let fp = read_flatpak_overview();
+    let fp_summary = if fp.installed {
+        format!(
+            "Flatpak ({}, {} app(s) in {})",
+            if fp.flathub_ready { "Flathub active" } else { "Flathub on-demand" },
+            fp.app_count,
+            fp.flatpak_dir
+        )
+    } else {
+        "Flatpak (Flathub) on-demand in /data/flatpak".to_string()
+    };
+    ui.set_store_flatpak_summary(SharedString::from(fp_summary));
+
+    let pr = read_proton_overview();
+    let pr_summary = if pr.installed_count > 0 {
+        format!(
+            "GE-Proton: {} installed ({})",
+            pr.installed_count,
+            pr.versions.join(", ")
+        )
+    } else {
+        "GE-Proton: Not installed yet (click Install Latest)".to_string()
+    };
+    ui.set_store_proton_summary(SharedString::from(pr_summary));
+}
+
 fn refresh_dev_ai(ui: &MainWindow, state: &mut SettingsUiState) {
     let ai = read_ai_overview();
     ui.set_ai_installed(ai.installed);
@@ -539,6 +615,19 @@ fn refresh_dev_ai(ui: &MainWindow, state: &mut SettingsUiState) {
     } else {
         ai.models.join(", ")
     }));
+    let prov_idx = match ai.provider.as_str() {
+        "gemini" => 1,
+        "openai" => 2,
+        _ => 0,
+    };
+    ui.set_ai_provider_idx(prov_idx);
+    if !ai.active_model.is_empty() {
+        ui.set_ai_model_input(SharedString::from(ai.active_model.as_str()));
+    }
+    if !ai.base_url.is_empty() {
+        ui.set_ai_base_url_input(SharedString::from(ai.base_url.as_str()));
+    }
+    ui.set_ai_api_key_set(ai.api_key_set);
 
     let dev = read_devbox_overview();
     ui.set_dev_tools_summary(SharedString::from(format!(
@@ -685,6 +774,8 @@ fn store_item_to_entry(item: StoreItemView) -> StoreEntry {
         summary: SharedString::from(item.summary),
         badge: SharedString::from(if item.is_offline {
             "Built-in Offline"
+        } else if item.is_flatpak {
+            "Flathub Signed"
         } else {
             "SHA-256 Verified"
         }),
@@ -692,6 +783,8 @@ fn store_item_to_entry(item: StoreItemView) -> StoreEntry {
         category: SharedString::from(item.category),
         icon_text: SharedString::from(item.icon_text),
         accent_color: slint::Color::from_rgb_u8(r, g, b),
+        is_flatpak: item.is_flatpak,
+        flatpak_id: SharedString::from(item.flatpak_id),
         is_installed: item.is_installed,
         installed_app_id: SharedString::from(item.installed_app_id),
     }
@@ -706,7 +799,15 @@ fn refresh_store_list(
     let cat = ui.get_store_category().to_string();
     let query = ui.get_store_search_query().to_string();
     let is_ms = matches!(lang, UiLang::Ms);
-    if let Ok(items) = load_store_views(apps, &backend.config.state_dir, &cat, &query, is_ms, None) {
+    if let Ok(items) = load_store_views_for_arch(
+        apps,
+        &backend.config.state_dir,
+        &cat,
+        &query,
+        is_ms,
+        &backend.config.host_arch,
+        None,
+    ) {
         let entries: Vec<StoreEntry> = items.into_iter().map(store_item_to_entry).collect();
         let rows: Vec<StoreRow> = chunk_into_triples(&entries)
             .into_iter()
@@ -722,7 +823,8 @@ fn refresh_store_list(
 
         if let Some(featured) = entries
             .iter()
-            .find(|e| e.id == "antigravity")
+            .find(|e| e.id == "steam")
+            .or_else(|| entries.iter().find(|e| e.id == "antigravity"))
             .or_else(|| entries.iter().find(|e| e.id == "notepadpp"))
             .or_else(|| entries.first())
             .cloned()
@@ -978,6 +1080,7 @@ fn main() {
         refresh_system_info(&ui, &b);
         refresh_apps_and_browse(&ui, &b, &apps_cache, None);
         refresh_store_list(&ui, &b, &apps_cache.borrow(), initial_lang);
+        refresh_gaming_store_banners(&ui);
         refresh_boot_and_disks(&ui, &install_disks);
         refresh_update_status(&ui);
         ui.set_active_tab(parsed.initial_tab);
@@ -1006,6 +1109,10 @@ fn main() {
             LaunchMode::TaskManager => {
                 ui.set_taskmgr_dialog_only(true);
                 refresh_tasks(&ui, &tasks_cache);
+            }
+            LaunchMode::AiAssistant => {
+                ui.set_ai_dialog_only(true);
+                refresh_dev_ai(&ui, &mut settings_state.borrow_mut());
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -1230,6 +1337,7 @@ fn main() {
             refresh_system_info(&ui, &backend_ref);
             refresh_apps_and_browse(&ui, &backend_ref, &cache, prefer);
             refresh_store_list(&ui, &backend_ref, &cache.borrow(), *lang_cell.borrow());
+            refresh_gaming_store_banners(&ui);
             refresh_boot_and_disks(&ui, &disks);
             refresh_update_status(&ui);
             ui.set_sys_cpu_governor(SharedString::from(read_host_cpu_governor()));
@@ -1906,7 +2014,7 @@ fn main() {
     {
         let ui_weak = ui.as_weak();
         ui.on_apply_personalize(
-            move |theme_idx, wp_idx, wp_custom, kb_idx, natural_scroll, tap_to_click, speed_tenths, desktop_icons| {
+            move |theme_idx, wp_idx, wp_custom, kb_idx, natural_scroll, tap_to_click, speed_tenths, desktop_icons, taskbar_style_idx| {
                 let Some(ui) = ui_weak.upgrade() else { return };
                 let theme = if theme_idx == 1 { "light" } else { "dark" }.to_string();
                 let wallpaper = WALLPAPER_PRESETS
@@ -1917,6 +2025,7 @@ fn main() {
                     .get(kb_idx as usize)
                     .map(|(code, _)| (*code).to_string())
                     .unwrap_or_else(|| "us".to_string());
+                let taskbar_style = if taskbar_style_idx == 1 { "floating" } else { "docked" }.to_string();
                 let req = PersonalizeConfig {
                     theme,
                     wallpaper,
@@ -1925,6 +2034,7 @@ fn main() {
                     tap_to_click,
                     pointer_speed: clamp_pointer_speed((speed_tenths as f32) / 10.0),
                     desktop_icons,
+                    taskbar_style,
                 };
                 let cfg_dir = persistent_display_config_dir();
                 match save_and_apply_personalize(&cfg_dir, &req) {
@@ -1932,12 +2042,13 @@ fn main() {
                         ui.invoke_set_theme(saved.theme == "light");
                         ui.set_set_wallpaper_custom(SharedString::from(saved.wallpaper.as_str()));
                         ui.set_set_desktop_icons(saved.desktop_icons);
+                        ui.set_set_taskbar_style_idx(if saved.taskbar_style == "floating" { 1 } else { 0 });
                         let msg = format!(
-                            "Applied theme={} | kb={} | icons={} | tap={}",
+                            "Applied theme={} | taskbar={} | kb={} | icons={}",
                             saved.theme,
+                            saved.taskbar_style,
                             saved.kb_layout,
-                            if saved.desktop_icons { "on" } else { "off" },
-                            if saved.tap_to_click { "on" } else { "off" }
+                            if saved.desktop_icons { "on" } else { "off" }
                         );
                         ui.set_set_personalize_status(SharedString::from(msg.as_str()));
                         set_status(&ui, msg, false);
@@ -2344,12 +2455,24 @@ fn main() {
     {
         let ui_weak = ui.as_weak();
         let disks = Rc::clone(&install_disks);
-        ui.on_start_disk_install(move |idx, typed, encrypt_data, luks_pass, luks_confirm| {
+        ui.on_start_disk_install(move |idx, mode_idx, typed, encrypt_data, luks_pass, luks_confirm| {
             let Some(ui) = ui_weak.upgrade() else { return };
             let Some(disk) = disks.borrow().get(idx as usize).cloned() else {
                 set_status(&ui, "No eligible target disk selected", true);
                 return;
             };
+            let alongside = mode_idx == 1;
+            if alongside && !disk.dualboot_eligible {
+                set_status(
+                    &ui,
+                    format!(
+                        "{} does not have >= 10 GB unallocated GPT space (found {}). Shrink Windows C: in Disk Management first or choose Whole-Disk mode.",
+                        disk.device, disk.free_gb
+                    ),
+                    true,
+                );
+                return;
+            }
             if let Err(err) = validate_install_confirmation(&disk.name, &typed) {
                 set_status(&ui, err, true);
                 return;
@@ -2363,16 +2486,23 @@ fn main() {
             }
 
             ui.set_inst_busy(true);
-            let progress_msg = if encrypt_data {
-                format!(
+            let progress_msg = match (alongside, encrypt_data) {
+                (true, true) => format!(
+                    "Safe Dual-Boot: Installing UniCore OS alongside Windows on {} (LUKS2 Encrypted /data)...",
+                    disk.device
+                ),
+                (true, false) => format!(
+                    "Safe Dual-Boot: Installing UniCore OS into unallocated space on {} (preserving Windows)...",
+                    disk.device
+                ),
+                (false, true) => format!(
                     "Installing UniCore OS to {} (GPT A/B + LUKS2 Encrypted /data)...",
                     disk.device
-                )
-            } else {
-                format!(
+                ),
+                (false, false) => format!(
                     "Installing UniCore OS to {} (GPT Hybrid A/B + GRUB BIOS/UEFI)...",
                     disk.device
-                )
+                ),
             };
             ui.set_inst_status(SharedString::from(progress_msg.as_str()));
             set_status(&ui, progress_msg, false);
@@ -2380,10 +2510,11 @@ fn main() {
             let thread_ui = ui.as_weak();
             let dev = disk.device.clone();
             std::thread::spawn(move || {
-                let res = if encrypt_data {
-                    run_disk_install_encrypted(&dev, &luks_pass_str)
-                } else {
-                    run_disk_install(&dev)
+                let res = match (alongside, encrypt_data) {
+                    (true, true) => run_disk_install_alongside_encrypted(&dev, &luks_pass_str),
+                    (true, false) => run_disk_install_alongside(&dev),
+                    (false, true) => run_disk_install_encrypted(&dev, &luks_pass_str),
+                    (false, false) => run_disk_install(&dev),
                 };
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = thread_ui.upgrade() {
@@ -2557,7 +2688,7 @@ fn main() {
             let id_str = catalog_id.to_string();
             let cfg = b.borrow().config.clone();
             ui.set_store_busy(true);
-            let msg = format!("Downloading, verifying SHA-256, and installing '{id_str}'...");
+            let msg = format!("Installing & verifying '{id_str}'...");
             ui.set_store_status(SharedString::from(msg.as_str()));
             set_status(&ui, msg, false);
 
@@ -2568,13 +2699,8 @@ fn main() {
                     if let Some(ui) = thread_ui.upgrade() {
                         ui.set_store_busy(false);
                         match res {
-                            Ok(sandbox) => {
-                                ui.set_sel_app_id(SharedString::from(sandbox.app_id.as_str()));
+                            Ok(ok_msg) => {
                                 ui.invoke_refresh_all();
-                                let ok_msg = format!(
-                                    "Installed '{}' into isolated sandbox ({})",
-                                    sandbox.name, sandbox.app_id
-                                );
                                 ui.set_store_status(SharedString::from(ok_msg.as_str()));
                                 set_status(&ui, ok_msg, false);
                             }
@@ -2592,17 +2718,90 @@ fn main() {
     {
         let ui_weak = ui.as_weak();
         let b = Rc::clone(&backend);
-        ui.on_store_launch_app(move |app_id| {
+        ui.on_store_uninstall_app(move |catalog_id, installed_id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let cat_str = catalog_id.to_string();
+            let inst_str = installed_id.to_string();
+            let cfg = b.borrow().config.clone();
+            ui.set_store_busy(true);
+            let msg = format!("Uninstalling '{cat_str}'...");
+            ui.set_store_status(SharedString::from(msg.as_str()));
+            set_status(&ui, msg, false);
+
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = uninstall_store_app_blocking(&cfg, &cat_str, &inst_str);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_store_busy(false);
+                        match res {
+                            Ok(ok_msg) => {
+                                ui.invoke_refresh_all();
+                                ui.set_store_status(SharedString::from(ok_msg.as_str()));
+                                set_status(&ui, ok_msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_store_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_store_launch_app(move |app_id, is_flatpak| {
             let Some(ui) = ui_weak.upgrade() else { return };
             let id_str = app_id.to_string();
             if id_str.is_empty() {
                 return;
             }
+            let res = if is_flatpak {
+                launch_flatpak_app(&id_str)
+            } else {
+                b.borrow().spawn_app_detached(&id_str)
+            };
             report_result(
                 &ui,
-                b.borrow().spawn_app_detached(&id_str),
+                res,
                 format!("Launched '{id_str}' from App Store"),
             );
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_install_latest_proton(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_store_proton_busy(true);
+            let msg = "Downloading latest GE-Proton release into /data/gaming/proton-ge...".to_string();
+            ui.set_store_status(SharedString::from(msg.as_str()));
+            set_status(&ui, msg, false);
+
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = install_latest_proton_blocking();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_store_proton_busy(false);
+                        refresh_gaming_store_banners(&ui);
+                        match res {
+                            Ok(ok_msg) => {
+                                ui.set_store_status(SharedString::from(ok_msg.as_str()));
+                                set_status(&ui, ok_msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_store_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
         });
     }
 
@@ -3127,6 +3326,116 @@ fn main() {
                     }
                 });
             });
+        });
+    }
+
+    // Multi-provider AI Copilot & Lock Screen callbacks (v0.4.0)
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_ai_save_provider(move |provider_idx, model, base_url, api_key| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let provider = match provider_idx {
+                1 => "gemini",
+                2 => "openai",
+                _ => "ollama",
+            };
+            let default_model = match provider_idx {
+                1 => "gemini-2.5-flash",
+                2 => "gpt-4o-mini",
+                _ => "llama3.2:1b",
+            };
+            let model_clean = if model.trim().is_empty() {
+                default_model.to_string()
+            } else {
+                model.trim().to_string()
+            };
+            match save_ai_provider(provider, &model_clean, base_url.trim(), api_key.trim()) {
+                Ok(msg) => {
+                    ui.set_ai_api_key_input(SharedString::new());
+                    refresh_dev_ai(&ui, &mut st.borrow_mut());
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_ai_copilot_ask(move |prompt, include_ctx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let prm = prompt.trim().to_string();
+            if prm.is_empty() {
+                return;
+            }
+            ui.set_ai_busy(true);
+            set_status(&ui, "Asking UniCore AI Assistant...", false);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = run_ai_copilot(&prm, include_ctx);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_ai_busy(false);
+                        match res {
+                            Ok(reply) => {
+                                ui.set_ai_response_text(SharedString::from(reply.as_str()));
+                                set_status(&ui, "AI Assistant replied", false);
+                            }
+                            Err(err) => {
+                                ui.set_ai_response_text(SharedString::from(format!("Error: {err}")));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_ai_quick_nav(move |target| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_ai_dialog_only(false);
+            match target.as_str() {
+                "wifi" => {
+                    ui.set_active_tab(3);
+                    ui.set_settings_subtab(0);
+                    refresh_settings(&ui, &mut st.borrow_mut());
+                }
+                "power" => {
+                    ui.set_active_tab(3);
+                    ui.set_settings_subtab(6);
+                    refresh_settings(&ui, &mut st.borrow_mut());
+                }
+                "store" => {
+                    ui.set_active_tab(4);
+                }
+                _ => {
+                    ui.set_active_tab(0);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_lock_screen_now(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            if cfg!(target_os = "linux") && Path::new("/usr/libexec/unicore-lock").is_file() {
+                let _ = std::process::Command::new("/usr/libexec/unicore-lock")
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
+                if ui.get_quick_settings_only() {
+                    let _ = slint::quit_event_loop();
+                }
+            } else {
+                set_status(&ui, "Lock screen is available inside UniCore OS Wayland session", false);
+            }
         });
     }
 

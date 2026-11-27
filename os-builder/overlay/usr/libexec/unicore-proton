@@ -1,0 +1,85 @@
+#!/bin/sh
+# UniCore OS GE-Proton Compatibility Tool Manager (/data/gaming/proton-ge + Steam Flatpak integration).
+set -eu
+
+PROTON_DIR="${UNICORE_PROTON_DIR:-/data/gaming/proton-ge}"
+USER_HOME="${HOME:-/home/unicore}"
+STEAM_FP_COMPAT="${USER_HOME}/.var/app/com.valvesoftware.Steam/data/Steam/compatibilitytools.d"
+STEAM_NATIVE_COMPAT="${USER_HOME}/.steam/root/compatibilitytools.d"
+API_URL="https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest"
+
+validate_ver() {
+    printf '%s' "$1" | grep -Eq '^GE-Proton[A-Za-z0-9._-]{1,48}$'
+}
+
+link_into_steam() {
+    ver="$1"
+    src="${PROTON_DIR}/${ver}"
+    [ -d "${src}" ] || return 0
+    for target_dir in "${STEAM_FP_COMPAT}" "${STEAM_NATIVE_COMPAT}"; do
+        mkdir -p "${target_dir}" 2>/dev/null || continue
+        ln -snf "${src}" "${target_dir}/${ver}" 2>/dev/null || true
+    done
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        mkdir -p "${PROTON_DIR}" 2>/dev/null || true
+        vers=""
+        count=0
+        if [ -d "${PROTON_DIR}" ]; then
+            for d in "${PROTON_DIR}"/GE-Proton*; do
+                [ -d "${d}" ] || continue
+                bn="$(basename "${d}")"
+                count=$((count + 1))
+                if [ -z "${vers}" ]; then vers="${bn}"; else vers="${vers},${bn}"; fi
+            done
+        fi
+        linked=0
+        if [ -d "${STEAM_FP_COMPAT}" ] && ls "${STEAM_FP_COMPAT}"/GE-Proton* >/dev/null 2>&1; then
+            linked=1
+        fi
+        printf 'dir=%s\ninstalled_count=%s\nversions=%s\nsteam_linked=%s\n' \
+            "${PROTON_DIR}" "${count}" "${vers}" "${linked}"
+        ;;
+
+    install-latest)
+        command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || {
+            echo "curl and jq are required to download GE-Proton." >&2
+            exit 1
+        }
+        mkdir -p "${PROTON_DIR}"
+        echo "==> Checking latest GloriousEggroll GE-Proton release..."
+        meta="$(curl -fsSL --connect-timeout 15 --max-time 30 -H 'User-Agent: UniCore-OS' "${API_URL}")"
+        tag="$(printf '%s' "${meta}" | jq -r '.tag_name // empty')"
+        tar_url="$(printf '%s' "${meta}" | jq -r '.assets[]? | select(.name | endswith(".tar.gz")) | .browser_download_url' | head -n1)"
+        [ -n "${tag}" ] && [ -n "${tar_url}" ] || { echo "Failed to resolve latest GE-Proton release archive." >&2; exit 1; }
+        if [ -d "${PROTON_DIR}/${tag}" ]; then
+            link_into_steam "${tag}"
+            echo "GE-Proton ${tag} is already installed and linked for Steam."
+            exit 0
+        fi
+        tmp_tgz="/tmp/${tag}-$$.tar.gz"
+        echo "==> Downloading ${tag} (~450 MB)..."
+        curl -fsSL --connect-timeout 15 --max-time 1800 -o "${tmp_tgz}" "${tar_url}"
+        tar -xzf "${tmp_tgz}" -C "${PROTON_DIR}"
+        rm -f "${tmp_tgz}"
+        link_into_steam "${tag}"
+        echo "Installed ${tag} into ${PROTON_DIR} and linked into Steam compatibilitytools.d!"
+        ;;
+
+    remove)
+        ver="${1:-}"
+        validate_ver "${ver}" || { echo "Invalid GE-Proton version name: '${ver}'" >&2; exit 2; }
+        rm -rf "${PROTON_DIR:?}/${ver}" "${STEAM_FP_COMPAT}/${ver}" "${STEAM_NATIVE_COMPAT}/${ver}"
+        echo "Removed ${ver}."
+        ;;
+
+    *)
+        echo "Usage: unicore-proton <status|install-latest|remove <GE-ProtonVer>>" >&2
+        exit 2
+        ;;
+esac
