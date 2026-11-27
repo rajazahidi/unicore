@@ -377,13 +377,17 @@ insmod search_label
 insmod normal
 insmod configfile
 insmod linux
-if [ ! -f ($root)/boot/grub/grub.cfg ]; then
-    search --no-floppy --label --set=root UNICORE_OS
+set unicore_boot=""
+search --no-floppy --label --set=unicore_boot UNICORE_OS
+if [ -z "${unicore_boot}" ]; then
+    search --no-floppy --label --set=unicore_boot UNICORE_EFI
 fi
-if [ ! -f ($root)/boot/grub/grub.cfg ]; then
-    search --no-floppy --label --set=root UNICORE_EFI
+if [ -n "${unicore_boot}" ]; then
+    if [ "${unicore_boot}" != "memdisk" ]; then
+        set root="${unicore_boot}"
+        configfile "(${unicore_boot})/boot/grub/grub.cfg"
+    fi
 fi
-configfile ($root)/boot/grub/grub.cfg
 GRUB_EARLY_EOF
     if [[ -d "/usr/lib/grub/${GRUB_EFI_FMT}" ]]; then
         echo "==> Building & MOK-signing standalone Secure Boot GRUB (${GRUB_EFI_NAME})"
