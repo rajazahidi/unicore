@@ -52,7 +52,7 @@ Collect a real diagnostic bundle on each target machine (`unicore-diag --save-us
 ## 3. Production Security, OTA Hosting & Release Infrastructure
 
 - [x] **GitHub Remote + CI Active:** Push repository to GitHub (`rajazahidi/unicore`) so `.github/workflows/ci.yml` and `.github/workflows/release.yml` run automatically on every commit and tag.
-- [ ] **Production Ed25519 Release Signing:**
+- [x] **Production Ed25519 Release Signing:**
   - Generate offline Ed25519 keypair (`.\scripts\sign-release.ps1 -GenerateKey` or `uniload update keygen --private release.key --public update.pub`).
   - Store `release.key` and `update.pub` in GitHub Repository Secrets (`UNICORE_RELEASE_KEY`, `UNICORE_RELEASE_PUB`) — never commit private keys to Git.
   - Set `UPDATE_URL` in `/etc/unicore/update.conf` to `https://github.com/rajazahidi/unicore/releases/latest/download/unicore-manifest.json` (`REQUIRE_SIGNATURE=1` is automatically enforced when `update.pub` is embedded at build time).
