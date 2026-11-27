@@ -750,8 +750,23 @@ if [[ "${FIRMWARE_PROFILE}" == "slim" ]]; then
 fi
 
 SQUASH_IMG="${OUT_DIR}/unicore-rootfs-${ARCH}.squashfs"
-echo "==> Packing immutable SquashFS root image: ${SQUASH_IMG}"
-mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp zstd -noappend
+SQUASH_COMP="zstd"
+KCFG="$(find "${ROOTFS_DIR}/boot" -maxdepth 1 -name 'config-*' | head -n1 || true)"
+if [[ -n "${KCFG}" && -r "${KCFG}" ]]; then
+    if grep -q '^CONFIG_SQUASHFS_ZSTD=y' "${KCFG}"; then
+        SQUASH_COMP="zstd"
+    elif grep -q '^CONFIG_SQUASHFS_XZ=y' "${KCFG}"; then
+        SQUASH_COMP="xz"
+    elif grep -q '^CONFIG_SQUASHFS_LZ4=y' "${KCFG}"; then
+        SQUASH_COMP="lz4"
+    else
+        SQUASH_COMP="gzip"
+    fi
+elif [[ "${ARCH}" == "aarch64" || "${ARCH}" == "arm64" ]]; then
+    SQUASH_COMP="gzip"
+fi
+echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
+mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
 OS_VERSION="0.3.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then

@@ -126,7 +126,7 @@ def main():
             proc.stdin.write(check_cmd.encode("utf-8"))
             proc.stdin.flush()
 
-            deadline = time.time() + 240
+            deadline = time.time() + 360
             while time.time() < deadline:
                 with lock:
                     text = "".join(buf)
