@@ -200,8 +200,7 @@ mkdir -p /data/unicore && touch /data/unicore/oobe.done
 printf '%s' '{LUKS_PASS}' > /tmp/luks.pass
 chmod 600 /tmp/luks.pass
 /usr/sbin/unicore-install --disk /dev/vda --mode wipe --yes-wipe --encrypt-data --passphrase-file /tmp/luks.pass
-rm -f /tmp/luks.pass
-mkdir -p /tmp/chk_efi
+mkdir -p /tmp/chk_efi /tmp/stage_data
 efi_dev="$(blkid -t LABEL=UNICORE_EFI -o device | head -n1)"
 mount -t vfat -o ro "${{efi_dev}}" /tmp/chk_efi
 grep -q 'UniCore Recovery & Advanced Options' /tmp/chk_efi/boot/grub/grub.cfg
@@ -209,21 +208,39 @@ grep -q 'unicore_reset_overlay=1' /tmp/chk_efi/boot/grub/grub.cfg
 grep -q 'UNICORE_SYS_B' /tmp/chk_efi/boot/grub/grub.cfg
 test -f /tmp/chk_efi/boot/grub/unicore-installed.marker
 umount /tmp/chk_efi
+
+# Stage the signed v0.4.0 release payload inside encrypted /data so Stage A2 can boot disk-only
+# (ISO detached, just like unplugging USB after install) and run strict Ed25519 local A/B OTA!
+export DM_DISABLE_UDEV=1
+luks_dev="$(blkid -t LABEL=UNICORE_DATA_LUKS -o device | head -n1)"
+cryptsetup open --disable-locks --key-file /tmp/luks.pass "${{luks_dev}}" unicore_qa_stage
+command -v dmsetup >/dev/null 2>&1 && dmsetup mknodes 2>/dev/null || true
+mount -t ext4 /dev/mapper/unicore_qa_stage /tmp/stage_data
+mkdir -p /tmp/stage_data/qa-local-ota/boot /tmp/stage_data/qa-local-ota/unicore
+cp /mnt/unicore-media/boot/vmlinuz-x86_64 /tmp/stage_data/qa-local-ota/boot/
+cp /mnt/unicore-media/boot/initramfs-x86_64.img /tmp/stage_data/qa-local-ota/boot/
+cp /mnt/unicore-media/unicore/unicore-rootfs-x86_64.squashfs /tmp/stage_data/qa-local-ota/unicore/
+cp /mnt/unicore-media/unicore/unicore-manifest.json /tmp/stage_data/qa-local-ota/unicore/
+if [ -f /mnt/unicore-media/unicore/unicore-manifest.json.sig ]; then
+    cp /mnt/unicore-media/unicore/unicore-manifest.json.sig /tmp/stage_data/qa-local-ota/unicore/
+fi
+sync
+umount /tmp/stage_data
+cryptsetup close unicore_qa_stage
+rm -f /tmp/luks.pass
 sync
 echo ===A1_INSTALL_OK===
 """
             h.send_script_b64(script_a1, "/tmp/a1.sh")
-            h.wait_for("\n===A1_INSTALL_OK===", 300)
+            h.wait_for("\n===A1_INSTALL_OK===", 360)
         finally:
             h.close()
 
-        # Stage A2: Boot installed disk (UEFI) -> Unlock LUKS2 -> Verify Slot A -> Write markers -> Stage Slot B OTA
-        print("--> [A2/4] Booting installed Slot A with LUKS2 unlock & flashing Slot B OTA...", flush=True)
+        # Stage A2: Boot installed disk ALONE (UEFI, ISO detached) -> Unlock LUKS2 -> Verify Slot A -> Strict Ed25519 Slot B OTA
+        print("--> [A2/4] Booting installed Slot A (disk-only, LUKS2 unlock) & flashing Slot B OTA...", flush=True)
         args = base_uefi_args(tmpdir, "QA-A2-SlotA", 2560) + [
             "-drive", f"id=hd0,if=none,file={disk},format=qcow2",
             "-device", "virtio-blk-pci,drive=hd0,bootindex=1",
-            "-drive", f"id=cd0,if=none,media=cdrom,readonly=on,file={ISO_PATH}",
-            "-device", "ide-cd,drive=cd0,bootindex=2",
         ]
         h = SerialHarness(args, "A2-SlotA")
         try:
@@ -238,10 +255,9 @@ mkdir -p /data/home/Documents /data/unicore
 touch /data/unicore/oobe.done
 printf 'KEEP_THIS_USER_FILE_V040\n' > /data/home/Documents/user-keep.txt
 printf 'SLOT_A_OVERLAY_TEST\n' > /etc/unicore-overlay-marker
-mkdir -p /tmp/iso_src
-mount -t iso9660 -o ro /dev/sr0 /tmp/iso_src
-/usr/sbin/unicore-update --apply-local /tmp/iso_src --allow-unsigned
-umount /tmp/iso_src
+# Verify strict Ed25519 signature + SHA-256 verification on local update payload (no --allow-unsigned!)
+/usr/sbin/unicore-update --apply-local /data/qa-local-ota
+rm -rf /data/qa-local-ota
 /usr/sbin/unicore-update --status | grep -q '"pending_slot": "UNICORE_SYS_B"'
 sync
 echo ===A2_OTA_STAGED_OK===
