@@ -566,6 +566,11 @@ if [[ -z "${VMLINUZ_SRC}" ]]; then
 fi
 cp "${VMLINUZ_SRC}" "${OUT_DIR}/vmlinuz-${ARCH}"
 if [[ -n "${MOK_KEY_OVERRIDE:-}" && -f "${MOK_KEY_OVERRIDE}" && -n "${MOK_CERT_OVERRIDE:-}" && -f "${MOK_CERT_OVERRIDE}" ]] && command -v sbsign >/dev/null 2>&1; then
+    if [[ "$(od -An -tx1 -N2 "${OUT_DIR}/vmlinuz-${ARCH}" | tr -d ' \n')" == "1f8b" ]]; then
+        echo "==> Decompressing gzipped ARM64 kernel image before PE/COFF Secure Boot signing"
+        gzip -dc "${OUT_DIR}/vmlinuz-${ARCH}" > "${OUT_DIR}/vmlinuz-${ARCH}.raw"
+        mv -f "${OUT_DIR}/vmlinuz-${ARCH}.raw" "${OUT_DIR}/vmlinuz-${ARCH}"
+    fi
     echo "==> MOK-signing Linux kernel (${OUT_DIR}/vmlinuz-${ARCH}) for UEFI Secure Boot"
     sbsign --key "${MOK_KEY_OVERRIDE}" --cert "${MOK_CERT_OVERRIDE}" \
         --output "${OUT_DIR}/vmlinuz-${ARCH}.signed" \
@@ -716,9 +721,12 @@ if [[ "${FIRMWARE_PROFILE}" == "slim" ]]; then
             cd "${ROOTFS_DIR}/lib/firmware"
             rm -rf \
                 netronome mellanox liquidio qed dpaa2 cavium cxgb4 cxgb3 bnx2x bnx2 \
-                qcom qca mrvl nxp cnm amphion rockchip meson imx cypress \
+                mrvl nxp cnm amphion \
                 ti-connectivity ti s5p* vpu* ctefx* ueagle-atm vxge \
                 myri10ge* phanfw* tigon libertas rsi carl9170fw* 2>/dev/null || true
+            if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]]; then
+                rm -rf qcom qca rockchip meson imx cypress 2>/dev/null || true
+            fi
         )
         fw_after="$(du -sh "${ROOTFS_DIR}/lib/firmware" 2>/dev/null | awk '{print $1}')"
         echo "==> Firmware size: ${fw_before} -> ${fw_after}"
@@ -863,6 +871,7 @@ EOF
                 -R -J -V UNICORE_OS \
                 -append_partition 2 0xef "${EFI_IMG}" \
                 -appended_part_as_gpt \
+                -c boot.catalog \
                 -e --interval:appended_partition_2:all:: \
                 -no-emul-boot \
                 -o "${ISO_IMG}" "${ISO_DIR}" >/dev/null

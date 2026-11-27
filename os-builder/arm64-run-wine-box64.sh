@@ -3,11 +3,16 @@
 set -eu
 
 RT="${UNICORE_ARM64_WIN32_DIR:-/usr/share/unicore/arm64-win32}"
-export BOX64_LD_LIBRARY_PATH="${RT}/opt/wine/lib/wine/x86_64-unix:${RT}/sysroot/usr/lib/x86_64-linux-gnu"
+export BOX64_LD_LIBRARY_PATH="${RT}/opt/wine/lib/wine/x86_64-unix:${RT}/sysroot/usr/lib/x86_64-linux-gnu:${RT}/sysroot/usr/lib/i386-linux-gnu"
 export BOX64_DYNAREC=1
 export BOX64_NOBANNER=1
 export WINELOADER="${RT}/opt/wine/bin/wine"
 export WINESERVER="${RT}/opt/wine/bin/wineserver"
+export WINEDLLPATH="${RT}/opt/wine/lib/wine/x86_64-unix:${RT}/opt/wine/lib/wine/x86_64-windows:${RT}/opt/wine/lib/wine/i386-windows"
+
+if [ "${RT}" = "/usr/share/unicore/arm64-win32" ]; then
+    exec "${RT}/bin/box64" "${RT}/opt/wine/bin/wine" "$@"
+fi
 
 GLIBC_PATH="${RT}/sysroot/lib/aarch64-linux-gnu:${RT}/sysroot/usr/lib/aarch64-linux-gnu"
 exec "${RT}/sysroot/lib/ld-linux-aarch64.so.1" \
