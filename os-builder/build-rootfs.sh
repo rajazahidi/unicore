@@ -101,6 +101,9 @@ DESKTOP_PKGS=(
     wireplumber
     pipewire-spa-bluez
     font-noto-emoji
+    font-awesome
+    font-carlito
+    font-liberation
     epiphany
     gnome-keyring
     linux-firmware
@@ -123,9 +126,14 @@ DESKTOP_PKGS=(
     cryptsetup
     tzdata
     unzip
+    zip
+    7zip
+    libarchive-tools
     swaybg
     mako
     libnotify
+    wob
+    wtype
     swaylock-effects
     wl-clipboard
     slurp
@@ -134,6 +142,9 @@ DESKTOP_PKGS=(
     wvkbd
     espeak-ng
     udisks2
+    udiskie
+    tumbler
+    ffmpegthumbnailer
     gvfs
     gvfs-fuse
     gvfs-mtp
@@ -482,6 +493,7 @@ chmod 0755 \
     "${ROOTFS_DIR}/usr/libexec/unicore-capture" \
     "${ROOTFS_DIR}/usr/libexec/unicore-shares" \
     "${ROOTFS_DIR}/usr/libexec/unicore-a11y" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-osd" \
     "${ROOTFS_DIR}/etc/local.d/unicore-binfmt.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-android.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-hwprofile.start" \
@@ -577,6 +589,7 @@ chroot "${ROOTFS_DIR}" /bin/sh -c '
     chown -R unicore:unicore /home/unicore
     update-mime-database /usr/share/mime || true
     update-desktop-database /usr/share/applications || true
+    fc-cache -f >/dev/null 2>&1 || true
 '
 
 SERIAL_DEV="ttyS0"
@@ -826,7 +839,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="0.5.0"
+OS_VERSION="0.6.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

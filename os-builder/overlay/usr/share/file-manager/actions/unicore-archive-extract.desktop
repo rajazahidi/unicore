@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Action
+Name=Extract Here
+Name[ms]=Ekstrak Di Sini
+Tooltip=Extract archive contents into the current folder
+Icon=package-x-generic
+Profiles=profile-extract;
+
+[X-Action-Profile profile-extract]
+MimeTypes=application/zip;application/x-7z-compressed;application/x-tar;application/gzip;application/x-compressed-tar;application/x-xz-compressed-tar;application/x-bzip-compressed-tar;application/vnd.rar;application/x-rar;
+Basenames=*.zip;*.ZIP;*.7z;*.7Z;*.tar;*.tar.gz;*.tgz;*.tar.xz;*.tar.zst;*.tar.bz2;*.rar;*.RAR;
+SelectionCount==1
+Exec=xarchiver --extract-to=%d %f

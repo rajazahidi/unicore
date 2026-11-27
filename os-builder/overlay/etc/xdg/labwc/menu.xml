@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu>
+  <menu id="root-menu" label="UniCore Desktop">
+    <item label="Start Menu (Apps)">
+      <action name="Execute" command="/usr/bin/unicore-center --start-menu" />
+    </item>
+    <item label="File Explorer (This PC)">
+      <action name="Execute" command="pcmanfm /home/unicore" />
+    </item>
+    <item label="Web Browser">
+      <action name="Execute" command="/usr/bin/unicore-browser" />
+    </item>
+    <item label="UniCore App Store">
+      <action name="Execute" command="/usr/bin/unicore-center --tab store" />
+    </item>
+    <separator />
+    <item label="Change Theme, Layout &amp; Wallpaper">
+      <action name="Execute" command="/usr/bin/unicore-center --tab settings:appearance" />
+    </item>
+    <item label="Display &amp; Screen Resolution">
+      <action name="Execute" command="/usr/bin/unicore-center --tab settings:display" />
+    </item>
+    <item label="Screen Capture &amp; Recorder">
+      <action name="Execute" command="/usr/bin/unicore-center --capture" />
+    </item>
+    <item label="Emoji Picker (Win+.)">
+      <action name="Execute" command="/usr/bin/unicore-center --emoji" />
+    </item>
+    <separator />
+    <item label="Open Terminal">
+      <action name="Execute" command="foot" />
+    </item>
+    <item label="Task Manager">
+      <action name="Execute" command="/usr/bin/unicore-center --taskmgr" />
+    </item>
+    <item label="Power Options...">
+      <action name="Execute" command="/usr/bin/unicore-center --power" />
+    </item>
+  </menu>
+</openbox_menu>

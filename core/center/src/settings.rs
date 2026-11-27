@@ -26,6 +26,18 @@ pub const KB_LAYOUTS: [(&str, &str); 6] = [
     ("fr", "French (fr)"),
     ("jp", "Japanese (jp)"),
 ];
+pub const DESKTOP_LAYOUTS: [(&str, &str); 3] = [
+    ("win11", "Windows 11 Modern (Centered Floating)"),
+    ("win10", "Windows 10 / Zorin Classic (Left Bar)"),
+    ("macos", "macOS / Zorin Top Dock"),
+];
+pub const ACCENT_COLORS: [(&str, &str); 5] = [
+    ("blue", "Sky Blue (Default)"),
+    ("purple", "Indigo Purple"),
+    ("green", "Emerald Green"),
+    ("amber", "Warm Amber"),
+    ("rose", "Coral Rose"),
+];
 const DEFAULT_CMD_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1011,6 +1023,8 @@ pub struct PersonalizeConfig {
     pub pointer_speed: f32,
     pub desktop_icons: bool,
     pub taskbar_style: String,
+    pub desktop_layout: String,
+    pub accent_color: String,
     pub high_contrast: bool,
     pub large_text: bool,
 }
@@ -1025,11 +1039,61 @@ impl Default for PersonalizeConfig {
             tap_to_click: true,
             pointer_speed: 0.0,
             desktop_icons: true,
-            taskbar_style: "docked".to_string(),
+            taskbar_style: "floating".to_string(),
+            desktop_layout: "win11".to_string(),
+            accent_color: "blue".to_string(),
             high_contrast: false,
             large_text: false,
         }
     }
+}
+
+pub fn validate_desktop_layout(raw: &str) -> Result<String, String> {
+    let lower = raw.trim().to_ascii_lowercase();
+    match lower.as_str() {
+        "win11" | "win10" | "macos" => Ok(lower),
+        _ => Err(format!(
+            "Unsupported desktop layout '{raw}'. Choose win11, win10, or macos."
+        )),
+    }
+}
+
+pub fn validate_accent_color(raw: &str) -> Result<String, String> {
+    let lower = raw.trim().to_ascii_lowercase();
+    match lower.as_str() {
+        "blue" | "purple" | "green" | "amber" | "rose" => Ok(lower),
+        _ => Err(format!(
+            "Unsupported accent color '{raw}'. Choose blue, purple, green, amber, or rose."
+        )),
+    }
+}
+
+pub fn desktop_layout_to_index(raw: &str) -> i32 {
+    DESKTOP_LAYOUTS
+        .iter()
+        .position(|(code, _)| *code == raw)
+        .unwrap_or(0) as i32
+}
+
+pub fn desktop_layout_from_index(idx: i32) -> &'static str {
+    DESKTOP_LAYOUTS
+        .get(idx as usize)
+        .map(|(code, _)| *code)
+        .unwrap_or("win11")
+}
+
+pub fn accent_color_to_index(raw: &str) -> i32 {
+    ACCENT_COLORS
+        .iter()
+        .position(|(code, _)| *code == raw)
+        .unwrap_or(0) as i32
+}
+
+pub fn accent_color_from_index(idx: i32) -> &'static str {
+    ACCENT_COLORS
+        .get(idx as usize)
+        .map(|(code, _)| *code)
+        .unwrap_or("blue")
 }
 
 pub fn validate_taskbar_style(raw: &str) -> Result<String, String> {
@@ -1134,6 +1198,16 @@ pub fn parse_personalize_conf(raw: &str) -> PersonalizeConfig {
                     cfg.taskbar_style = ts;
                 }
             }
+            "UNICORE_LAYOUT" => {
+                if let Ok(lay) = validate_desktop_layout(val) {
+                    cfg.desktop_layout = lay;
+                }
+            }
+            "UNICORE_ACCENT_COLOR" => {
+                if let Ok(acc) = validate_accent_color(val) {
+                    cfg.accent_color = acc;
+                }
+            }
             "UNICORE_HIGH_CONTRAST" => {
                 cfg.high_contrast = matches!(
                     val.to_ascii_lowercase().as_str(),
@@ -1164,12 +1238,14 @@ pub fn render_personalize_conf(cfg: &PersonalizeConfig) -> String {
     let ns = if cfg.natural_scroll { "yes" } else { "no" };
     let tap = if cfg.tap_to_click { "yes" } else { "no" };
     let di = if cfg.desktop_icons { "yes" } else { "no" };
-    let ts = validate_taskbar_style(&cfg.taskbar_style).unwrap_or_else(|_| "docked".to_string());
+    let ts = validate_taskbar_style(&cfg.taskbar_style).unwrap_or_else(|_| "floating".to_string());
+    let layout = validate_desktop_layout(&cfg.desktop_layout).unwrap_or_else(|_| "win11".to_string());
+    let accent = validate_accent_color(&cfg.accent_color).unwrap_or_else(|_| "blue".to_string());
     let hc = if cfg.high_contrast { "yes" } else { "no" };
     let lt = if cfg.large_text { "yes" } else { "no" };
     let speed = clamp_pointer_speed(cfg.pointer_speed);
     format!(
-        "UNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\nUNICORE_DESKTOP_ICONS={di}\nUNICORE_TASKBAR_STYLE={ts}\nUNICORE_HIGH_CONTRAST={hc}\nUNICORE_LARGE_TEXT={lt}\n"
+        "UNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\nUNICORE_DESKTOP_ICONS={di}\nUNICORE_TASKBAR_STYLE={ts}\nUNICORE_LAYOUT={layout}\nUNICORE_ACCENT_COLOR={accent}\nUNICORE_HIGH_CONTRAST={hc}\nUNICORE_LARGE_TEXT={lt}\n"
     )
 }
 
@@ -1192,6 +1268,8 @@ pub fn save_and_apply_personalize(
         pointer_speed: clamp_pointer_speed(cfg.pointer_speed),
         desktop_icons: cfg.desktop_icons,
         taskbar_style: validate_taskbar_style(&cfg.taskbar_style)?,
+        desktop_layout: validate_desktop_layout(&cfg.desktop_layout)?,
+        accent_color: validate_accent_color(&cfg.accent_color)?,
         high_contrast: cfg.high_contrast,
         large_text: cfg.large_text,
     };
@@ -1227,6 +1305,10 @@ pub fn save_and_apply_personalize(
                 di,
                 "--taskbar-style",
                 &clean.taskbar_style,
+                "--layout",
+                &clean.desktop_layout,
+                "--accent",
+                &clean.accent_color,
                 "--high-contrast",
                 hc,
                 "--large-text",

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Action
+Name=Compress to ZIP...
+Name[ms]=Mampatkan ke ZIP...
+Tooltip=Create a .zip archive from the selected files or folders
+Icon=package-x-generic
+Profiles=profile-compress;
+
+[X-Action-Profile profile-compress]
+MimeTypes=all/all;
+SelectionCount>=1
+Exec=xarchiver --compress=%F

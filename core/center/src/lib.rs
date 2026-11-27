@@ -10,6 +10,7 @@ pub mod i18n;
 pub mod installer;
 pub mod oobe;
 pub mod settings;
+pub mod start_emoji;
 pub mod store;
 pub mod taskmgr;
 pub mod updater;

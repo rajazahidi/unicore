@@ -27,7 +27,10 @@
   <keyboard>
     <default />
     <keybind key="Super_L">
-      <action name="Execute" command="pkill -x fuzzel || fuzzel" />
+      <action name="Execute" command="pkill -f 'unicore-center --start-menu' || /usr/bin/unicore-center --start-menu" />
+    </keybind>
+    <keybind key="W-period">
+      <action name="Execute" command="pkill -f 'unicore-center --emoji' || /usr/bin/unicore-center --emoji" />
     </keybind>
     <keybind key="W-a">
       <action name="Execute" command="/usr/bin/unicore-center --ai" />
@@ -93,22 +96,22 @@
       <action name="ToggleShowDesktop" />
     </keybind>
     <keybind key="XF86AudioRaiseVolume">
-      <action name="Execute" command="pactl set-sink-volume @DEFAULT_SINK@ +5%" />
+      <action name="Execute" command="/usr/libexec/unicore-osd vol-up" />
     </keybind>
     <keybind key="XF86AudioLowerVolume">
-      <action name="Execute" command="pactl set-sink-volume @DEFAULT_SINK@ -5%" />
+      <action name="Execute" command="/usr/libexec/unicore-osd vol-down" />
     </keybind>
     <keybind key="XF86AudioMute">
-      <action name="Execute" command="pactl set-sink-mute @DEFAULT_SINK@ toggle" />
+      <action name="Execute" command="/usr/libexec/unicore-osd vol-mute" />
     </keybind>
     <keybind key="XF86AudioMicMute">
       <action name="Execute" command="pactl set-source-mute @DEFAULT_SOURCE@ toggle" />
     </keybind>
     <keybind key="XF86MonBrightnessUp">
-      <action name="Execute" command="brightnessctl -c backlight set +10%" />
+      <action name="Execute" command="/usr/libexec/unicore-osd bright-up" />
     </keybind>
     <keybind key="XF86MonBrightnessDown">
-      <action name="Execute" command="brightnessctl -c backlight set 10%-" />
+      <action name="Execute" command="/usr/libexec/unicore-osd bright-down" />
     </keybind>
     <keybind key="A-F4">
       <action name="Close" />
@@ -123,6 +126,11 @@
 
   <mouse>
     <default />
+    <context name="Root">
+      <mousebind button="Right" action="Press">
+        <action name="ShowMenu" menu="root-menu" />
+      </mousebind>
+    </context>
   </mouse>
 
   <libinput>

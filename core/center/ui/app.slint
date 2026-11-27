@@ -94,6 +94,23 @@ export struct ShareEntry {
     mounted: bool,
 }
 
+export struct StartPinnedRow {
+    has-0: bool, n0: string, b0: string, e0: string, c0: color,
+    has-1: bool, n1: string, b1: string, e1: string, c1: color,
+    has-2: bool, n2: string, b2: string, e2: string, c2: color,
+    has-3: bool, n3: string, b3: string, e3: string, c3: color,
+}
+
+export struct StartAppRow {
+    has-a: bool, a-name: string, a-desc: string, a-badge: string, a-exec: string, a-color: color,
+    has-b: bool, b-name: string, b-desc: string, b-badge: string, b-exec: string, b-color: color,
+}
+
+export struct EmojiRow {
+    e0: string, e1: string, e2: string, e3: string,
+    e4: string, e5: string, e6: string, e7: string,
+}
+
 export struct UiText {
     title-center: string,
     title-open: string,
@@ -251,18 +268,42 @@ export struct UiText {
     lbl-delay: string,
     btn-open-shots: string,
     btn-open-videos: string,
+    title-start-menu: string,
+    title-emoji: string,
+    start-search-hint: string,
+    start-pinned: string,
+    start-all-apps: string,
+    start-cat-all: string,
+    start-cat-internet: string,
+    start-cat-office: string,
+    start-cat-media: string,
+    start-cat-gaming: string,
+    start-cat-system: string,
+    emoji-search-hint: string,
+    lbl-desktop-layout: string,
+    lbl-accent-color: string,
+    oobe-step-look: string,
+    oobe-step-apps: string,
+    oobe-apps-hint: string,
+    oobe-pack-office: string,
+    oobe-pack-creative: string,
+    oobe-pack-gaming: string,
 }
 
 export global UiTheme {
     in-out property <bool> light: false;
     in-out property <bool> high-contrast: false;
+    in-out property <int> accent-idx: 0; // 0:blue, 1:purple, 2:green, 3:amber, 4:rose
+    out property <color> accent: accent-idx == 1 ? #6366f1 : (accent-idx == 2 ? #059669 : (accent-idx == 3 ? #d97706 : (accent-idx == 4 ? #e11d48 : #0284c7)));
+    out property <color> accent-dark: accent-idx == 1 ? #4f46e5 : (accent-idx == 2 ? #047857 : (accent-idx == 3 ? #b45309 : (accent-idx == 4 ? #be123c : #0369a1)));
+    out property <color> accent-bright: accent-idx == 1 ? #a5b4fc : (accent-idx == 2 ? #34d399 : (accent-idx == 3 ? #fbbf24 : (accent-idx == 4 ? #fb7185 : #38bdf8)));
     out property <color> bg: high-contrast ? (light ? #ffffff : #000000) : (light ? #f1f5f9 : #0f172a);
     out property <color> card-bg: high-contrast ? (light ? #ffffff : #090d16) : (light ? #ffffff : #1e293b);
     out property <color> card-border: high-contrast ? (light ? #0f172a : #facc15) : (light ? #cbd5e1 : #334155);
     out property <color> text-primary: high-contrast ? (light ? #000000 : #ffffff) : (light ? #0f172a : #f8fafc);
     out property <color> text-secondary: high-contrast ? (light ? #0f172a : #f8fafc) : (light ? #334155 : #e2e8f0);
     out property <color> text-muted: high-contrast ? (light ? #1e293b : #e2e8f0) : (light ? #475569 : #94a3b8);
-    out property <color> text-accent: high-contrast ? (light ? #0c4a6e : #fde047) : (light ? #0369a1 : #38bdf8);
+    out property <color> text-accent: high-contrast ? (light ? #0c4a6e : #fde047) : (light ? accent-dark : accent-bright);
     out property <color> text-ok: light ? #15803d : #4ade80;
     out property <color> surface-subtle: light ? #e2e8f0 : #263449;
     out property <color> surface-hover: light ? #cbd5e1 : #334155;
@@ -283,9 +324,9 @@ component TabPill inherits Rectangle {
 
     height: 32px;
     border-radius: 6px;
-    background: active ? #0284c7 : (danger ? (ta.has-hover ? #991b1b : #7f1d1d) : (ta.has-hover ? UiTheme.surface-hover : UiTheme.card-bg));
+    background: active ? UiTheme.accent : (danger ? (ta.has-hover ? #991b1b : #7f1d1d) : (ta.has-hover ? UiTheme.surface-hover : UiTheme.card-bg));
     border-width: 1px;
-    border-color: active ? #38bdf8 : (danger ? #ef4444 : UiTheme.card-border);
+    border-color: active ? UiTheme.accent-bright : (danger ? #ef4444 : UiTheme.card-border);
 
     ta := TouchArea {
         clicked => { root.clicked(); }
@@ -312,9 +353,9 @@ component StoreNavItem inherits Rectangle {
 
     height: 36px;
     border-radius: 7px;
-    background: active ? #0369a1 : (nav-ta.has-hover ? UiTheme.surface-hover : transparent);
+    background: active ? UiTheme.accent-dark : (nav-ta.has-hover ? UiTheme.surface-hover : transparent);
     border-width: active ? 1px : 0px;
-    border-color: #38bdf8;
+    border-color: UiTheme.accent-bright;
 
     nav-ta := TouchArea {
         clicked => { root.clicked(); }
@@ -546,14 +587,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))));
-    preferred-width: root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))));
-    preferred-height: root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))));
-    min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only) ? 360px : 520px;
-    min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only) ? 280px : 360px;
+    title: root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))));
+    preferred-width: root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))));
+    preferred-height: root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))));
+    min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only) ? 360px : 520px;
+    min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -562,6 +603,10 @@ export component MainWindow inherits Window {
 
     public function set-high-contrast-theme(hc: bool) {
         UiTheme.high-contrast = hc;
+    }
+
+    public function set-accent-color(idx: int) {
+        UiTheme.accent-idx = idx;
     }
 
     init => {
@@ -577,6 +622,8 @@ export component MainWindow inherits Window {
     in-out property <bool> login-dialog-only: false;
     in-out property <bool> ai-dialog-only: false;
     in-out property <bool> capture-dialog-only: false;
+    in-out property <bool> start-menu-only: false;
+    in-out property <bool> emoji-dialog-only: false;
     in-out property <bool> oobe-dialog-only: false;
     in-out property <bool> taskmgr-dialog-only: false;
     in-out property <bool> picker-open: false;
@@ -587,7 +634,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v0.5.0";
+    in-out property <string> login-clock-text: "UniCore OS v0.6.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -853,6 +900,22 @@ export component MainWindow inherits Window {
     in-out property <string> set-share-user-input: "";
     in-out property <string> set-share-pass-input: "";
 
+    // v0.6.0 Windows 11 & Zorin Familiarity (Start Menu, Emoji Picker, Layouts, Accents, OOBE Packs)
+    in-out property <int> set-desktop-layout-idx: 0; // 0:win11, 1:win10, 2:macos
+    in-out property <int> set-accent-idx: 0;         // 0:blue, 1:purple, 2:green, 3:amber, 4:rose
+    in-out property <string> start-search-query: "";
+    in-out property <string> start-category: "all";
+    in-out property <[StartPinnedRow]> start-pinned-rows: [];
+    in-out property <[StartAppRow]> start-app-rows: [];
+    in-out property <string> start-user-name: "unicore";
+    in-out property <string> emoji-search-query: "";
+    in-out property <string> emoji-category: "all";
+    in-out property <[EmojiRow]> emoji-rows: [];
+    in-out property <string> emoji-status: "";
+    in-out property <bool> oobe-pack-office: false;
+    in-out property <bool> oobe-pack-creative: false;
+    in-out property <bool> oobe-pack-gaming: false;
+
     // App Catalog / Store state (Tab 4)
     in-out property <[StoreEntry]> store-entries: [];
     in-out property <[StoreRow]> store-rows: [];
@@ -920,7 +983,13 @@ export component MainWindow inherits Window {
     callback apply-display(int, int, int);
     callback brightness-changed(int);
     callback nightlight-changed(bool, int);
-    callback apply-personalize(int, int, string, int, bool, bool, int, bool, int, bool, bool);
+    callback apply-personalize(int, int, string, int, bool, bool, int, bool, int, int, int, bool, bool);
+    callback preview-look-oobe(int, int, int);
+    callback start-filter-changed(string, string);
+    callback start-launch-app(string);
+    callback start-open-folder(string);
+    callback emoji-filter-changed(string, string);
+    callback emoji-selected(string);
     callback audio-profile-selected(int);
     callback toggle-dnd(bool);
     callback dismiss-all-notifications();
@@ -1004,7 +1073,7 @@ export component MainWindow inherits Window {
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -1126,9 +1195,9 @@ export component MainWindow inherits Window {
                             horizontal-stretch: 1;
                             height: 46px;
                             border-radius: 8px;
-                            background: root.set-wifi-enabled ? #0284c7 : UiTheme.surface-subtle;
+                            background: root.set-wifi-enabled ? UiTheme.accent : UiTheme.surface-subtle;
                             border-width: 1px;
-                            border-color: root.set-wifi-enabled ? #38bdf8 : UiTheme.card-border;
+                            border-color: root.set-wifi-enabled ? UiTheme.accent-bright : UiTheme.card-border;
                             TouchArea { clicked => { if (root.set-net-available) { root.set-wifi-enabled = !root.set-wifi-enabled; root.toggle-wifi-radio(root.set-wifi-enabled); } } }
                             Text {
                                 text: root.set-wifi-enabled ? "Wi-Fi: ON" : "Wi-Fi: OFF";
@@ -1143,9 +1212,9 @@ export component MainWindow inherits Window {
                             horizontal-stretch: 1;
                             height: 46px;
                             border-radius: 8px;
-                            background: root.set-bt-powered ? #0284c7 : UiTheme.surface-subtle;
+                            background: root.set-bt-powered ? UiTheme.accent : UiTheme.surface-subtle;
                             border-width: 1px;
-                            border-color: root.set-bt-powered ? #38bdf8 : UiTheme.card-border;
+                            border-color: root.set-bt-powered ? UiTheme.accent-bright : UiTheme.card-border;
                             TouchArea { clicked => { root.set-bt-powered = !root.set-bt-powered; root.toggle-bluetooth(root.set-bt-powered); } }
                             Text {
                                 text: root.set-bt-powered ? "Bluetooth: ON" : "Bluetooth: OFF";
@@ -1361,6 +1430,7 @@ export component MainWindow inherits Window {
                 }
             }
         }
+
 
         // Tier-1 Multi-User Sign-In Greeter (--login)
         if root.login-dialog-only : VerticalLayout {
@@ -1743,6 +1813,364 @@ export component MainWindow inherits Window {
             }
         }
 
+        // Windows 11 / Zorin-Style Native Graphical Start Menu (--start-menu / Win key)
+        if root.start-menu-only : VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Card {
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        LineEdit {
+                            text <=> root.start-search-query;
+                            placeholder-text: root.tr.start-search-hint;
+                            horizontal-stretch: 1;
+                            edited(txt) => { root.start-filter-changed(root.start-category, txt); }
+                        }
+                        TabPill {
+                            label: root.lang-badge;
+                            active: false;
+                            clicked => { root.toggle-language(); }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        TabPill {
+                            label: root.tr.start-cat-all;
+                            active: root.start-category == "all";
+                            clicked => { root.start-category = "all"; root.start-filter-changed("all", root.start-search-query); }
+                        }
+                        TabPill {
+                            label: root.tr.start-cat-internet;
+                            active: root.start-category == "internet";
+                            clicked => { root.start-category = "internet"; root.start-filter-changed("internet", root.start-search-query); }
+                        }
+                        TabPill {
+                            label: root.tr.start-cat-office;
+                            active: root.start-category == "office";
+                            clicked => { root.start-category = "office"; root.start-filter-changed("office", root.start-search-query); }
+                        }
+                        TabPill {
+                            label: root.tr.start-cat-media;
+                            active: root.start-category == "media";
+                            clicked => { root.start-category = "media"; root.start-filter-changed("media", root.start-search-query); }
+                        }
+                        TabPill {
+                            label: root.tr.start-cat-gaming;
+                            active: root.start-category == "gaming";
+                            clicked => { root.start-category = "gaming"; root.start-filter-changed("gaming", root.start-search-query); }
+                        }
+                        TabPill {
+                            label: root.tr.start-cat-system;
+                            active: root.start-category == "system";
+                            clicked => { root.start-category = "system"; root.start-filter-changed("system", root.start-search-query); }
+                        }
+                    }
+                }
+            }
+
+            Card {
+                vertical-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 10px;
+                        alignment: start;
+
+                        if root.start-category == "all" && root.start-search-query == "" : VerticalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: root.tr.start-pinned;
+                                color: UiTheme.text-accent;
+                                font-size: 12px;
+                                font-weight: 700;
+                            }
+                            for prow in root.start-pinned-rows : HorizontalLayout {
+                                spacing: 8px;
+                                if prow.has-0 : Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 68px;
+                                    border-radius: 10px;
+                                    background: sp0.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle;
+                                    border-width: 1px;
+                                    border-color: sp0.has-hover ? UiTheme.accent-bright : UiTheme.card-border;
+                                    sp0 := TouchArea { clicked => { root.start-launch-app(prow.e0); } }
+                                    VerticalLayout {
+                                        padding: 6px;
+                                        spacing: 4px;
+                                        alignment: center;
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 30px; height: 30px; border-radius: 8px; background: prow.c0;
+                                                Text { text: prow.b0; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; }
+                                            }
+                                        }
+                                        Text { text: prow.n0; color: UiTheme.text-primary; font-size: 11px; font-weight: 600; horizontal-alignment: center; overflow: elide; }
+                                    }
+                                }
+                                if prow.has-1 : Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 68px;
+                                    border-radius: 10px;
+                                    background: sp1.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle;
+                                    border-width: 1px;
+                                    border-color: sp1.has-hover ? UiTheme.accent-bright : UiTheme.card-border;
+                                    sp1 := TouchArea { clicked => { root.start-launch-app(prow.e1); } }
+                                    VerticalLayout {
+                                        padding: 6px;
+                                        spacing: 4px;
+                                        alignment: center;
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 30px; height: 30px; border-radius: 8px; background: prow.c1;
+                                                Text { text: prow.b1; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; }
+                                            }
+                                        }
+                                        Text { text: prow.n1; color: UiTheme.text-primary; font-size: 11px; font-weight: 600; horizontal-alignment: center; overflow: elide; }
+                                    }
+                                }
+                                if prow.has-2 : Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 68px;
+                                    border-radius: 10px;
+                                    background: sp2.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle;
+                                    border-width: 1px;
+                                    border-color: sp2.has-hover ? UiTheme.accent-bright : UiTheme.card-border;
+                                    sp2 := TouchArea { clicked => { root.start-launch-app(prow.e2); } }
+                                    VerticalLayout {
+                                        padding: 6px;
+                                        spacing: 4px;
+                                        alignment: center;
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 30px; height: 30px; border-radius: 8px; background: prow.c2;
+                                                Text { text: prow.b2; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; }
+                                            }
+                                        }
+                                        Text { text: prow.n2; color: UiTheme.text-primary; font-size: 11px; font-weight: 600; horizontal-alignment: center; overflow: elide; }
+                                    }
+                                }
+                                if prow.has-3 : Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 68px;
+                                    border-radius: 10px;
+                                    background: sp3.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle;
+                                    border-width: 1px;
+                                    border-color: sp3.has-hover ? UiTheme.accent-bright : UiTheme.card-border;
+                                    sp3 := TouchArea { clicked => { root.start-launch-app(prow.e3); } }
+                                    VerticalLayout {
+                                        padding: 6px;
+                                        spacing: 4px;
+                                        alignment: center;
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 30px; height: 30px; border-radius: 8px; background: prow.c3;
+                                                Text { text: prow.b3; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; }
+                                            }
+                                        }
+                                        Text { text: prow.n3; color: UiTheme.text-primary; font-size: 11px; font-weight: 600; horizontal-alignment: center; overflow: elide; }
+                                    }
+                                }
+                            }
+                            Rectangle { height: 1px; background: UiTheme.card-border; }
+                        }
+
+                        Text {
+                            text: root.tr.start-all-apps;
+                            color: UiTheme.text-muted;
+                            font-size: 12px;
+                            font-weight: 700;
+                        }
+
+                        for arow in root.start-app-rows : HorizontalLayout {
+                            spacing: 8px;
+                            if arow.has-a : Rectangle {
+                                horizontal-stretch: 1;
+                                height: 48px;
+                                border-radius: 8px;
+                                background: sa0.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle;
+                                border-width: 1px;
+                                border-color: sa0.has-hover ? UiTheme.accent-bright : UiTheme.card-border;
+                                sa0 := TouchArea { clicked => { root.start-launch-app(arow.a-exec); } }
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    spacing: 8px;
+                                    Rectangle {
+                                        width: 30px; height: 30px; y: 9px; border-radius: 7px; background: arow.a-color;
+                                        Text { text: arow.a-badge; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        horizontal-stretch: 1;
+                                        spacing: 1px;
+                                        Text { text: arow.a-name; color: UiTheme.text-primary; font-size: 12px; font-weight: 600; overflow: elide; }
+                                        Text { text: arow.a-desc; color: UiTheme.text-muted; font-size: 10px; overflow: elide; }
+                                    }
+                                }
+                            }
+                            if arow.has-b : Rectangle {
+                                horizontal-stretch: 1;
+                                height: 48px;
+                                border-radius: 8px;
+                                background: sa1.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle;
+                                border-width: 1px;
+                                border-color: sa1.has-hover ? UiTheme.accent-bright : UiTheme.card-border;
+                                sa1 := TouchArea { clicked => { root.start-launch-app(arow.b-exec); } }
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    spacing: 8px;
+                                    Rectangle {
+                                        width: 30px; height: 30px; y: 9px; border-radius: 7px; background: arow.b-color;
+                                        Text { text: arow.b-badge; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        horizontal-stretch: 1;
+                                        spacing: 1px;
+                                        Text { text: arow.b-name; color: UiTheme.text-primary; font-size: 12px; font-weight: 600; overflow: elide; }
+                                        Text { text: arow.b-desc; color: UiTheme.text-muted; font-size: 10px; overflow: elide; }
+                                    }
+                                }
+                            }
+                            if !arow.has-b : Rectangle { horizontal-stretch: 1; }
+                        }
+                    }
+                }
+            }
+
+            // Bottom User & Quick-Folders Bar
+            Card {
+                height: 48px;
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    spacing: 6px;
+                    alignment: center;
+                    Rectangle {
+                        width: 28px; height: 28px; y: 10px; border-radius: 14px; background: UiTheme.accent;
+                        Text { text: "U"; color: #ffffff; font-size: 12px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; }
+                    }
+                    Text {
+                        text: root.start-user-name;
+                        color: UiTheme.text-primary;
+                        font-size: 12px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Button { text: "Docs"; clicked => { root.start-open-folder("documents"); } }
+                    Button { text: "Downloads"; clicked => { root.start-open-folder("downloads"); } }
+                    Button { text: "Pictures"; clicked => { root.start-open-folder("pictures"); } }
+                    Button {
+                        text: "Emoji";
+                        clicked => {
+                            root.start-menu-only = false;
+                            root.emoji-dialog-only = true;
+                            root.emoji-filter-changed("all", "");
+                        }
+                    }
+                    TabPill {
+                        label: root.tr.tab-power;
+                        active: false;
+                        danger: true;
+                        clicked => {
+                            root.start-menu-only = false;
+                            root.power-dialog-only = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Windows 11-Style Emoji Picker (--emoji / Win+.)
+        if root.emoji-dialog-only : VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Card {
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+                    Text {
+                        text: root.tr.title-emoji;
+                        color: UiTheme.text-primary;
+                        font-size: 14px;
+                        font-weight: 800;
+                    }
+                    LineEdit {
+                        text <=> root.emoji-search-query;
+                        placeholder-text: root.tr.emoji-search-hint;
+                        edited(txt) => { root.emoji-filter-changed(root.emoji-category, txt); }
+                    }
+                    HorizontalLayout {
+                        spacing: 5px;
+                        TabPill { label: "All"; active: root.emoji-category == "all"; clicked => { root.emoji-category = "all"; root.emoji-filter-changed("all", root.emoji-search-query); } }
+                        TabPill { label: "Smileys"; active: root.emoji-category == "smileys"; clicked => { root.emoji-category = "smileys"; root.emoji-filter-changed("smileys", root.emoji-search-query); } }
+                        TabPill { label: "Hands"; active: root.emoji-category == "gestures"; clicked => { root.emoji-category = "gestures"; root.emoji-filter-changed("gestures", root.emoji-search-query); } }
+                        TabPill { label: "Work"; active: root.emoji-category == "work"; clicked => { root.emoji-category = "work"; root.emoji-filter-changed("work", root.emoji-search-query); } }
+                        TabPill { label: "Symbols"; active: root.emoji-category == "symbols"; clicked => { root.emoji-category = "symbols"; root.emoji-filter-changed("symbols", root.emoji-search-query); } }
+                    }
+                }
+            }
+
+            Card {
+                vertical-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 6px;
+                        alignment: start;
+                        for erow in root.emoji-rows : HorizontalLayout {
+                            spacing: 6px;
+                            for sym in [erow.e0, erow.e1, erow.e2, erow.e3, erow.e4, erow.e5, erow.e6, erow.e7] : Rectangle {
+                                horizontal-stretch: 1;
+                                height: 40px;
+                                border-radius: 8px;
+                                background: sym == "" ? transparent : (eta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                eta := TouchArea {
+                                    enabled: sym != "";
+                                    clicked => { root.emoji-selected(sym); }
+                                }
+                                Text {
+                                    text: sym;
+                                    font-size: 20px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: root.emoji-status != "" ? root.emoji-status : "Click any emoji to copy & insert";
+                    color: UiTheme.text-accent;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
         // Built-in Graphical File Picker Overlay
         if root.picker-open : Card {
             vertical-stretch: 1;
@@ -1889,6 +2317,7 @@ export component MainWindow inherits Window {
             }
         }
 
+
         // Lightweight Task Manager (--taskmgr or header Tasks button)
         if root.taskmgr-dialog-only && !root.power-dialog-only : VerticalLayout {
             spacing: 10px;
@@ -1994,6 +2423,7 @@ export component MainWindow inherits Window {
                 }
             }
         }
+
 
         // Quick Open / Install Form (Simple Mode by default, collapsible Advanced Security & Compatibility)
         if root.open-dialog-only && !root.power-dialog-only : VerticalLayout {
@@ -2110,7 +2540,7 @@ export component MainWindow inherits Window {
                     alignment: start;
 
                     Text {
-                        text: root.oobe-step == 0 ? root.tr.oobe-step1 : (root.oobe-step == 1 ? root.tr.oobe-step2 : root.tr.oobe-step3);
+                        text: root.oobe-step == 0 ? root.tr.oobe-step1 : (root.oobe-step == 1 ? root.tr.oobe-step-look : (root.oobe-step == 2 ? root.tr.oobe-step2 : root.tr.oobe-step3));
                         color: UiTheme.text-accent;
                         font-size: 15px;
                         font-weight: 700;
@@ -2162,6 +2592,71 @@ export component MainWindow inherits Window {
                     }
 
                     if root.oobe-step == 1 : VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: root.tr.lbl-desktop-layout;
+                            color: UiTheme.text-secondary;
+                            font-size: 13px;
+                            font-weight: 700;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button {
+                                text: "Windows 11 Modern";
+                                primary: root.set-desktop-layout-idx == 0;
+                                horizontal-stretch: 1;
+                                clicked => { root.set-desktop-layout-idx = 0; root.preview-look-oobe(root.set-theme-idx, 0, root.set-accent-idx); }
+                            }
+                            Button {
+                                text: "Windows 10 / Zorin";
+                                primary: root.set-desktop-layout-idx == 1;
+                                horizontal-stretch: 1;
+                                clicked => { root.set-desktop-layout-idx = 1; root.preview-look-oobe(root.set-theme-idx, 1, root.set-accent-idx); }
+                            }
+                            Button {
+                                text: "macOS Top Dock";
+                                primary: root.set-desktop-layout-idx == 2;
+                                horizontal-stretch: 1;
+                                clicked => { root.set-desktop-layout-idx = 2; root.preview-look-oobe(root.set-theme-idx, 2, root.set-accent-idx); }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: root.tr.lbl-theme; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
+                            Button {
+                                text: "Dark (Midnight)";
+                                primary: root.set-theme-idx == 0;
+                                horizontal-stretch: 1;
+                                clicked => { root.set-theme-idx = 0; root.preview-look-oobe(0, root.set-desktop-layout-idx, root.set-accent-idx); }
+                            }
+                            Button {
+                                text: "Light (Daylight)";
+                                primary: root.set-theme-idx == 1;
+                                horizontal-stretch: 1;
+                                clicked => { root.set-theme-idx = 1; root.preview-look-oobe(1, root.set-desktop-layout-idx, root.set-accent-idx); }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: root.tr.lbl-accent-color; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
+                            for swatch[sidx] in [#0284c7, #6366f1, #059669, #d97706, #e11d48] : Rectangle {
+                                width: 32px;
+                                height: 32px;
+                                border-radius: 16px;
+                                background: swatch;
+                                border-width: root.set-accent-idx == sidx ? 3px : 1px;
+                                border-color: root.set-accent-idx == sidx ? UiTheme.text-primary : UiTheme.card-border;
+                                TouchArea {
+                                    clicked => {
+                                        root.set-accent-idx = sidx;
+                                        root.preview-look-oobe(root.set-theme-idx, root.set-desktop-layout-idx, sidx);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if root.oobe-step == 2 : VerticalLayout {
                         spacing: 10px;
                         Text {
                             text: root.tr.oobe-pw-hint;
@@ -2191,12 +2686,31 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    if root.oobe-step == 2 : VerticalLayout {
+                    if root.oobe-step == 3 : VerticalLayout {
                         spacing: 10px;
                         Text {
-                            text: root.tr.oobe-ready-hint;
+                            text: root.tr.oobe-apps-hint;
                             color: UiTheme.text-secondary;
                             font-size: 13px;
+                            wrap: word-wrap;
+                        }
+                        CheckBox {
+                            text: root.tr.oobe-pack-office;
+                            checked <=> root.oobe-pack-office;
+                        }
+                        CheckBox {
+                            text: root.tr.oobe-pack-creative;
+                            checked <=> root.oobe-pack-creative;
+                        }
+                        CheckBox {
+                            text: root.tr.oobe-pack-gaming;
+                            checked <=> root.oobe-pack-gaming;
+                        }
+                        Rectangle { height: 1px; background: UiTheme.card-border; }
+                        Text {
+                            text: root.tr.oobe-ready-hint;
+                            color: UiTheme.text-muted;
+                            font-size: 12px;
                             wrap: word-wrap;
                         }
                         InfoRow { label: "Boot Mode:"; value: root.sys-boot-mode; value-color: UiTheme.text-ok; }
@@ -2216,16 +2730,16 @@ export component MainWindow inherits Window {
                     clicked => { root.skip-oobe(); }
                 }
                 Rectangle { horizontal-stretch: 1; }
-                if root.oobe-step < 2 : Button {
+                if root.oobe-step < 3 : Button {
                     text: root.tr.btn-next;
                     primary: true;
                     clicked => { root.oobe-step += 1; }
                 }
-                if root.oobe-step == 2 && root.sys-is-live : Button {
+                if root.oobe-step == 3 && root.sys-is-live : Button {
                     text: root.tr.btn-finish-install;
                     clicked => { root.complete-oobe(true); }
                 }
-                if root.oobe-step == 2 : Button {
+                if root.oobe-step == 3 : Button {
                     text: root.tr.btn-finish;
                     primary: true;
                     clicked => { root.complete-oobe(false); }
@@ -3704,6 +4218,51 @@ export component MainWindow inherits Window {
                             HorizontalLayout {
                                 spacing: 12px;
                                 Text {
+                                    text: root.tr.lbl-desktop-layout;
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["Windows 11 Modern (Centered Floating)", "Windows 10 / Zorin Classic (Left Bar)", "macOS / Zorin Top Dock"];
+                                    current-index <=> root.set-desktop-layout-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.tr.lbl-accent-color;
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    alignment: start;
+                                    for swatch[sidx] in [#0284c7, #6366f1, #059669, #d97706, #e11d48] : Rectangle {
+                                        width: 28px;
+                                        height: 28px;
+                                        border-radius: 14px;
+                                        background: swatch;
+                                        border-width: root.set-accent-idx == sidx ? 3px : 1px;
+                                        border-color: root.set-accent-idx == sidx ? UiTheme.text-primary : UiTheme.card-border;
+                                        TouchArea {
+                                            clicked => {
+                                                root.set-accent-idx = sidx;
+                                                root.set-accent-color(sidx);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
                                     text: root.tr.lbl-taskbar-style;
                                     color: UiTheme.text-muted;
                                     font-size: 13px;
@@ -3711,7 +4270,7 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                                 ComboBox {
-                                    model: ["Docked Bar (Windows 11)", "Floating Pill Dock (macOS)"];
+                                    model: ["Docked Bar", "Floating Pill Dock"];
                                     current-index <=> root.set-taskbar-style-idx;
                                     horizontal-stretch: 1;
                                 }
@@ -3779,6 +4338,8 @@ export component MainWindow inherits Window {
                                             Math.round(root.set-pointer-speed-tenths),
                                             root.set-desktop-icons,
                                             root.set-taskbar-style-idx,
+                                            root.set-desktop-layout-idx,
+                                            root.set-accent-idx,
                                             root.set-high-contrast,
                                             root.set-large-text
                                         );

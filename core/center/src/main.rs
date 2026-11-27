@@ -37,19 +37,26 @@ use unicore_center::oobe::{
     OobeSettings, DEFAULT_OOBE_DIR, OOBE_LANGUAGES, OOBE_TIMEZONES,
 };
 use unicore_center::settings::{
-    add_printer, apply_and_save_display, apply_firewall_settings, bt_device_action,
-    clamp_pointer_speed, connect_wifi, delete_vpn_connection, disconnect_wifi, discover_printers,
-    enroll_secureboot_mok, forget_wifi, import_vpn_profile, launch_document_scanner,
-    list_backup_targets, list_vpn_connections, load_nightlight_config, load_personalize_config,
-    persistent_display_config_dir, print_test_page, read_audio_overview, read_bluetooth_overview,
-    read_display_overview, read_firewall_overview, read_network_overview, read_printers_overview,
-    read_secureboot_overview, remove_printer, run_backup_create, run_backup_restore,
-    run_power_action, save_and_apply_nightlight, save_and_apply_personalize, scan_bluetooth_brief,
-    set_audio_card_profile, set_audio_mute, set_audio_volume, set_bluetooth_enabled,
-    set_brightness, set_cups_enabled, set_default_printer, set_default_sink, set_mic_mute,
-    set_wifi_radio, toggle_vpn_connection, validate_backup_passphrase, validate_backup_path,
-    AudioCardProfile, AudioSink, BackupTarget, BluetoothDevice, DiscoveredPrinter, DisplayOutput,
-    PersonalizeConfig, PrinterInfo, VpnConnection, WifiNetwork, KB_LAYOUTS, WALLPAPER_PRESETS,
+    accent_color_from_index, accent_color_to_index, add_printer, apply_and_save_display,
+    apply_firewall_settings, bt_device_action, clamp_pointer_speed, connect_wifi,
+    delete_vpn_connection, desktop_layout_from_index, desktop_layout_to_index, disconnect_wifi,
+    discover_printers, enroll_secureboot_mok, forget_wifi, import_vpn_profile,
+    launch_document_scanner, list_backup_targets, list_vpn_connections, load_nightlight_config,
+    load_personalize_config, persistent_display_config_dir, print_test_page, read_audio_overview,
+    read_bluetooth_overview, read_display_overview, read_firewall_overview, read_network_overview,
+    read_printers_overview, read_secureboot_overview, remove_printer, run_backup_create,
+    run_backup_restore, run_power_action, save_and_apply_nightlight, save_and_apply_personalize,
+    scan_bluetooth_brief, set_audio_card_profile, set_audio_mute, set_audio_volume,
+    set_bluetooth_enabled, set_brightness, set_cups_enabled, set_default_printer, set_default_sink,
+    set_mic_mute, set_wifi_radio, toggle_vpn_connection, validate_backup_passphrase,
+    validate_backup_path, AudioCardProfile, AudioSink, BackupTarget, BluetoothDevice,
+    DiscoveredPrinter, DisplayOutput, PersonalizeConfig, PrinterInfo, VpnConnection, WifiNetwork,
+    KB_LAYOUTS, WALLPAPER_PRESETS,
+};
+use unicore_center::start_emoji::{
+    discover_start_menu_apps, filter_emojis, filter_start_menu_apps, friendly_hw_summary,
+    insert_emoji, launch_desktop_command, oobe_bundle_catalog_ids, open_user_folder,
+    DesktopAppItem,
 };
 use unicore_center::store::{
     chunk_into_triples, install_latest_proton_blocking, install_native_browser_blocking,
@@ -254,7 +261,129 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         lbl_delay: l.lbl_delay.into(),
         btn_open_shots: l.btn_open_shots.into(),
         btn_open_videos: l.btn_open_videos.into(),
+        title_start_menu: l.title_start_menu.into(),
+        title_emoji: l.title_emoji.into(),
+        start_search_hint: l.start_search_hint.into(),
+        start_pinned: l.start_pinned.into(),
+        start_all_apps: l.start_all_apps.into(),
+        start_cat_all: l.start_cat_all.into(),
+        start_cat_internet: l.start_cat_internet.into(),
+        start_cat_office: l.start_cat_office.into(),
+        start_cat_media: l.start_cat_media.into(),
+        start_cat_gaming: l.start_cat_gaming.into(),
+        start_cat_system: l.start_cat_system.into(),
+        emoji_search_hint: l.emoji_search_hint.into(),
+        lbl_desktop_layout: l.lbl_desktop_layout.into(),
+        lbl_accent_color: l.lbl_accent_color.into(),
+        oobe_step_look: l.oobe_step_look.into(),
+        oobe_step_apps: l.oobe_step_apps.into(),
+        oobe_apps_hint: l.oobe_apps_hint.into(),
+        oobe_pack_office: l.oobe_pack_office.into(),
+        oobe_pack_creative: l.oobe_pack_creative.into(),
+        oobe_pack_gaming: l.oobe_pack_gaming.into(),
     });
+}
+
+fn parse_hex_color(hex: &str) -> slint::Color {
+    let clean = hex.trim().trim_start_matches('#');
+    if clean.len() == 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&clean[0..2], 16),
+            u8::from_str_radix(&clean[2..4], 16),
+            u8::from_str_radix(&clean[4..6], 16),
+        ) {
+            return slint::Color::from_rgb_u8(r, g, b);
+        }
+    }
+    slint::Color::from_rgb_u8(2, 132, 199)
+}
+
+fn scan_start_menu_apps(sandbox_apps: &[AppSandbox], lang: UiLang) -> Vec<DesktopAppItem> {
+    let dirs = [
+        Path::new("/usr/share/applications"),
+        Path::new("/data/home/applications"),
+        Path::new("/data/flatpak/exports/share/applications"),
+    ];
+    discover_start_menu_apps(&dirs, sandbox_apps, lang)
+}
+
+fn refresh_start_menu(ui: &MainWindow, all_apps: &[DesktopAppItem], category: &str, query: &str) {
+    let pinned: Vec<&DesktopAppItem> = all_apps.iter().filter(|a| a.pinned).collect();
+    let mut pinned_rows = Vec::new();
+    for chunk in pinned.chunks(4) {
+        let g = |i: usize| chunk.get(i).copied();
+        let make = |opt: Option<&DesktopAppItem>| -> (bool, SharedString, SharedString, SharedString, slint::Color) {
+            match opt {
+                Some(a) => (
+                    true,
+                    SharedString::from(a.name.as_str()),
+                    SharedString::from(a.badge.as_str()),
+                    SharedString::from(a.exec_cmd.as_str()),
+                    parse_hex_color(&a.accent_hex),
+                ),
+                None => (
+                    false,
+                    SharedString::new(),
+                    SharedString::new(),
+                    SharedString::new(),
+                    slint::Color::from_rgb_u8(30, 41, 59),
+                ),
+            }
+        };
+        let (h0, n0, b0, e0, c0) = make(g(0));
+        let (h1, n1, b1, e1, c1) = make(g(1));
+        let (h2, n2, b2, e2, c2) = make(g(2));
+        let (h3, n3, b3, e3, c3) = make(g(3));
+        pinned_rows.push(StartPinnedRow {
+            has_0: h0, n0, b0, e0, c0,
+            has_1: h1, n1, b1, e1, c1,
+            has_2: h2, n2, b2, e2, c2,
+            has_3: h3, n3, b3, e3, c3,
+        });
+    }
+    ui.set_start_pinned_rows(ModelRc::new(VecModel::from(pinned_rows)));
+
+    let filtered = filter_start_menu_apps(all_apps, category, query);
+    let mut app_rows = Vec::new();
+    for chunk in filtered.chunks(2) {
+        let a = &chunk[0];
+        let b = chunk.get(1);
+        app_rows.push(StartAppRow {
+            has_a: true,
+            a_name: SharedString::from(a.name.as_str()),
+            a_desc: SharedString::from(a.comment.as_str()),
+            a_badge: SharedString::from(a.badge.as_str()),
+            a_exec: SharedString::from(a.exec_cmd.as_str()),
+            a_color: parse_hex_color(&a.accent_hex),
+            has_b: b.is_some(),
+            b_name: b.map(|x| SharedString::from(x.name.as_str())).unwrap_or_default(),
+            b_desc: b.map(|x| SharedString::from(x.comment.as_str())).unwrap_or_default(),
+            b_badge: b.map(|x| SharedString::from(x.badge.as_str())).unwrap_or_default(),
+            b_exec: b.map(|x| SharedString::from(x.exec_cmd.as_str())).unwrap_or_default(),
+            b_color: b
+                .map(|x| parse_hex_color(&x.accent_hex))
+                .unwrap_or_else(|| slint::Color::from_rgb_u8(30, 41, 59)),
+        });
+    }
+    ui.set_start_app_rows(ModelRc::new(VecModel::from(app_rows)));
+}
+
+fn refresh_emoji_grid(ui: &MainWindow, category: &str, query: &str) {
+    let items = filter_emojis(category, query);
+    let mut rows = Vec::new();
+    for chunk in items.chunks(8) {
+        let sym = |i: usize| -> SharedString {
+            chunk
+                .get(i)
+                .map(|e| SharedString::from(e.symbol))
+                .unwrap_or_default()
+        };
+        rows.push(EmojiRow {
+            e0: sym(0), e1: sym(1), e2: sym(2), e3: sym(3),
+            e4: sym(4), e5: sym(5), e6: sym(6), e7: sym(7),
+        });
+    }
+    ui.set_emoji_rows(ModelRc::new(VecModel::from(rows)));
 }
 
 fn refresh_capture_and_notify(ui: &MainWindow) {
@@ -547,6 +676,10 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
     ui.set_set_pointer_speed_tenths((pers.pointer_speed * 10.0).round());
     ui.set_set_desktop_icons(pers.desktop_icons);
     ui.set_set_taskbar_style_idx(if pers.taskbar_style == "floating" { 1 } else { 0 });
+    ui.set_set_desktop_layout_idx(desktop_layout_to_index(&pers.desktop_layout));
+    let acc_idx = accent_color_to_index(&pers.accent_color);
+    ui.set_set_accent_idx(acc_idx);
+    ui.invoke_set_accent_color(acc_idx);
     ui.set_set_high_contrast(pers.high_contrast);
     ui.set_set_large_text(pers.large_text);
     ui.invoke_set_high_contrast_theme(pers.high_contrast);
@@ -942,14 +1075,15 @@ fn refresh_store_list(
     }
 }
 
-fn refresh_system_info(ui: &MainWindow, backend: &CenterBackend) {
+fn refresh_system_info(ui: &MainWindow, backend: &CenterBackend, lang: UiLang) {
     let sys = backend.system_overview();
     let hw = &sys.hw;
     let specs = &hw.specs;
     let tier = hw.tier.as_str();
-    ui.set_hw_summary(SharedString::from(format!(
-        "Tier: {tier} | {} MB RAM | Display: {} | Win32: {}",
-        specs.ram_mb, hw.wlr_renderer, hw.win32_backend_mode
+    ui.set_hw_summary(SharedString::from(friendly_hw_summary(
+        tier,
+        specs.ram_mb,
+        lang,
     )));
     ui.set_sys_hw_tier(SharedString::from(format!(
         "{tier} (lightweight_shell={}, idle_hibernate={}s)",
@@ -1168,12 +1302,19 @@ fn main() {
     let pers_cfg = load_personalize_config(&persistent_display_config_dir());
     ui.invoke_set_theme(pers_cfg.theme == "light");
     ui.invoke_set_high_contrast_theme(pers_cfg.high_contrast);
+    ui.set_set_theme_idx(if pers_cfg.theme == "light" { 1 } else { 0 });
+    ui.set_set_desktop_layout_idx(desktop_layout_to_index(&pers_cfg.desktop_layout));
+    let init_acc = accent_color_to_index(&pers_cfg.accent_color);
+    ui.set_set_accent_idx(init_acc);
+    ui.invoke_set_accent_color(init_acc);
+
+    let start_apps_cache: Rc<RefCell<Vec<DesktopAppItem>>> = Rc::new(RefCell::new(Vec::new()));
 
     {
         let b = backend.borrow();
         apply_ui_language(&ui, initial_lang);
         ui.set_store_category(SharedString::from(parsed.initial_store_category.as_str()));
-        refresh_system_info(&ui, &b);
+        refresh_system_info(&ui, &b, initial_lang);
         refresh_apps_and_browse(&ui, &b, &apps_cache, None);
         refresh_store_list(&ui, &b, &apps_cache.borrow(), initial_lang);
         refresh_gaming_store_banners(&ui);
@@ -1213,6 +1354,18 @@ fn main() {
             LaunchMode::CaptureTool => {
                 ui.set_capture_dialog_only(true);
                 refresh_capture_and_notify(&ui);
+            }
+            LaunchMode::StartMenu => {
+                ui.set_start_menu_only(true);
+                let uname = std::env::var("USER").unwrap_or_else(|_| "unicore".to_string());
+                ui.set_start_user_name(SharedString::from(uname.as_str()));
+                let discovered = scan_start_menu_apps(&apps_cache.borrow(), initial_lang);
+                refresh_start_menu(&ui, &discovered, "all", "");
+                *start_apps_cache.borrow_mut() = discovered;
+            }
+            LaunchMode::EmojiPicker => {
+                ui.set_emoji_dialog_only(true);
+                refresh_emoji_grid(&ui, "all", "");
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -1405,12 +1558,13 @@ fn main() {
     {
         let ui_weak = ui.as_weak();
         let b = Rc::clone(&backend);
+        let lang_cell = Rc::clone(&current_lang);
         ui.on_reclaim_ram(move || {
             let Some(ui) = ui_weak.upgrade() else { return };
             let backend_ref = b.borrow();
             match backend_ref.reclaim_subsystems() {
                 Ok(_) => {
-                    refresh_system_info(&ui, &backend_ref);
+                    refresh_system_info(&ui, &backend_ref, *lang_cell.borrow());
                     set_status(&ui, "Reclaimed idle Win32/Android subsystem workers", false);
                 }
                 Err(err) => set_status(&ui, err, true),
@@ -1434,7 +1588,8 @@ fn main() {
                 Some(current_id.as_str())
             };
             let backend_ref = b.borrow();
-            refresh_system_info(&ui, &backend_ref);
+            let lang = *lang_cell.borrow();
+            refresh_system_info(&ui, &backend_ref, lang);
             refresh_apps_and_browse(&ui, &backend_ref, &cache, prefer);
             refresh_store_list(&ui, &backend_ref, &cache.borrow(), *lang_cell.borrow());
             refresh_gaming_store_banners(&ui);
@@ -1720,6 +1875,17 @@ fn main() {
     // First-Boot Setup Wizard (OOBE) callbacks
     {
         let ui_weak = ui.as_weak();
+        ui.on_preview_look_oobe(move |theme_idx, layout_idx, accent_idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.invoke_set_theme(theme_idx == 1);
+            ui.invoke_set_accent_color(accent_idx);
+            ui.set_set_desktop_layout_idx(layout_idx);
+            ui.set_set_taskbar_style_idx(if layout_idx == 1 { 0 } else { 1 });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
         ui.on_complete_oobe(move |open_installer| {
             let Some(ui) = ui_weak.upgrade() else { return };
             let host = match validate_hostname(&ui.get_oobe_hostname()) {
@@ -1735,7 +1901,7 @@ fn main() {
             let validated_pw = match validate_user_password(&pass_raw, &pass_confirm) {
                 Ok(p) => p,
                 Err(err) => {
-                    ui.set_oobe_step(1);
+                    ui.set_oobe_step(2);
                     set_status(&ui, err, true);
                     return;
                 }
@@ -1759,11 +1925,45 @@ fn main() {
                 set_status(&ui, err, true);
                 return;
             }
+            // Apply Zorin-style Layout, Theme & Accent chosen in OOBE Step 2
+            let cfg_dir = persistent_display_config_dir();
+            let mut pers = load_personalize_config(&cfg_dir);
+            let layout = desktop_layout_from_index(ui.get_set_desktop_layout_idx());
+            let accent = accent_color_from_index(ui.get_set_accent_idx());
+            pers.theme = if ui.get_set_theme_idx() == 1 { "light" } else { "dark" }.to_string();
+            pers.desktop_layout = layout.to_string();
+            pers.taskbar_style = if layout == "win10" { "docked" } else { "floating" }.to_string();
+            pers.accent_color = accent.to_string();
+            if pers.theme == "light" && pers.wallpaper == "/usr/share/unicore/wallpaper.png" {
+                pers.wallpaper = "/usr/share/unicore/wallpaper-light.png".to_string();
+            }
+            let _ = save_and_apply_personalize(&cfg_dir, &pers);
+
+            let bundle_ids = oobe_bundle_catalog_ids(
+                ui.get_oobe_pack_office(),
+                ui.get_oobe_pack_creative(),
+                ui.get_oobe_pack_gaming(),
+            );
             ui.set_oobe_pass(SharedString::new());
             ui.set_oobe_pass_confirm(SharedString::new());
             ui.set_oobe_dialog_only(false);
-            ui.set_active_tab(if open_installer { 2 } else { 0 });
-            set_status(&ui, "Initial setup complete. Welcome to UniCore OS!", false);
+            if open_installer {
+                ui.set_active_tab(2);
+                set_status(&ui, "Initial setup complete. Disk Installer ready!", false);
+            } else if !bundle_ids.is_empty() {
+                ui.set_active_tab(4);
+                set_status(
+                    &ui,
+                    format!(
+                        "Welcome to UniCore OS! Selected starter packs ({}) are ready in Store.",
+                        bundle_ids.join(", ")
+                    ),
+                    false,
+                );
+            } else {
+                ui.set_active_tab(0);
+                set_status(&ui, "Initial setup complete. Welcome to UniCore OS!", false);
+            }
         });
     }
 
@@ -1784,12 +1984,24 @@ fn main() {
         let lang_cell = Rc::clone(&current_lang);
         let b = Rc::clone(&backend);
         let cache = Rc::clone(&apps_cache);
+        let scache = Rc::clone(&start_apps_cache);
         ui.on_toggle_language(move || {
             let Some(ui) = ui_weak.upgrade() else { return };
             let next = lang_cell.borrow().toggle();
             *lang_cell.borrow_mut() = next;
             apply_ui_language(&ui, next);
+            refresh_system_info(&ui, &b.borrow(), next);
             refresh_store_list(&ui, &b.borrow(), &cache.borrow(), next);
+            if ui.get_start_menu_only() {
+                let discovered = scan_start_menu_apps(&cache.borrow(), next);
+                refresh_start_menu(
+                    &ui,
+                    &discovered,
+                    &ui.get_start_category(),
+                    &ui.get_start_search_query(),
+                );
+                *scache.borrow_mut() = discovered;
+            }
             if cfg!(target_os = "linux") {
                 let _ = persist_ui_lang(Path::new(DEFAULT_OOBE_DIR), next);
             }
@@ -2114,7 +2326,7 @@ fn main() {
     {
         let ui_weak = ui.as_weak();
         ui.on_apply_personalize(
-            move |theme_idx, wp_idx, wp_custom, kb_idx, natural_scroll, tap_to_click, speed_tenths, desktop_icons, taskbar_style_idx, high_contrast, large_text| {
+            move |theme_idx, wp_idx, wp_custom, kb_idx, natural_scroll, tap_to_click, speed_tenths, desktop_icons, taskbar_style_idx, layout_idx, accent_idx, high_contrast, large_text| {
                 let Some(ui) = ui_weak.upgrade() else { return };
                 let theme = if theme_idx == 1 { "light" } else { "dark" }.to_string();
                 let wallpaper = WALLPAPER_PRESETS
@@ -2125,6 +2337,8 @@ fn main() {
                     .get(kb_idx as usize)
                     .map(|(code, _)| (*code).to_string())
                     .unwrap_or_else(|| "us".to_string());
+                let desktop_layout = desktop_layout_from_index(layout_idx).to_string();
+                let accent_color = accent_color_from_index(accent_idx).to_string();
                 let taskbar_style = if taskbar_style_idx == 1 { "floating" } else { "docked" }.to_string();
                 let req = PersonalizeConfig {
                     theme,
@@ -2135,6 +2349,8 @@ fn main() {
                     pointer_speed: clamp_pointer_speed((speed_tenths as f32) / 10.0),
                     desktop_icons,
                     taskbar_style,
+                    desktop_layout,
+                    accent_color,
                     high_contrast,
                     large_text,
                 };
@@ -2143,17 +2359,20 @@ fn main() {
                     Ok(saved) => {
                         ui.invoke_set_theme(saved.theme == "light");
                         ui.invoke_set_high_contrast_theme(saved.high_contrast);
+                        let acc_i = accent_color_to_index(&saved.accent_color);
+                        ui.set_set_accent_idx(acc_i);
+                        ui.invoke_set_accent_color(acc_i);
+                        ui.set_set_desktop_layout_idx(desktop_layout_to_index(&saved.desktop_layout));
                         ui.set_set_wallpaper_custom(SharedString::from(saved.wallpaper.as_str()));
                         ui.set_set_desktop_icons(saved.desktop_icons);
                         ui.set_set_taskbar_style_idx(if saved.taskbar_style == "floating" { 1 } else { 0 });
                         ui.set_set_high_contrast(saved.high_contrast);
                         ui.set_set_large_text(saved.large_text);
                         let msg = format!(
-                            "Applied theme={} | taskbar={} | hc={} | large_text={} | kb={}",
+                            "Applied theme={} | layout={} | accent={} | kb={}",
                             saved.theme,
-                            saved.taskbar_style,
-                            if saved.high_contrast { "on" } else { "off" },
-                            if saved.large_text { "on" } else { "off" },
+                            saved.desktop_layout,
+                            saved.accent_color,
                             saved.kb_layout
                         );
                         ui.set_set_personalize_status(SharedString::from(msg.as_str()));
@@ -3765,6 +3984,61 @@ fn main() {
             match speak_text_offline(code, "") {
                 Ok(msg) => set_status(&ui, msg, false),
                 Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    // v0.6.0 Native Graphical Start Menu & Emoji Picker callbacks
+    {
+        let ui_weak = ui.as_weak();
+        let scache = Rc::clone(&start_apps_cache);
+        ui.on_start_filter_changed(move |cat, query| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_start_menu(&ui, &scache.borrow(), &cat, &query);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_start_launch_app(move |exec_cmd| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match launch_desktop_command(&exec_cmd) {
+                Ok(()) => {
+                    let _ = slint::quit_event_loop();
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_start_open_folder(move |folder| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match open_user_folder(&folder) {
+                Ok(()) => {
+                    let _ = slint::quit_event_loop();
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_emoji_filter_changed(move |cat, query| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_emoji_grid(&ui, &cat, &query);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_emoji_selected(move |sym| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match insert_emoji(&sym) {
+                Ok(msg) => ui.set_emoji_status(SharedString::from(msg.as_str())),
+                Err(err) => ui.set_emoji_status(SharedString::from(err.as_str())),
             }
         });
     }

@@ -956,6 +956,8 @@ fn phase20d_personalization_theme_wallpaper_and_input_work() {
         pointer_speed: 0.4,
         desktop_icons: false,
         taskbar_style: "floating".to_string(),
+        desktop_layout: "macos".to_string(),
+        accent_color: "purple".to_string(),
         high_contrast: true,
         large_text: true,
     };
@@ -1252,4 +1254,82 @@ Card #42
     assert_ne!(en.hdr_accessibility, ms.hdr_accessibility);
     assert_ne!(en.store_cat_gaming, ms.store_cat_gaming);
     assert_ne!(en.tile_dnd, ms.tile_dnd);
+}
+
+#[test]
+fn v060_start_menu_emoji_layouts_accents_friendly_header_and_oobe_packs_work() {
+    use unicore_center::settings::{
+        accent_color_from_index, accent_color_to_index, desktop_layout_from_index,
+        desktop_layout_to_index, validate_accent_color, validate_desktop_layout, PersonalizeConfig,
+    };
+    use unicore_center::start_emoji::{
+        builtin_pinned_apps, filter_emojis, filter_start_menu_apps, friendly_hw_summary,
+        oobe_bundle_catalog_ids, parse_desktop_file,
+    };
+
+    // 1. CLI flags for Start Menu & Emoji Picker
+    let sm = parse_args(&["--start-menu".to_string()]).unwrap().unwrap();
+    assert_eq!(sm.mode, LaunchMode::StartMenu);
+    let em = parse_args(&["--emoji".to_string()]).unwrap().unwrap();
+    assert_eq!(em.mode, LaunchMode::EmojiPicker);
+
+    // 2. Zorin-style Desktop Layouts (default win11) & 5 Accent Colors
+    let def = PersonalizeConfig::default();
+    assert_eq!(def.desktop_layout, "win11");
+    assert_eq!(def.taskbar_style, "floating");
+    assert_eq!(def.accent_color, "blue");
+    for (idx, code) in ["win11", "win10", "macos"].iter().enumerate() {
+        assert_eq!(validate_desktop_layout(code).unwrap(), *code);
+        assert_eq!(desktop_layout_to_index(code), idx as i32);
+        assert_eq!(desktop_layout_from_index(idx as i32), *code);
+    }
+    assert!(validate_desktop_layout("invalid").is_err());
+
+    for (idx, code) in ["blue", "purple", "green", "amber", "rose"].iter().enumerate() {
+        assert_eq!(validate_accent_color(code).unwrap(), *code);
+        assert_eq!(accent_color_to_index(code), idx as i32);
+        assert_eq!(accent_color_from_index(idx as i32), *code);
+    }
+    assert!(validate_accent_color("neon").is_err());
+
+    // 3. Start Menu pinned apps, .desktop parser & search filter
+    let pinned_en = builtin_pinned_apps(UiLang::En);
+    let pinned_ms = builtin_pinned_apps(UiLang::Ms);
+    assert_eq!(pinned_en.len(), 8);
+    assert_ne!(pinned_en[0].name, pinned_ms[0].name);
+
+    let desktop_sample = "[Desktop Entry]\nType=Application\nName=GIMP Studio\nComment=Edit images\nExec=gimp %U\nCategories=Graphics;AudioVideo;\n";
+    let parsed = parse_desktop_file(desktop_sample, "gimp").unwrap();
+    assert_eq!(parsed.name, "GIMP Studio");
+    assert_eq!(parsed.exec_cmd, "gimp");
+    assert_eq!(parsed.category, "media");
+    assert!(parse_desktop_file("[Desktop Entry]\nName=Hidden\nExec=foo\nNoDisplay=true\n", "h").is_none());
+
+    let mut all = pinned_en.clone();
+    all.push(parsed);
+    assert_eq!(filter_start_menu_apps(&all, "all", "gimp").len(), 1);
+    assert!(filter_start_menu_apps(&all, "media", "").len() >= 2);
+
+    // 4. Emoji Picker search (EN + BM keywords)
+    let my_hits = filter_emojis("all", "malaysia");
+    assert!(my_hits.iter().any(|e| e.symbol == "🇲🇾"));
+    let fire_hits = filter_emojis("symbols", "mantap");
+    assert!(fire_hits.iter().any(|e| e.symbol == "🔥"));
+
+    // 5. Friendly non-technical header summary (no legacy_mid/pixman jargon)
+    let hdr_en = friendly_hw_summary("legacy_mid", 2997, UiLang::En);
+    let hdr_ms = friendly_hw_summary("modern", 8192, UiLang::Ms);
+    assert!(hdr_en.contains("Balanced Mode") && !hdr_en.contains("pixman"));
+    assert!(hdr_ms.contains("Mod Prestasi") && hdr_ms.contains("8.0 GB RAM"));
+
+    // 6. OOBE 1-click starter bundles
+    assert_eq!(oobe_bundle_catalog_ids(true, false, true), vec!["libreoffice", "firefox", "steam", "heroic"]);
+    assert!(oobe_bundle_catalog_ids(false, false, false).is_empty());
+
+    // 7. Bilingual v0.6.0 labels
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.title_start_menu, ms.title_start_menu);
+    assert_ne!(en.lbl_desktop_layout, ms.lbl_desktop_layout);
+    assert_ne!(en.oobe_pack_office, ms.oobe_pack_office);
 }

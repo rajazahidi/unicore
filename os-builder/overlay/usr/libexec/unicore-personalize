@@ -19,7 +19,9 @@ UNICORE_NATURAL_SCROLL="yes"
 UNICORE_TAP_TO_CLICK="yes"
 UNICORE_POINTER_SPEED="0.0"
 UNICORE_DESKTOP_ICONS="yes"
-UNICORE_TASKBAR_STYLE="docked"
+UNICORE_TASKBAR_STYLE="floating"
+UNICORE_LAYOUT="win11"
+UNICORE_ACCENT_COLOR="blue"
 UNICORE_HIGH_CONTRAST="no"
 UNICORE_LARGE_TEXT="no"
 
@@ -33,6 +35,20 @@ validate_theme() {
 validate_taskbar_style() {
     case "$1" in
         docked|floating) printf '%s\n' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_layout() {
+    case "$1" in
+        win11|win10|macos) printf '%s\n' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_accent() {
+    case "$1" in
+        blue|purple|green|amber|rose) printf '%s\n' "$1" ;;
         *) return 1 ;;
     esac
 }
@@ -82,7 +98,9 @@ load_conf() {
     UNICORE_TAP_TO_CLICK="yes"
     UNICORE_POINTER_SPEED="0.0"
     UNICORE_DESKTOP_ICONS="yes"
-    UNICORE_TASKBAR_STYLE="docked"
+    UNICORE_TASKBAR_STYLE="floating"
+    UNICORE_LAYOUT="win11"
+    UNICORE_ACCENT_COLOR="blue"
     UNICORE_HIGH_CONTRAST="no"
     UNICORE_LARGE_TEXT="no"
     if [ -r "${CONF_PATH}" ]; then
@@ -112,6 +130,12 @@ load_conf() {
                 UNICORE_TASKBAR_STYLE)
                     if ts="$(validate_taskbar_style "${v}" 2>/dev/null)"; then UNICORE_TASKBAR_STYLE="${ts}"; fi
                     ;;
+                UNICORE_LAYOUT)
+                    if lay="$(validate_layout "${v}" 2>/dev/null)"; then UNICORE_LAYOUT="${lay}"; fi
+                    ;;
+                UNICORE_ACCENT_COLOR)
+                    if acc="$(validate_accent "${v}" 2>/dev/null)"; then UNICORE_ACCENT_COLOR="${acc}"; fi
+                    ;;
                 UNICORE_HIGH_CONTRAST)
                     if hc="$(validate_bool_yn "${v}" 2>/dev/null)"; then UNICORE_HIGH_CONTRAST="${hc}"; fi
                     ;;
@@ -134,8 +158,184 @@ UNICORE_TAP_TO_CLICK=${UNICORE_TAP_TO_CLICK}
 UNICORE_POINTER_SPEED=${UNICORE_POINTER_SPEED}
 UNICORE_DESKTOP_ICONS=${UNICORE_DESKTOP_ICONS}
 UNICORE_TASKBAR_STYLE=${UNICORE_TASKBAR_STYLE}
+UNICORE_LAYOUT=${UNICORE_LAYOUT}
+UNICORE_ACCENT_COLOR=${UNICORE_ACCENT_COLOR}
 UNICORE_HIGH_CONTRAST=${UNICORE_HIGH_CONTRAST}
 UNICORE_LARGE_TEXT=${UNICORE_LARGE_TEXT}
+EOF
+}
+
+write_waybar_config() {
+    dest="$1"
+    icon_theme="$2"
+    pos="bottom"
+    mb="5"
+    mt="0"
+    ml="10"
+    mr="10"
+    h="42"
+    left_mods="[]"
+    center_mods='["custom/start", "custom/files", "custom/browser", "custom/center", "wlr/taskbar"]'
+    task_fmt='{icon} {title:.12}'
+
+    case "${UNICORE_LAYOUT}" in
+        win10)
+            pos="bottom"
+            h="40"
+            mb="0"; mt="0"; ml="0"; mr="0"
+            if [ "${UNICORE_TASKBAR_STYLE}" = "floating" ]; then
+                h="42"; mb="5"; ml="10"; mr="10"
+            fi
+            left_mods='["custom/start", "custom/files", "custom/browser", "custom/center", "custom/taskmgr"]'
+            center_mods='["wlr/taskbar"]'
+            task_fmt='{icon} {title:.14}'
+            ;;
+        macos)
+            pos="top"
+            h="38"
+            mb="0"; mt="4"; ml="10"; mr="10"
+            left_mods='["custom/start", "custom/files", "custom/browser", "custom/center"]'
+            center_mods='["wlr/taskbar"]'
+            task_fmt='{icon} {title:.12}'
+            ;;
+        *)
+            # win11 default: centered floating pill taskbar
+            pos="bottom"
+            h="42"
+            mb="5"; mt="0"; ml="10"; mr="10"
+            if [ "${UNICORE_TASKBAR_STYLE}" = "docked" ]; then
+                mb="0"; ml="0"; mr="0"
+            fi
+            left_mods='[]'
+            center_mods='["custom/start", "custom/files", "custom/browser", "custom/center", "wlr/taskbar"]'
+            task_fmt='{icon} {title:.12}'
+            ;;
+    esac
+
+    cat <<EOF > "${dest}"
+{
+  "layer": "top",
+  "position": "${pos}",
+  "height": ${h},
+  "margin-top": ${mt},
+  "margin-bottom": ${mb},
+  "margin-left": ${ml},
+  "margin-right": ${mr},
+  "spacing": 4,
+  "modules-left": ${left_mods},
+  "modules-center": ${center_mods},
+  "modules-right": [
+    "custom/rec",
+    "custom/update",
+    "tray",
+    "network",
+    "pulseaudio",
+    "battery",
+    "custom/ai",
+    "custom/quick",
+    "clock",
+    "custom/power",
+    "custom/desktop"
+  ],
+  "custom/start": {
+    "format": "\\uf00a",
+    "tooltip-format": "Start Menu (Win)",
+    "on-click": "pkill -f 'unicore-center --start-menu' || /usr/bin/unicore-center --start-menu &"
+  },
+  "custom/files": {
+    "format": "\\uf07b",
+    "tooltip-format": "File Explorer (Win+E)",
+    "on-click": "pcmanfm /home/unicore &"
+  },
+  "custom/browser": {
+    "format": "\\uf0ac",
+    "tooltip-format": "Web Browser (Win+W)",
+    "on-click": "/usr/bin/unicore-browser &"
+  },
+  "custom/center": {
+    "format": "\\uf290",
+    "tooltip-format": "UniCore App Store & Center (Win+C)",
+    "on-click": "pgrep -f '/usr/bin/unicore-center$' >/dev/null || /usr/bin/unicore-center --tab store &"
+  },
+  "custom/taskmgr": {
+    "format": "\\uf080",
+    "tooltip-format": "Task Manager (Ctrl+Shift+Esc)",
+    "on-click": "/usr/bin/unicore-center --taskmgr &"
+  },
+  "wlr/taskbar": {
+    "format": "${task_fmt}",
+    "icon-size": 16,
+    "icon-theme": "${icon_theme}",
+    "tooltip-format": "{title}",
+    "on-click": "activate",
+    "on-click-middle": "close",
+    "all-outputs": true
+  },
+  "tray": {
+    "icon-size": 16,
+    "spacing": 6
+  },
+  "custom/rec": {
+    "exec": "/usr/libexec/unicore-capture waybar-status",
+    "return-type": "json",
+    "interval": 3,
+    "signal": 8,
+    "on-click": "/usr/libexec/unicore-capture record-stop"
+  },
+  "custom/update": {
+    "exec": "/usr/libexec/unicore-update-check --waybar",
+    "return-type": "json",
+    "interval": 300,
+    "on-click": "/usr/bin/unicore-center --tab system &"
+  },
+  "network": {
+    "format-wifi": "\\uf1eb {signalStrength}%",
+    "format-ethernet": "\\uf108",
+    "format-disconnected": "\\uf127",
+    "tooltip-format-wifi": "Wi-Fi: {essid} ({signalStrength}%) — Click for Settings",
+    "tooltip-format-ethernet": "Wired Network ({ifname}) — Click for Settings",
+    "tooltip-format-disconnected": "Offline — Click for Settings",
+    "on-click": "/usr/bin/unicore-center --tab settings:wifi"
+  },
+  "pulseaudio": {
+    "format": "\\uf028 {volume}%",
+    "format-muted": "\\uf026",
+    "tooltip-format": "Sound ({volume}%) — Scroll to adjust, Right-click to mute",
+    "on-click": "/usr/bin/unicore-center --tab settings:audio",
+    "on-click-right": "/usr/libexec/unicore-osd vol-mute",
+    "on-scroll-up": "/usr/libexec/unicore-osd vol-up",
+    "on-scroll-down": "/usr/libexec/unicore-osd vol-down"
+  },
+  "battery": {
+    "format": "\\uf240 {capacity}%",
+    "tooltip-format": "Battery: {capacity}% — Click for Power Settings",
+    "on-click": "/usr/bin/unicore-center --tab settings:power"
+  },
+  "custom/ai": {
+    "format": "\\uf0eb AI",
+    "tooltip-format": "UniCore AI Assistant (Win+A)",
+    "on-click": "pkill -f 'unicore-center --ai' || /usr/bin/unicore-center --ai &"
+  },
+  "custom/quick": {
+    "format": "\\uf1de",
+    "tooltip-format": "Quick Settings (Wi-Fi, Sound, Brightness, Theme, DND)",
+    "on-click": "pkill -f 'unicore-center --quick-settings' || /usr/bin/unicore-center --quick-settings &"
+  },
+  "clock": {
+    "format": "{:%H:%M\\n%d/%m/%Y}",
+    "tooltip-format": "{:%A, %d %B %Y}"
+  },
+  "custom/power": {
+    "format": "\\uf011",
+    "tooltip-format": "Power Options (Win+X)",
+    "on-click": "/usr/bin/unicore-center --power"
+  },
+  "custom/desktop": {
+    "format": " ",
+    "tooltip-format": "Show Desktop (Win+D)",
+    "on-click": "wlrctl toplevel minimize"
+  }
+}
 EOF
 }
 
@@ -161,6 +361,29 @@ apply_configs() {
         [ -d /usr/share/icons/Papirus-Dark ] || ICON_THEME="Adwaita"
     fi
 
+    case "${UNICORE_ACCENT_COLOR}" in
+        purple)
+            ACC_PRIMARY="#6366f1"; ACC_DARK="#4f46e5"; ACC_BRIGHT="#a5b4fc"
+            ACC_SOFT_DARK="#312e81"; ACC_SOFT_LIGHT="#e0e7ff"
+            ;;
+        green)
+            ACC_PRIMARY="#059669"; ACC_DARK="#047857"; ACC_BRIGHT="#34d399"
+            ACC_SOFT_DARK="#064e3b"; ACC_SOFT_LIGHT="#d1fae5"
+            ;;
+        amber)
+            ACC_PRIMARY="#d97706"; ACC_DARK="#b45309"; ACC_BRIGHT="#fbbf24"
+            ACC_SOFT_DARK="#78350f"; ACC_SOFT_LIGHT="#fef3c7"
+            ;;
+        rose)
+            ACC_PRIMARY="#e11d48"; ACC_DARK="#be123c"; ACC_BRIGHT="#fb7185"
+            ACC_SOFT_DARK="#881337"; ACC_SOFT_LIGHT="#ffe4e6"
+            ;;
+        *)
+            ACC_PRIMARY="#0284c7"; ACC_DARK="#0369a1"; ACC_BRIGHT="#38bdf8"
+            ACC_SOFT_DARK="#1e3a5f"; ACC_SOFT_LIGHT="#dbeafe"
+            ;;
+    esac
+
     GTK_FONT="DejaVu Sans 10"
     [ "${UNICORE_LARGE_TEXT}" = "yes" ] && GTK_FONT="DejaVu Sans 13"
 
@@ -176,26 +399,66 @@ EOF
 [config]
 quick_exec=1
 single_click=0
+thumbnail_local=1
+thumbnail_max=8192
 
 [ui]
 icon_theme=${ICON_THEME}
+show_thumbnail=1
 EOF
 
     if [ -f "/usr/share/unicore/themes/waybar-${UNICORE_THEME}.css" ]; then
         cp "/usr/share/unicore/themes/waybar-${UNICORE_THEME}.css" "${CFG_ROOT}/waybar/style.css"
-        if [ "${UNICORE_TASKBAR_STYLE}" = "floating" ]; then
-            if [ "${UNICORE_THEME}" = "light" ]; then
-                FLOAT_BORDER="rgba(148, 163, 184, 0.55)"
-            else
-                FLOAT_BORDER="rgba(56, 189, 248, 0.35)"
-            fi
-            cat <<EOF >> "${CFG_ROOT}/waybar/style.css"
+        if [ "${UNICORE_THEME}" = "light" ]; then
+            ACC_SOFT="${ACC_SOFT_LIGHT}"
+            FLOAT_BORDER="rgba(148, 163, 184, 0.55)"
+        else
+            ACC_SOFT="${ACC_SOFT_DARK}"
+            FLOAT_BORDER="${ACC_BRIGHT}"
+        fi
+        cat <<EOF >> "${CFG_ROOT}/waybar/style.css"
 
-/* Floating macOS-style Pill Taskbar Override */
+/* Zorin-Style Accent Color Override (${UNICORE_ACCENT_COLOR}) */
+#custom-start,
+#custom-update.update-available {
+    background-color: ${ACC_PRIMARY};
+}
+#custom-start:hover,
+#custom-update.update-available:hover {
+    background-color: ${ACC_DARK};
+}
+#taskbar button.active {
+    background-color: ${ACC_SOFT};
+    border-bottom: 2px solid ${ACC_BRIGHT};
+}
+#custom-desktop:hover {
+    background-color: ${ACC_BRIGHT};
+}
+EOF
+        if [ "${UNICORE_TASKBAR_STYLE}" = "floating" ] || [ "${UNICORE_LAYOUT}" = "win11" ] || [ "${UNICORE_LAYOUT}" = "macos" ]; then
+            if [ "${UNICORE_LAYOUT}" = "win10" ] && [ "${UNICORE_TASKBAR_STYLE}" = "docked" ]; then
+                cat <<'EOF' >> "${CFG_ROOT}/waybar/style.css"
+window#waybar {
+    margin: 0;
+    border-radius: 0;
+}
+EOF
+            else
+                cat <<EOF >> "${CFG_ROOT}/waybar/style.css"
+
+/* Floating Pill Taskbar Override (${UNICORE_LAYOUT}) */
 window#waybar {
     margin: 4px 8px;
     border-radius: 14px;
     border: 1px solid ${FLOAT_BORDER};
+}
+EOF
+            fi
+        else
+            cat <<'EOF' >> "${CFG_ROOT}/waybar/style.css"
+window#waybar {
+    margin: 0;
+    border-radius: 0;
 }
 EOF
         fi
@@ -220,22 +483,7 @@ EOF
         fi
     fi
 
-    if [ -r /etc/xdg/waybar/config.jsonc ]; then
-        if [ "${UNICORE_TASKBAR_STYLE}" = "floating" ]; then
-            awk '{
-                if ($0 ~ /"height": 40,/) {
-                    print "  \"height\": 42,"
-                    print "  \"margin-bottom\": 4,"
-                    print "  \"margin-left\": 8,"
-                    print "  \"margin-right\": 8,"
-                } else {
-                    print
-                }
-            }' /etc/xdg/waybar/config.jsonc > "${CFG_ROOT}/waybar/config.jsonc"
-        else
-            cp /etc/xdg/waybar/config.jsonc "${CFG_ROOT}/waybar/config.jsonc"
-        fi
-    fi
+    write_waybar_config "${CFG_ROOT}/waybar/config.jsonc" "${ICON_THEME}"
 
     if [ -f "/usr/share/unicore/themes/fuzzel-${UNICORE_THEME}.ini" ]; then
         cp "/usr/share/unicore/themes/fuzzel-${UNICORE_THEME}.ini" "${CFG_ROOT}/fuzzel/fuzzel.ini"
@@ -321,10 +569,11 @@ shift || true
 case "${cmd}" in
     status)
         load_conf
-        printf 'theme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\ntaskbar_style=%s\nhigh_contrast=%s\nlarge_text=%s\n' \
+        printf 'theme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\ntaskbar_style=%s\nlayout=%s\naccent_color=%s\nhigh_contrast=%s\nlarge_text=%s\n' \
             "${UNICORE_THEME}" "${UNICORE_WALLPAPER}" "${UNICORE_KB_LAYOUT}" \
             "${UNICORE_NATURAL_SCROLL}" "${UNICORE_TAP_TO_CLICK}" "${UNICORE_POINTER_SPEED}" \
             "${UNICORE_DESKTOP_ICONS}" "${UNICORE_TASKBAR_STYLE}" \
+            "${UNICORE_LAYOUT}" "${UNICORE_ACCENT_COLOR}" \
             "${UNICORE_HIGH_CONTRAST}" "${UNICORE_LARGE_TEXT}"
         ;;
     apply)
@@ -370,6 +619,19 @@ case "${cmd}" in
                     shift || { echo "Missing value for --taskbar-style" >&2; exit 2; }
                     UNICORE_TASKBAR_STYLE="$(validate_taskbar_style "$1")" || { echo "Invalid taskbar-style value: $1" >&2; exit 2; }
                     ;;
+                --layout)
+                    shift || { echo "Missing value for --layout" >&2; exit 2; }
+                    UNICORE_LAYOUT="$(validate_layout "$1")" || { echo "Invalid layout value: $1" >&2; exit 2; }
+                    if [ "${UNICORE_LAYOUT}" = "win10" ]; then
+                        UNICORE_TASKBAR_STYLE="docked"
+                    else
+                        UNICORE_TASKBAR_STYLE="floating"
+                    fi
+                    ;;
+                --accent)
+                    shift || { echo "Missing value for --accent" >&2; exit 2; }
+                    UNICORE_ACCENT_COLOR="$(validate_accent "$1")" || { echo "Invalid accent color: $1" >&2; exit 2; }
+                    ;;
                 --high-contrast)
                     shift || { echo "Missing value for --high-contrast" >&2; exit 2; }
                     UNICORE_HIGH_CONTRAST="$(validate_bool_yn "$1")" || { echo "Invalid high-contrast value: $1" >&2; exit 2; }
@@ -389,7 +651,7 @@ case "${cmd}" in
         apply_configs 0
         ;;
     *)
-        echo "Usage: unicore-personalize <status|apply [--no-reload]|set [--theme dark|light] [--wallpaper PATH] [--kb-layout us|my|gb|de|fr|jp] [--natural-scroll yes|no] [--tap yes|no] [--pointer-speed -0.8..0.8] [--desktop-icons yes|no] [--taskbar-style docked|floating]>" >&2
+        echo "Usage: unicore-personalize <status|apply [--no-reload]|set [--theme dark|light] [--layout win11|win10|macos] [--accent blue|purple|green|amber|rose] [--wallpaper PATH] [--kb-layout us|my|gb|de|fr|jp] [--natural-scroll yes|no] [--tap yes|no] [--pointer-speed -0.8..0.8] [--desktop-icons yes|no] [--taskbar-style docked|floating] [--high-contrast yes|no] [--large-text yes|no]>" >&2
         exit 2
         ;;
 esac

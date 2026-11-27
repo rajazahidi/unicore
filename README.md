@@ -1,8 +1,13 @@
-# UniCore OS (`0.5.0`)
+# UniCore OS (`0.6.0`)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern x86_64 & ARM64 PCs**.
 
 ## Key Capabilities
+
+* **Windows 11 & Zorin Familiarity Edition (`v0.6.0`)**:
+  * **Native Graphical Start Menu (`--start-menu` / `Win` key)**: Instant search, 2×4 Pinned Apps grid, Category filters (*All, Internet, Office, Media, Games, System*), user quick folders (*Docs, Downloads, Pictures*), Emoji & Power controls (`Alt+Space` preserved for `fuzzel`).
+  * **Windows 11 Modern Default + Zorin 1-Click Layouts & 5 Accent Colors**: Centered floating icon-first taskbar (`Font Awesome 6` + real Papirus `{icon}` app icons) by default, with 1-click **Windows 10 / Zorin Classic** and **macOS Top Dock** layouts plus 5 live accent colors (**Sky Blue**, **Indigo Purple**, **Emerald Green**, **Warm Amber**, **Coral Rose**).
+  * **Zero-Friction Daily Driver**: Desktop right-click menu (`labwc/menu.xml`), double-click `.exe`/`.msi`/`.apk` & archive manager (`xarchiver` + `7zip` + *Extract Here* / *Compress to ZIP*), File Explorer thumbnails (`tumbler` + `ffmpegthumbnailer`), USB Plug & Play auto-mount + tray Safely Eject (`udiskie`), translucent Volume & Brightness keyboard OSD (`wob`), Windows 11 Emoji Picker (`Win+.`), metric-compatible Windows Office fonts (`Carlito`/Calibri, `Liberation`/Arial & Times New Roman), friendly non-technical header status, and a 4-step OOBE wizard with layout/accent preview + optional 1-click Starter App Packs.
 
 * **Daily-Driver Essentials, Boot Splash & Accessibility (`v0.5.0`)**:
   * **Branded Framebuffer Boot Splash** (`busybox fbsplash`, 0 MB bloat, auto-clears for LUKS2/Safe Mode), **Waybar System Tray** (Steam/Discord/Telegram/LocalSend), compact 1280px Floating Taskbar, **Noto Color Emoji**, and **Do Not Disturb (DND)** + Alert controls (`makoctl`).

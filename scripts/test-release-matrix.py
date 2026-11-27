@@ -280,6 +280,18 @@ test -e /usr/libexec/gvfs/gvfsd-smb || test -e /usr/libexec/gvfsd-smb || test -e
 /usr/libexec/unicore-capture waybar-status | grep -q '"class":"idle"'
 /usr/libexec/unicore-notify status | grep -q '^dnd='
 /usr/libexec/unicore-a11y status | grep -q '^tts_available=1$'
+echo "Checking v0.6.0 Windows 11 / Zorin Familiarity (Desktop Menu, OSD, USB Auto-Mount, Thumbnails, Archives, Windows Fonts)..."
+test -f /etc/xdg/labwc/menu.xml
+test -f /etc/fonts/local.conf
+test -x /usr/libexec/unicore-osd
+test -f /usr/share/file-manager/actions/unicore-archive-extract.desktop
+test -f /usr/share/file-manager/actions/unicore-archive-compress.desktop
+command -v udiskie
+command -v wob
+command -v wtype
+command -v ffmpegthumbnailer
+command -v xarchiver
+/usr/libexec/unicore-osd status | grep -q '^wob=1$'
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
@@ -303,6 +315,8 @@ su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
     /usr/libexec/unicore-personalize set \
         --theme light \
+        --layout win11 \
+        --accent purple \
         --wallpaper /usr/share/unicore/wallpaper-light.png \
         --kb-layout my \
         --natural-scroll no \
@@ -311,6 +325,8 @@ su -s /bin/sh unicore -c '
         --taskbar-style floating
 '
 grep -q '^UNICORE_THEME=light$' /data/home/.config/unicore/personalize.conf
+grep -q '^UNICORE_LAYOUT=win11$' /data/home/.config/unicore/personalize.conf
+grep -q '^UNICORE_ACCENT_COLOR=purple$' /data/home/.config/unicore/personalize.conf
 grep -q '^UNICORE_TASKBAR_STYLE=floating$' /data/home/.config/unicore/personalize.conf
 grep -q '^UNICORE_KB_LAYOUT=my$' /data/home/.config/unicore/personalize.conf
 grep -q '^UNICORE_NATURAL_SCROLL=no$' /data/home/.config/unicore/personalize.conf
@@ -347,10 +363,16 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --capture >/tmp/center_cap.log 2>&1 &
     sleep 3
     grim /tmp/v050_capture.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --start-menu >/tmp/center_start.log 2>&1 &
+    sleep 3
+    grim /tmp/v060_start.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
 test -s /tmp/v050_capture.png
+test -s /tmp/v060_start.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -361,6 +383,9 @@ echo "===PNG_DEV_B64_END==="
 echo "===PNG_CAP_B64_START==="
 base64 /tmp/v050_capture.png
 echo "===PNG_CAP_B64_END==="
+echo "===PNG_START_B64_START==="
+base64 /tmp/v060_start.png
+echo "===PNG_START_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -423,7 +448,13 @@ printf '\n===GATE1_OK===\n'
         cap_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v050_capture.png")
         with open(cap_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", cap_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}")
+        start_m = re.search(r"===PNG_START_B64_START===\s*(.*?)\s*===PNG_START_B64_END===", out, re.DOTALL)
+        if not start_m:
+            raise RuntimeError("Missing v0.6.0 Start Menu screenshot payload in Gate 1 output")
+        start_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v060_start.png")
+        with open(start_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", start_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}")
     finally:
         h.close()
 

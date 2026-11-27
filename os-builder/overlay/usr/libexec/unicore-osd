@@ -1,0 +1,82 @@
+#!/bin/sh
+# UniCore OS Wayland On-Screen Display (OSD) helper for Volume & Brightness keys using wob
+set -eu
+
+RT_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+WOB_PIPE="${RT_DIR}/unicore-wob.sock"
+
+send_wob() {
+    val="$1"
+    [ "${val}" -lt 0 ] 2>/dev/null && val=0
+    [ "${val}" -gt 100 ] 2>/dev/null && val=100
+    if [ -p "${WOB_PIPE}" ] && pgrep -u "$(id -u)" -x wob >/dev/null 2>&1; then
+        printf '%s\n' "${val}" > "${WOB_PIPE}" &
+    fi
+}
+
+current_vol() {
+    if command -v pactl >/dev/null 2>&1; then
+        mute="$(pactl get-sink-mute @DEFAULT_SINK@ 2>/dev/null | awk '{print $2}' || echo no)"
+        if [ "${mute}" = "yes" ]; then
+            echo 0
+            return
+        fi
+        pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i ~ /%$/){gsub(/%/,"",$i); print $i; exit}}' || echo 50
+    else
+        echo 50
+    fi
+}
+
+current_bright() {
+    if command -v brightnessctl >/dev/null 2>&1; then
+        cur="$(brightnessctl -c backlight get 2>/dev/null || echo 0)"
+        max="$(brightnessctl -c backlight max 2>/dev/null || echo 100)"
+        if [ "${max}" -gt 0 ] 2>/dev/null; then
+            echo $((cur * 100 / max))
+            return
+        fi
+    fi
+    echo 80
+}
+
+cmd="${1:-status}"
+case "${cmd}" in
+    start-daemon)
+        command -v wob >/dev/null 2>&1 || exit 0
+        mkdir -p "${RT_DIR}"
+        rm -f "${WOB_PIPE}"
+        mkfifo "${WOB_PIPE}"
+        pkill -u "$(id -u)" -x wob >/dev/null 2>&1 || true
+        tail -f "${WOB_PIPE}" 2>/dev/null | wob --bar-color "#38bdf8ff" --background-color "#0f172ae0" --border-color "#38bdf8cc" --border-radius 8 --width 260 --height 32 </dev/null >/dev/null 2>&1 &
+        ;;
+    vol-up)
+        command -v pactl >/dev/null 2>&1 && pactl set-sink-mute @DEFAULT_SINK@ 0 >/dev/null 2>&1 || true
+        command -v pactl >/dev/null 2>&1 && pactl set-sink-volume @DEFAULT_SINK@ +5% >/dev/null 2>&1 || true
+        send_wob "$(current_vol)"
+        ;;
+    vol-down)
+        command -v pactl >/dev/null 2>&1 && pactl set-sink-volume @DEFAULT_SINK@ -5% >/dev/null 2>&1 || true
+        send_wob "$(current_vol)"
+        ;;
+    vol-mute)
+        command -v pactl >/dev/null 2>&1 && pactl set-sink-mute @DEFAULT_SINK@ toggle >/dev/null 2>&1 || true
+        send_wob "$(current_vol)"
+        ;;
+    bright-up)
+        command -v brightnessctl >/dev/null 2>&1 && brightnessctl -c backlight set +10% >/dev/null 2>&1 || true
+        send_wob "$(current_bright)"
+        ;;
+    bright-down)
+        command -v brightnessctl >/dev/null 2>&1 && brightnessctl -c backlight set 10%- >/dev/null 2>&1 || true
+        send_wob "$(current_bright)"
+        ;;
+    status)
+        wob_avail=0
+        command -v wob >/dev/null 2>&1 && wob_avail=1 || true
+        printf 'wob=%s\npipe=%s\n' "${wob_avail}" "${WOB_PIPE}"
+        ;;
+    *)
+        echo "Usage: unicore-osd <start-daemon|vol-up|vol-down|vol-mute|bright-up|bright-down|status>" >&2
+        exit 2
+        ;;
+esac

@@ -1,5 +1,5 @@
 * {
-    font-family: "DejaVu Sans", "Noto Color Emoji", sans-serif;
+    font-family: "DejaVu Sans", "Font Awesome 6 Free", "Font Awesome 6 Free Solid", "Noto Color Emoji", sans-serif;
     font-size: 11.5px;
     border: none;
     border-radius: 0;
@@ -7,18 +7,20 @@
 }
 
 window#waybar {
-    background-color: #0f172a;
+    background-color: rgba(15, 23, 42, 0.94);
     color: #f8fafc;
-    border-top: 1px solid #334155;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 14px;
 }
 
 #custom-start {
     background-color: #0284c7;
     color: #ffffff;
+    font-size: 14px;
     font-weight: bold;
-    padding: 3px 11px;
-    margin: 5px 2px 5px 5px;
-    border-radius: 6px;
+    padding: 3px 12px;
+    margin: 5px 2px 5px 6px;
+    border-radius: 8px;
 }
 
 #custom-start:hover {
@@ -31,9 +33,10 @@ window#waybar {
 #custom-taskmgr {
     background-color: #1e293b;
     color: #e2e8f0;
-    padding: 3px 8px;
+    font-size: 13px;
+    padding: 3px 10px;
     margin: 5px 1px;
-    border-radius: 6px;
+    border-radius: 8px;
     border: 1px solid #334155;
 }
 
@@ -45,9 +48,9 @@ window#waybar {
 }
 
 #taskbar button {
-    padding: 3px 7px;
+    padding: 3px 8px;
     margin: 5px 1px;
-    border-radius: 6px;
+    border-radius: 8px;
     background-color: #1e293b;
     color: #cbd5e1;
     border-bottom: 2px solid transparent;
@@ -65,7 +68,7 @@ window#waybar {
     font-weight: bold;
     padding: 3px 8px;
     margin: 5px 2px;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 #custom-rec.idle,
@@ -81,7 +84,7 @@ window#waybar {
     font-weight: bold;
     padding: 3px 8px;
     margin: 5px 2px;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 #custom-update.update-available:hover {
@@ -89,19 +92,19 @@ window#waybar {
 }
 
 #tray {
-    padding: 3px 6px;
+    padding: 3px 7px;
     margin: 5px 1px;
     background-color: #1e293b;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 #custom-ai {
     background-color: #4f46e5;
     color: #ffffff;
     font-weight: bold;
-    padding: 3px 8px;
+    padding: 3px 9px;
     margin: 5px 1px;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 #custom-ai:hover {
@@ -112,11 +115,15 @@ window#waybar {
 #pulseaudio,
 #battery,
 #custom-quick {
-    padding: 3px 7px;
+    padding: 3px 8px;
     margin: 5px 1px;
     background-color: #1e293b;
-    border-radius: 6px;
+    border-radius: 8px;
     color: #cbd5e1;
+}
+
+#custom-quick {
+    font-size: 13px;
 }
 
 #network:hover,
@@ -127,10 +134,10 @@ window#waybar {
 }
 
 #clock {
-    padding: 2px 8px;
+    padding: 2px 9px;
     margin: 4px 2px;
     background-color: #1e293b;
-    border-radius: 6px;
+    border-radius: 8px;
     color: #f8fafc;
     font-size: 10.5px;
     font-weight: bold;
@@ -139,10 +146,11 @@ window#waybar {
 #custom-power {
     background-color: #991b1b;
     color: #ffffff;
+    font-size: 13px;
     font-weight: bold;
-    padding: 3px 8px;
+    padding: 3px 9px;
     margin: 5px 2px;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 #custom-power:hover {
@@ -152,11 +160,12 @@ window#waybar {
 #custom-desktop {
     min-width: 8px;
     padding: 0 3px;
-    margin: 4px 0 4px 2px;
+    margin: 5px 4px 5px 2px;
     border-left: 1px solid #334155;
-    background-color: #0f172a;
+    background-color: transparent;
 }
 
 #custom-desktop:hover {
     background-color: #38bdf8;
+    border-radius: 4px;
 }

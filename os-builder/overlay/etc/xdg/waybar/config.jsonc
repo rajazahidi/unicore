@@ -1,16 +1,17 @@
 {
   "layer": "top",
   "position": "bottom",
-  "height": 40,
+  "height": 42,
+  "margin-bottom": 5,
+  "margin-left": 10,
+  "margin-right": 10,
   "spacing": 4,
-  "modules-left": [
+  "modules-left": [],
+  "modules-center": [
     "custom/start",
     "custom/files",
     "custom/browser",
     "custom/center",
-    "custom/taskmgr"
-  ],
-  "modules-center": [
     "wlr/taskbar"
   ],
   "modules-right": [
@@ -27,32 +28,33 @@
     "custom/desktop"
   ],
   "custom/start": {
-    "format": "Start",
+    "format": "\uf00a",
     "tooltip-format": "Start Menu (Win)",
-    "on-click": "pkill -x fuzzel || fuzzel"
+    "on-click": "pkill -f 'unicore-center --start-menu' || /usr/bin/unicore-center --start-menu &"
   },
   "custom/files": {
-    "format": "Files",
+    "format": "\uf07b",
     "tooltip-format": "File Explorer (Win+E)",
     "on-click": "pcmanfm /home/unicore &"
   },
   "custom/browser": {
-    "format": "Browser",
+    "format": "\uf0ac",
     "tooltip-format": "Web Browser (Win+W)",
     "on-click": "/usr/bin/unicore-browser &"
   },
   "custom/center": {
-    "format": "App Center",
-    "tooltip-format": "UniCore App & Security Center (Win+C)",
-    "on-click": "pgrep -f '/usr/bin/unicore-center' >/dev/null || /usr/bin/unicore-center &"
+    "format": "\uf290",
+    "tooltip-format": "UniCore App Store & Center (Win+C)",
+    "on-click": "pgrep -f '/usr/bin/unicore-center$' >/dev/null || /usr/bin/unicore-center --tab store &"
   },
   "custom/taskmgr": {
-    "format": "Tasks",
+    "format": "\uf080",
     "tooltip-format": "Task Manager (Ctrl+Shift+Esc)",
     "on-click": "/usr/bin/unicore-center --taskmgr &"
   },
   "wlr/taskbar": {
-    "format": "{title:.14}",
+    "format": "{icon} {title:.12}",
+    "icon-size": 16,
     "tooltip-format": "{title}",
     "on-click": "activate",
     "on-click-middle": "close",
@@ -60,7 +62,7 @@
   },
   "tray": {
     "icon-size": 16,
-    "spacing": 5
+    "spacing": 6
   },
   "custom/rec": {
     "exec": "/usr/libexec/unicore-capture waybar-status",
@@ -76,34 +78,36 @@
     "on-click": "/usr/bin/unicore-center --tab system &"
   },
   "network": {
-    "format-wifi": "WiFi {signalStrength}%",
-    "format-ethernet": "Net {ifname}",
-    "format-disconnected": "Offline",
-    "tooltip-format": "Wi-Fi & Network Settings",
+    "format-wifi": "\uf1eb {signalStrength}%",
+    "format-ethernet": "\uf108",
+    "format-disconnected": "\uf127",
+    "tooltip-format-wifi": "Wi-Fi: {essid} ({signalStrength}%) — Click for Network Settings",
+    "tooltip-format-ethernet": "Wired Network ({ifname}) — Click for Network Settings",
+    "tooltip-format-disconnected": "Offline — Click for Network Settings",
     "on-click": "/usr/bin/unicore-center --tab settings:wifi"
   },
   "pulseaudio": {
-    "format": "Vol {volume}%",
-    "format-muted": "Muted",
-    "tooltip-format": "Audio Settings (Scroll: Volume, Right-click: Mute)",
+    "format": "\uf028 {volume}%",
+    "format-muted": "\uf026",
+    "tooltip-format": "Sound ({volume}%) — Click for Settings, Scroll for Volume, Right-click to Mute",
     "on-click": "/usr/bin/unicore-center --tab settings:audio",
-    "on-click-right": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
-    "on-scroll-up": "pactl set-sink-volume @DEFAULT_SINK@ +5%",
-    "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -5%"
+    "on-click-right": "/usr/libexec/unicore-osd vol-mute",
+    "on-scroll-up": "/usr/libexec/unicore-osd vol-up",
+    "on-scroll-down": "/usr/libexec/unicore-osd vol-down"
   },
   "battery": {
-    "format": "Bat {capacity}%",
-    "tooltip-format": "Power & Battery Settings",
+    "format": "\uf240 {capacity}%",
+    "tooltip-format": "Battery: {capacity}% — Click for Power Settings",
     "on-click": "/usr/bin/unicore-center --tab settings:power"
   },
   "custom/ai": {
-    "format": "AI",
-    "tooltip-format": "UniCore AI Assistant (Win+A — Local Ollama / Gemini / OpenAI)",
+    "format": "\uf0eb AI",
+    "tooltip-format": "UniCore AI Assistant (Win+A)",
     "on-click": "pkill -f 'unicore-center --ai' || /usr/bin/unicore-center --ai &"
   },
   "custom/quick": {
-    "format": "Quick",
-    "tooltip-format": "Quick Settings Panel (Wi-Fi / Sound / Theme / Power)",
+    "format": "\uf1de",
+    "tooltip-format": "Quick Settings (Wi-Fi, Sound, Brightness, Theme, DND)",
     "on-click": "pkill -f 'unicore-center --quick-settings' || /usr/bin/unicore-center --quick-settings &"
   },
   "clock": {
@@ -111,7 +115,7 @@
     "tooltip-format": "{:%A, %d %B %Y}"
   },
   "custom/power": {
-    "format": "Power",
+    "format": "\uf011",
     "tooltip-format": "Power Options (Win+X)",
     "on-click": "/usr/bin/unicore-center --power"
   },
