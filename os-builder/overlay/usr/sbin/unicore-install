@@ -84,6 +84,7 @@ find_largest_gpt_free_gap() {
 # Detect if a disk has an existing EFI System Partition (returns partition device path or empty).
 find_existing_esp_on_disk() {
     dev="$1"
+    sync 2>/dev/null || true
     pnum="$(parted -ms "${dev}" print 2>/dev/null | awk -F: '
         $1 ~ /^[0-9]+$/ && ($7 ~ /esp/ || $7 ~ /boot/) && $5 ~ /fat/ { print $1; exit }
     ' || true)"
@@ -91,6 +92,14 @@ find_existing_esp_on_disk() {
         cand="$(part_path "${dev}" "${pnum}")"
         [ -b "${cand}" ] && { printf '%s\n' "${cand}"; return 0; }
     fi
+    # Fallback: match any GPT esp/boot partition whose blkid filesystem is vfat
+    for pnum in $(parted -ms "${dev}" print 2>/dev/null | awk -F: '$1 ~ /^[0-9]+$/ && ($7 ~ /esp/ || $7 ~ /boot/) { print $1 }' || true); do
+        cand="$(part_path "${dev}" "${pnum}")"
+        if [ -b "${cand}" ] && [ "$(blkid -s TYPE -o value "${cand}" 2>/dev/null || true)" = "vfat" ]; then
+            printf '%s\n' "${cand}"
+            return 0
+        fi
+    done
     return 0
 }
 

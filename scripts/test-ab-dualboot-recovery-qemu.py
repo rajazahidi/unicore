@@ -384,6 +384,8 @@ mount -t ext4 /dev/vda2 /tmp/win_c
 printf 'WINDOWS_USER_FILES_MUST_REMAIN_100_PERCENT_INTACT\n' > /tmp/win_c/WIN_SENTINEL.txt
 WIN_DATA_SHA_BEFORE="$(sha256sum /tmp/win_c/WIN_SENTINEL.txt | awk '{print $1}')"
 umount /tmp/win_c
+sync
+udevadm settle 2>/dev/null || true
 
 # Verify 9-column --list-tsv reports dualboot_eligible=1 and windows_detected=1
 TSV_LINE="$(/usr/sbin/unicore-install --list-tsv | grep '^/dev/vda	')"
