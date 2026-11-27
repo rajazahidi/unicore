@@ -154,6 +154,7 @@ case "${cmd}" in
     delete)
         uname="${1:-}"
         [ -n "${uname}" ] || { echo "Usage: unicore-users delete <username>" >&2; exit 2; }
+        validate_username "${uname}" || { echo "Invalid username '${uname}'." >&2; exit 1; }
         if [ "${uname}" = "unicore" ] || [ "${uname}" = "root" ]; then
             echo "Cannot delete primary system account '${uname}'." >&2
             exit 1

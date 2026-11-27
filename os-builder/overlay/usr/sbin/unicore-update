@@ -6,7 +6,7 @@ export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
 ARCH="$(uname -m 2>/dev/null || echo x86_64)"
 
 UNILOAD_BIN="/usr/bin/uniload"
-WORK="/tmp/unicore-update.$$"
+WORK="$(umask 077 && mktemp -d /tmp/unicore-update.XXXXXX)"
 STAGING="/data/unicore/staging"
 EFI_MNT="${WORK}/efi"
 SLOT_MNT="${WORK}/slot"

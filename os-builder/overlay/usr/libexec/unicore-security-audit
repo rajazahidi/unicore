@@ -1,0 +1,173 @@
+#!/bin/sh
+# UniCore OS v1.0.0 Zero-Trust Security Audit & 0-MB-Idle Verifier
+set -eu
+
+MODE="${1:-check}"
+DOAS_CONF="${UNICORE_AUDIT_DOAS_CONF:-/etc/doas.d/unicore.conf}"
+UPDATE_PUB="${UNICORE_AUDIT_UPDATE_PUB:-/etc/unicore/update.pub}"
+UPDATE_CONF="${UNICORE_AUDIT_UPDATE_CONF:-/etc/unicore/update.conf}"
+
+if [ "${MODE}" = "--fix" ] || [ "${MODE}" = "fix" ]; then
+    for secret_file in \
+        /data/ai/provider.conf \
+        /data/home/.config/rclone/rclone.conf \
+        /data/unicore/users/shadow.sync; do
+        if [ -f "${secret_file}" ]; then
+            chmod 0600 "${secret_file}" 2>/dev/null || true
+        fi
+    done
+fi
+
+issues=""
+add_issue() {
+    if [ -n "${issues}" ]; then
+        issues="${issues},$1"
+    else
+        issues="$1"
+    fi
+}
+
+passed=0
+total=6
+
+# 1. doas.conf least-privilege check (only unicore -> /usr/libexec/unicore-sys-helper)
+doas_ok=0
+if [ -r "${DOAS_CONF}" ]; then
+    bad_lines="$(grep -E '^[[:space:]]*permit' "${DOAS_CONF}" 2>/dev/null | grep -v 'cmd /usr/libexec/unicore-sys-helper' || true)"
+    mode_doas="$(stat -c '%a' "${DOAS_CONF}" 2>/dev/null || echo 600)"
+    case "${mode_doas}" in
+        600|400|640|440) perm_doas_ok=1 ;;
+        *) perm_doas_ok=0 ;;
+    esac
+    if [ -z "${bad_lines}" ] && [ "${perm_doas_ok}" = "1" ]; then
+        doas_ok=1
+        passed=$((passed + 1))
+    else
+        add_issue "doas_conf_policy"
+    fi
+else
+    # Root user can read /etc/doas.d/unicore.conf; non-root sees unreadable 0600 (which IS locked!)
+    if [ -e "${DOAS_CONF}" ] && [ "$(id -u)" -ne 0 ]; then
+        mode_doas="$(stat -c '%a' "${DOAS_CONF}" 2>/dev/null || echo 600)"
+        if [ "${mode_doas}" = "600" ] || [ "${mode_doas}" = "400" ]; then
+            doas_ok=1
+            passed=$((passed + 1))
+        else
+            add_issue "doas_conf_perms"
+        fi
+    else
+        add_issue "doas_conf_missing"
+    fi
+fi
+
+# 2. Signed OTA enforcement (Ed25519 pubkey + REQUIRE_SIGNATURE=1)
+ota_sig_ok=0
+if [ -f "${UPDATE_PUB}" ] && [ -r "${UPDATE_CONF}" ] && grep -q '^REQUIRE_SIGNATURE=1$' "${UPDATE_CONF}" 2>/dev/null; then
+    ota_sig_ok=1
+    passed=$((passed + 1))
+else
+    add_issue "ota_signature_not_enforced"
+fi
+
+# 3. No world-writable UniCore helper scripts
+libexec_ok=1
+bad_w=""
+for d in /usr/libexec /usr/sbin; do
+    if [ -d "${d}" ]; then
+        found_w="$(find "${d}" -maxdepth 1 \( -name 'unicore-*' -o -name 'uniload-*' \) -perm -0002 2>/dev/null || true)"
+        if [ -n "${found_w}" ]; then
+            libexec_ok=0
+            bad_w="${found_w}"
+        fi
+    fi
+done
+if [ "${libexec_ok}" = "1" ]; then
+    passed=$((passed + 1))
+else
+    add_issue "world_writable_helper:${bad_w}"
+fi
+
+# 4. Sensitive credential files strictly 0600 (no group/other read/write)
+creds_ok=1
+for secret_file in \
+    /data/ai/provider.conf \
+    /data/home/.config/rclone/rclone.conf \
+    /data/unicore/users/shadow.sync; do
+    if [ -f "${secret_file}" ]; then
+        fmode="$(stat -c '%a' "${secret_file}" 2>/dev/null || echo 600)"
+        case "${fmode}" in
+            600|400) ;;
+            *)
+                creds_ok=0
+                add_issue "secret_perms:${secret_file}(${fmode})"
+                ;;
+        esac
+    fi
+done
+if [ "${creds_ok}" = "1" ]; then
+    passed=$((passed + 1))
+fi
+
+# 5. Bubblewrap confinement binary available
+bwrap_ok=0
+if [ -x /usr/bin/bwrap ] || command -v bwrap >/dev/null 2>&1; then
+    bwrap_ok=1
+    passed=$((passed + 1))
+else
+    add_issue "bwrap_missing"
+fi
+
+# 6. Stateful firewall helper & nftables ready
+fw_ready=0
+fw_active=0
+if [ -x /usr/libexec/unicore-firewall ] && command -v nft >/dev/null 2>&1; then
+    fw_ready=1
+    passed=$((passed + 1))
+    if nft list table inet unicore_fw >/dev/null 2>&1; then
+        fw_active=1
+    fi
+else
+    add_issue "firewall_unavailable"
+fi
+
+# 0-MB-Idle audit for heavy optional subsystems
+idle_heavy_count=0
+idle_heavy_running=""
+for proc in kdeconnectd cupsd fwupd ollama bluetoothd; do
+    if pgrep -x "${proc}" >/dev/null 2>&1; then
+        idle_heavy_count=$((idle_heavy_count + 1))
+        if [ -n "${idle_heavy_running}" ]; then
+            idle_heavy_running="${idle_heavy_running},${proc}"
+        else
+            idle_heavy_running="${proc}"
+        fi
+    fi
+done
+[ -n "${idle_heavy_running}" ] || idle_heavy_running="none"
+
+# RAM usage snapshot from /proc/meminfo
+ram_total_mb=0
+ram_used_mb=0
+if [ -r /proc/meminfo ]; then
+    ram_total_kb="$(awk '/^MemTotal:/{print $2; exit}' /proc/meminfo 2>/dev/null || echo 0)"
+    ram_avail_kb="$(awk '/^MemAvailable:/{print $2; exit}' /proc/meminfo 2>/dev/null || echo 0)"
+    ram_total_mb=$((ram_total_kb / 1024))
+    if [ "${ram_total_kb}" -ge "${ram_avail_kb}" ]; then
+        ram_used_mb=$(((ram_total_kb - ram_avail_kb) / 1024))
+    fi
+fi
+
+hw_tier="unknown"
+if [ -x /usr/bin/uniload ]; then
+    hw_tier="$(/usr/bin/uniload hw-profile --env 2>/dev/null | awk -F= '$1=="UNICORE_HW_TIER"{print $2; exit}' || echo unknown)"
+fi
+
+status="PASS"
+if [ "${passed}" -lt "${total}" ]; then
+    status="WARN"
+fi
+
+printf 'status=%s\nchecks_passed=%s\nchecks_total=%s\ndoas_conf_locked=%s\nota_signature_enforced=%s\nlibexec_perms_ok=%s\ncredentials_0600=%s\nbwrap_available=%s\nfirewall_ready=%s\nfirewall_active=%s\nidle_heavy_count=%s\nidle_heavy_running=%s\nram_total_mb=%s\nram_used_mb=%s\nhw_tier=%s\nissues=%s\n' \
+    "${status}" "${passed}" "${total}" "${doas_ok}" "${ota_sig_ok}" "${libexec_ok}" \
+    "${creds_ok}" "${bwrap_ok}" "${fw_ready}" "${fw_active}" "${idle_heavy_count}" \
+    "${idle_heavy_running}" "${ram_total_mb}" "${ram_used_mb}" "${hw_tier}" "${issues:-none}"

@@ -509,6 +509,8 @@ chmod 0755 \
     "${ROOTFS_DIR}/usr/libexec/unicore-hw-mgr" \
     "${ROOTFS_DIR}/usr/libexec/unicore-gamepad" \
     "${ROOTFS_DIR}/usr/libexec/unicore-gamesave" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-security-audit" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-boot-health" \
     "${ROOTFS_DIR}/etc/local.d/unicore-binfmt.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-android.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-hwprofile.start" \
@@ -854,7 +856,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="0.9.0"
+OS_VERSION="1.0.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

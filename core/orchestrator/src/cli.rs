@@ -13,8 +13,8 @@ use crate::hw_profile::{classify_hardware, detect_host_hardware};
 use crate::inspector::{inspect_binary, WinEra};
 use crate::json_codec::{to_json_pretty, JsonValue};
 use crate::sandbox::{
-    build_bwrap_args, detect_android_host_status, detect_win32_assets_status, sha256_file,
-    ConfinementContext, SandboxManager, SubsystemKind,
+    audit_bwrap_hardening, build_bwrap_args, detect_android_host_status, detect_win32_assets_status,
+    sha256_file, ConfinementContext, SandboxManager, SubsystemKind,
 };
 use crate::updater::{
     build_update_status_json, compare_versions, generate_ed25519_keypair, generate_manifest,
@@ -82,6 +82,7 @@ COMMANDS:
   hw-profile [--env]                   Inspect hardware tier (2005 legacy to modern)
   gamepad-map [--profile P] [--device /dev/input/js0] [--dry-run]
                                        Map USB/BT gamepad to keyboard/mouse (wasd_mouse|arrows_space|dos_classic)
+  security-audit                       Verify bubblewrap zero-trust confinement hardening invariants
   permissions <APP_ID> [--allow P] [--deny P]
                                        Update per-app sandbox permissions
   bwrap-args <APP_ID>                  Inspect bubblewrap confinement flags for an app
@@ -267,6 +268,13 @@ pub fn run_cli(args: &[String]) -> Result<String, String> {
         }
         crate::gamepad_map::run_gamepad_mapper(profile, &device)?;
         return Ok("{\"status\":\"stopped\"}".to_string());
+    }
+
+    if cmd == "security-audit" {
+        if !rest.is_empty() {
+            return Err(format!("Unexpected argument for security-audit: {}", rest[0]));
+        }
+        return Ok(to_json_pretty(&audit_bwrap_hardening().to_json()));
     }
 
     let idle_timeout = std::env::var("UNILOAD_IDLE_TIMEOUT")

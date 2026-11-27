@@ -1626,3 +1626,51 @@ fn v090_gamepad_mapper_cli_dry_run_and_profiles_work() {
     ])
     .is_err());
 }
+
+#[test]
+fn v100_bwrap_hardening_and_security_audit_cli_work() {
+    use uniload::sandbox::{audit_bwrap_hardening, build_bwrap_args, AppSandbox, ConfinementContext, PermissionProfile, SubsystemKind};
+    use std::collections::BTreeMap;
+
+    let audit = audit_bwrap_hardening();
+    assert!(audit.all_passed());
+    assert!(audit.cap_drop_all);
+    assert!(audit.die_with_parent);
+    assert!(audit.new_session);
+    assert!(audit.unshare_uts);
+    assert!(audit.unshare_ipc_when_no_x11);
+    assert!(audit.hides_doas_and_shadow);
+    assert!(audit.private_data_tmpfs);
+
+    // Verify X11 apps omit --unshare-ipc (keeps MIT-SHM working) while still setting --unshare-uts
+    let app = AppSandbox {
+        app_id: "x11-app".to_string(),
+        name: "X11 App".to_string(),
+        platform: AppPlatform::NativeElf,
+        arch: "x86_64".to_string(),
+        sub_abis: Vec::new(),
+        is_gui: true,
+        win_era: None,
+        source_path: "/usr/bin/true".to_string(),
+        sandbox_dir: "/data/sandboxes/x11-app".to_string(),
+        permissions: PermissionProfile::default(),
+        launch_args: Vec::new(),
+        env_vars: BTreeMap::new(),
+    };
+    let ctx_x11 = ConfinementContext {
+        xdg_runtime_dir: Some("/run/user/1000"),
+        wayland_display: Some("wayland-0"),
+        has_x11: true,
+        video_devices: &[],
+    };
+    let args_x11 = build_bwrap_args(&app, SubsystemKind::Native, &ctx_x11);
+    assert!(args_x11.contains(&"--unshare-uts".to_string()));
+    assert!(!args_x11.contains(&"--unshare-ipc".to_string()));
+
+    // Verify `uniload security-audit` CLI emits all_passed: true JSON
+    let out = run_cli(&["security-audit".to_string()]).unwrap();
+    let parsed = parse_json(&out).unwrap();
+    let obj = parsed.as_object().unwrap();
+    assert_eq!(obj.get("all_passed").and_then(JsonValue::as_bool), Some(true));
+    assert_eq!(obj.get("unshare_uts").and_then(JsonValue::as_bool), Some(true));
+}

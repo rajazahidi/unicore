@@ -398,6 +398,22 @@ pub fn builtin_gamehub_apps(lang: UiLang) -> Vec<DesktopAppItem> {
     ]
 }
 
+pub fn builtin_guide_apps(lang: UiLang) -> Vec<DesktopAppItem> {
+    let ms = lang == UiLang::Ms;
+    vec![
+        DesktopAppItem {
+            id: "unicore-guide".to_string(),
+            name: if ms { "Panduan Pengguna" } else { "User Guide" }.to_string(),
+            comment: if ms { "Panduan rasmi luar talian BM/EN, pintasan & audit keselamatan" } else { "Official offline EN/BM user guide, shortcuts & live security audit" }.to_string(),
+            category: "system".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --help-guide".to_string(),
+            badge: "DOC".to_string(),
+            accent_hex: "#0d9488".to_string(),
+            pinned: false,
+        },
+    ]
+}
+
 pub fn discover_start_menu_apps(
     scan_dirs: &[&Path],
     sandbox_apps: &[AppSandbox],
@@ -406,6 +422,7 @@ pub fn discover_start_menu_apps(
     let mut items = builtin_pinned_apps(lang);
     items.extend(builtin_ecosystem_apps(lang));
     items.extend(builtin_gamehub_apps(lang));
+    items.extend(builtin_guide_apps(lang));
     let mut seen_names: HashSet<String> = items
         .iter()
         .map(|i| i.name.to_ascii_lowercase())

@@ -99,7 +99,9 @@ elif command -v foot >/dev/null 2>&1; then
     foot &
 fi
 
-# Confirm healthy A/B boot once Wayland compositor session starts in installed mode
-if [ -r /mnt/unicore-boot.env ] && grep -q '^UNICORE_BOOT_MODE=installed$' /mnt/unicore-boot.env 2>/dev/null; then
+# Health-gated A/B OTA boot confirmation (confirms slot ONLY after rootfs, /data, uniload, unicore-center & Wayland pass)
+if [ -x /usr/libexec/unicore-boot-health ]; then
+    /usr/libexec/unicore-boot-health confirm >/tmp/unicore-boot-confirm.log 2>&1 &
+elif [ -r /mnt/unicore-boot.env ] && grep -q '^UNICORE_BOOT_MODE=installed$' /mnt/unicore-boot.env 2>/dev/null; then
     doas /usr/libexec/unicore-sys-helper confirm-boot >/tmp/unicore-boot-confirm.log 2>&1 &
 fi

@@ -8,6 +8,7 @@ pub mod dev_ai;
 pub mod ecosystem;
 pub mod gamehub;
 pub mod gaming;
+pub mod guide;
 pub mod i18n;
 pub mod installer;
 pub mod oobe;

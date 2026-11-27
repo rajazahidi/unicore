@@ -83,7 +83,7 @@ EOF
 }
 
 collect_system_context() {
-    os_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || echo 0.9.0)"
+    os_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || echo 1.0.0)"
     arch="$(uname -m 2>/dev/null || echo x86_64)"
     kern="$(uname -r 2>/dev/null || echo unknown)"
     ram_mb="$(detect_ram_mb)"
@@ -210,11 +210,13 @@ case "${cmd}" in
             *) echo "Unsupported CPU architecture for Ollama: ${ARCH}" >&2; exit 1 ;;
         esac
         url="https://ollama.com/download/${asset}"
-        tmp_tgz="/tmp/ollama-$$.tgz"
+        tmp_tgz="$(umask 077 && mktemp /tmp/unicore-ollama.XXXXXX.tgz)"
+        trap 'rm -f "${tmp_tgz}"' EXIT
         echo "==> Downloading Ollama (${asset}) into ${OLLAMA_DIR}..."
         curl -fsSL --connect-timeout 15 --max-time 1800 -o "${tmp_tgz}" "${url}"
         tar -xzf "${tmp_tgz}" -C "${OLLAMA_DIR}"
         rm -f "${tmp_tgz}"
+        trap - EXIT
         chmod +x "${OLLAMA_BIN}" 2>/dev/null || true
         echo "Ollama installed cleanly into ${OLLAMA_DIR} (0 MB idle RAM until started)."
         ;;

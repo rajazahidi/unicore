@@ -324,6 +324,22 @@ command -v evtest
 uniload gamepad-map --profile wasd_mouse --dry-run | grep -q '"profile": "wasd_mouse"'
 /usr/libexec/unicore-gamepad status | grep -q '^evtest_available=1$'
 /usr/libexec/unicore-gamesave status | grep -q '^backup_dir='
+echo "Checking v1.0.0 Zero-Trust Security Audit, 0-MB-Idle Gate & Health-Gated A/B Boot Check..."
+test -x /usr/libexec/unicore-security-audit
+test -x /usr/libexec/unicore-boot-health
+uniload security-audit | grep -q '"all_passed": true'
+/usr/libexec/unicore-security-audit check > /tmp/unicore_sec_audit.txt
+cat /tmp/unicore_sec_audit.txt
+grep -q '^status=PASS$' /tmp/unicore_sec_audit.txt
+grep -q '^doas_conf_locked=1$' /tmp/unicore_sec_audit.txt
+grep -q '^ota_signature_enforced=1$' /tmp/unicore_sec_audit.txt
+grep -q '^libexec_perms_ok=1$' /tmp/unicore_sec_audit.txt
+grep -q '^credentials_0600=1$' /tmp/unicore_sec_audit.txt
+grep -q '^bwrap_available=1$' /tmp/unicore_sec_audit.txt
+grep -q '^firewall_ready=1$' /tmp/unicore_sec_audit.txt
+grep -q '^idle_heavy_count=0$' /tmp/unicore_sec_audit.txt
+rm -f /tmp/unicore_sec_audit.txt
+/usr/libexec/unicore-boot-health --dry-run | grep -q '^health_status=HEALTHY$'
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_dll Library dplayx.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
@@ -416,6 +432,11 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --games >/tmp/center_games.log 2>&1 &
     sleep 3
     grim /tmp/v090_games.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --help-guide >/tmp/center_guide.log 2>&1 &
+    sleep 3
+    grim /tmp/v100_guide.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
@@ -424,6 +445,7 @@ test -s /tmp/v060_start.png
 test -s /tmp/v070_retro.png
 test -s /tmp/v080_ecosystem.png
 test -s /tmp/v090_games.png
+test -s /tmp/v100_guide.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -446,6 +468,9 @@ echo "===PNG_ECO_B64_END==="
 echo "===PNG_GAMES_B64_START==="
 base64 /tmp/v090_games.png
 echo "===PNG_GAMES_B64_END==="
+echo "===PNG_GUIDE_B64_START==="
+base64 /tmp/v100_guide.png
+echo "===PNG_GUIDE_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -532,7 +557,13 @@ printf '\n===GATE1_OK===\n'
         games_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v090_games.png")
         with open(games_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", games_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}")
+        guide_m = re.search(r"===PNG_GUIDE_B64_START===\s*(.*?)\s*===PNG_GUIDE_B64_END===", out, re.DOTALL)
+        if not guide_m:
+            raise RuntimeError("Missing v1.0.0 Official User Guide screenshot payload in Gate 1 output")
+        guide_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v100_guide.png")
+        with open(guide_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", guide_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}")
     finally:
         h.close()
 

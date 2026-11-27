@@ -40,6 +40,9 @@ use unicore_center::gaming::{
     apply_cpu_governor, default_gaming_dir, load_gaming_config, read_host_cpu_governor,
     save_gaming_config, GamingConfig,
 };
+use unicore_center::guide::{
+    bilingual_guide_chapters, format_security_audit_summary, read_security_audit_report,
+};
 use unicore_center::i18n::{detect_ui_lang, persist_ui_lang, UiLabels, UiLang};
 use unicore_center::installer::{
     list_install_disks, read_boot_state, run_disk_install, run_disk_install_alongside,
@@ -342,7 +345,41 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         btn_backup_now: l.btn_backup_now.into(),
         btn_sync_cloud: l.btn_sync_cloud.into(),
         chk_auto_backup: l.chk_auto_backup.into(),
+        title_guide: l.title_guide.into(),
+        btn_open_guide: l.btn_open_guide.into(),
+        guide_sec_hdr: l.guide_sec_hdr.into(),
+        btn_run_sec_audit: l.btn_run_sec_audit.into(),
     });
+    refresh_guide_chapters(ui, lang, ui.get_guide_chapter_idx());
+}
+
+fn refresh_guide_chapters(ui: &MainWindow, lang: UiLang, selected_idx: i32) {
+    let chapters = bilingual_guide_chapters(lang);
+    let idx = (selected_idx.max(0) as usize).min(chapters.len().saturating_sub(1));
+    let slint_items: Vec<GuideChapterItem> = chapters
+        .iter()
+        .map(|c| GuideChapterItem {
+            title: SharedString::from(c.title.as_str()),
+            subtitle: SharedString::from(c.subtitle.as_str()),
+            body: SharedString::from(c.body.as_str()),
+            tip: SharedString::from(c.tip.as_str()),
+        })
+        .collect();
+    ui.set_guide_chapters(ModelRc::new(VecModel::from(slint_items)));
+    ui.set_guide_chapter_idx(idx as i32);
+    if let Some(ch) = chapters.get(idx) {
+        ui.set_guide_active_title(SharedString::from(ch.title.as_str()));
+        ui.set_guide_active_subtitle(SharedString::from(ch.subtitle.as_str()));
+        ui.set_guide_active_body(SharedString::from(ch.body.as_str()));
+        ui.set_guide_active_tip(SharedString::from(ch.tip.as_str()));
+    }
+}
+
+fn refresh_guide_security(ui: &MainWindow, lang: UiLang) {
+    let rep = read_security_audit_report();
+    let ok = rep.status == "PASS";
+    ui.set_guide_sec_ok(ok);
+    ui.set_guide_sec_summary(SharedString::from(format_security_audit_summary(&rep, lang)));
 }
 
 fn parse_hex_color(hex: &str) -> slint::Color {
@@ -1628,6 +1665,12 @@ fn main() {
                 ui.set_gamehub_dialog_only(true);
                 ui.set_gh_subtab(*sub);
                 refresh_gamehub(&ui, &apps_cache.borrow(), &mut gamehub_cache.borrow_mut());
+            }
+            LaunchMode::HelpGuide(ch_idx) => {
+                let lang = *current_lang.borrow();
+                ui.set_guide_dialog_only(true);
+                refresh_guide_chapters(&ui, lang, *ch_idx);
+                refresh_guide_security(&ui, lang);
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -5208,6 +5251,27 @@ fn main() {
                     }
                 });
             });
+        });
+    }
+
+    // === v1.0.0 Official Offline Bilingual User Guide & Live Security Audit ===
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_guide_select_chapter(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_guide_chapters(&ui, *lang_rc.borrow(), idx);
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_guide_run_security_audit(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let lang = *lang_rc.borrow();
+            refresh_guide_security(&ui, lang);
+            set_status(&ui, ui.get_guide_sec_summary().to_string(), !ui.get_guide_sec_ok());
         });
     }
 

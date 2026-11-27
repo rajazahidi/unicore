@@ -486,6 +486,10 @@ pub fn build_bwrap_args(
     if subsystem == SubsystemKind::Native {
         args.push("--unshare-pid".to_string());
     }
+    args.push("--unshare-uts".to_string());
+    if !ctx.has_x11 {
+        args.push("--unshare-ipc".to_string());
+    }
 
     args.extend([
         "--die-with-parent".to_string(),
@@ -494,6 +498,79 @@ pub fn build_bwrap_args(
         "ALL".to_string(),
     ]);
     args
+}
+
+/// Summary of `bubblewrap` confinement hardening invariants checked by `uniload security-audit`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BwrapHardeningAudit {
+    pub cap_drop_all: bool,
+    pub die_with_parent: bool,
+    pub new_session: bool,
+    pub unshare_uts: bool,
+    pub unshare_ipc_when_no_x11: bool,
+    pub hides_doas_and_shadow: bool,
+    pub private_data_tmpfs: bool,
+}
+
+impl BwrapHardeningAudit {
+    pub fn all_passed(&self) -> bool {
+        self.cap_drop_all
+            && self.die_with_parent
+            && self.new_session
+            && self.unshare_uts
+            && self.unshare_ipc_when_no_x11
+            && self.hides_doas_and_shadow
+            && self.private_data_tmpfs
+    }
+
+    pub fn to_json(&self) -> JsonValue {
+        let mut obj = BTreeMap::new();
+        obj.insert("all_passed".to_string(), JsonValue::Bool(self.all_passed()));
+        obj.insert("cap_drop_all".to_string(), JsonValue::Bool(self.cap_drop_all));
+        obj.insert("die_with_parent".to_string(), JsonValue::Bool(self.die_with_parent));
+        obj.insert("hides_doas_and_shadow".to_string(), JsonValue::Bool(self.hides_doas_and_shadow));
+        obj.insert("new_session".to_string(), JsonValue::Bool(self.new_session));
+        obj.insert("private_data_tmpfs".to_string(), JsonValue::Bool(self.private_data_tmpfs));
+        obj.insert("unshare_ipc_when_no_x11".to_string(), JsonValue::Bool(self.unshare_ipc_when_no_x11));
+        obj.insert("unshare_uts".to_string(), JsonValue::Bool(self.unshare_uts));
+        JsonValue::Object(obj)
+    }
+}
+
+/// Verify that `build_bwrap_args` satisfies all v1.0.0 zero-trust confinement invariants.
+pub fn audit_bwrap_hardening() -> BwrapHardeningAudit {
+    let dummy = AppSandbox {
+        app_id: "audit-probe".to_string(),
+        name: "Audit Probe".to_string(),
+        platform: AppPlatform::NativeElf,
+        arch: "x86_64".to_string(),
+        sub_abis: Vec::new(),
+        is_gui: true,
+        win_era: None,
+        source_path: "/usr/bin/true".to_string(),
+        sandbox_dir: "/data/sandboxes/audit-probe".to_string(),
+        permissions: PermissionProfile::default(),
+        launch_args: Vec::new(),
+        env_vars: BTreeMap::new(),
+    };
+    let ctx = ConfinementContext {
+        xdg_runtime_dir: Some("/run/user/1000"),
+        wayland_display: Some("wayland-0"),
+        has_x11: false,
+        video_devices: &[],
+    };
+    let args = build_bwrap_args(&dummy, SubsystemKind::Native, &ctx);
+    BwrapHardeningAudit {
+        cap_drop_all: args.windows(2).any(|w| w == ["--cap-drop", "ALL"]),
+        die_with_parent: args.iter().any(|a| a == "--die-with-parent"),
+        new_session: args.iter().any(|a| a == "--new-session"),
+        unshare_uts: args.iter().any(|a| a == "--unshare-uts"),
+        unshare_ipc_when_no_x11: args.iter().any(|a| a == "--unshare-ipc"),
+        hides_doas_and_shadow: args.windows(2).any(|w| w == ["--tmpfs", "/etc/doas.d"])
+            && args.windows(3).any(|w| w == ["--ro-bind-try", "/dev/null", "/etc/doas.conf"])
+            && args.windows(3).any(|w| w == ["--ro-bind-try", "/dev/null", "/etc/shadow"]),
+        private_data_tmpfs: args.windows(2).any(|w| w == ["--tmpfs", "/data"]),
+    }
 }
 
 /// Metadata for an Android app reported by `waydroid app list`.

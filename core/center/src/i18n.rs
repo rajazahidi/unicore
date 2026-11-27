@@ -291,6 +291,11 @@ pub struct UiLabels {
     pub btn_backup_now: &'static str,
     pub btn_sync_cloud: &'static str,
     pub chk_auto_backup: &'static str,
+    // v1.0.0 Production Daily Driver — Official Offline User Guide & Security Audit
+    pub title_guide: &'static str,
+    pub btn_open_guide: &'static str,
+    pub guide_sec_hdr: &'static str,
+    pub btn_run_sec_audit: &'static str,
 }
 
 impl UiLabels {
@@ -516,6 +521,10 @@ impl UiLabels {
                 btn_backup_now: "Backup Selected Save",
                 btn_sync_cloud: "Sync Saves to Cloud",
                 chk_auto_backup: "Auto-Backup Game Saves on Exit",
+                title_guide: "UniCore OS v1.0.0 — Official User Guide & Security",
+                btn_open_guide: "Guide",
+                guide_sec_hdr: "Live Zero-Trust Security & 0-MB-Idle Health",
+                btn_run_sec_audit: "Run Security Audit",
             },
             UiLang::Ms => Self {
                 title_center: "Pusat Aplikasi UniCore",
@@ -737,6 +746,10 @@ impl UiLabels {
                 btn_backup_now: "Sandar Save Sekarang",
                 btn_sync_cloud: "Segerak Save ke Awan",
                 chk_auto_backup: "Auto-Sandar Save Apabila Tutup Game",
+                title_guide: "UniCore OS v1.0.0 — Panduan Pengguna Rasmi & Keselamatan",
+                btn_open_guide: "Panduan",
+                guide_sec_hdr: "Audit Keselamatan Zero-Trust & Status 0-MB-Idle",
+                btn_run_sec_audit: "Jalankan Audit Keselamatan",
             },
         }
     }

@@ -1,0 +1,100 @@
+#!/bin/sh
+# UniCore OS v1.0.0 A/B OTA Boot Health Verifier & Safe Confirmation Gate
+# Confirms an installed A/B slot ONLY after rootfs, /data, uniload, unicore-center,
+# and the Wayland compositor session are verified healthy. If any check fails, boot is
+# left unconfirmed so GRUB automatically rolls back to the known-good A/B slot on reboot.
+set -eu
+
+MODE="${1:-check}"
+XDG_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}"
+WL_DISP="${WAYLAND_DISPLAY:-wayland-0}"
+WL_SOCK="${XDG_DIR}/${WL_DISP}"
+
+wait_for_wayland() {
+    tries=0
+    while [ "${tries}" -lt 30 ]; do
+        if [ -S "${WL_SOCK}" ]; then
+            return 0
+        fi
+        sleep 0.5
+        tries=$((tries + 1))
+    done
+    return 1
+}
+
+os_ok=0
+if [ -r /etc/os-release ] && grep -q '^ID=unicore$' /etc/os-release 2>/dev/null; then
+    os_ok=1
+fi
+
+data_ok=0
+if [ -d /data ] && { [ -w /data ] || [ -w /data/home ]; }; then
+    data_ok=1
+fi
+
+uniload_ok=0
+if [ -x /usr/bin/uniload ] && /usr/bin/uniload hw-profile --env >/dev/null 2>&1; then
+    uniload_ok=1
+fi
+
+center_ok=0
+if [ -x /usr/bin/unicore-center ] && /usr/bin/unicore-center --check >/dev/null 2>&1; then
+    center_ok=1
+fi
+
+session_ok=0
+if [ "${MODE}" = "confirm" ]; then
+    if wait_for_wayland; then
+        session_ok=1
+    fi
+else
+    if [ -S "${WL_SOCK}" ] || [ -S /run/seatd.sock ] || pgrep -x seatd >/dev/null 2>&1; then
+        session_ok=1
+    fi
+fi
+
+idle_heavy_count=0
+for proc in kdeconnectd cupsd fwupd ollama bluetoothd; do
+    if pgrep -x "${proc}" >/dev/null 2>&1; then
+        idle_heavy_count=$((idle_heavy_count + 1))
+    fi
+done
+
+ram_used_mb=0
+if [ -r /proc/meminfo ]; then
+    rt="$(awk '/^MemTotal:/{print $2; exit}' /proc/meminfo 2>/dev/null || echo 0)"
+    ra="$(awk '/^MemAvailable:/{print $2; exit}' /proc/meminfo 2>/dev/null || echo 0)"
+    if [ "${rt}" -ge "${ra}" ]; then
+        ram_used_mb=$(((rt - ra) / 1024))
+    fi
+fi
+
+status="HEALTHY"
+if [ "${os_ok}" != "1" ] || [ "${data_ok}" != "1" ] || [ "${uniload_ok}" != "1" ] || [ "${center_ok}" != "1" ] || [ "${session_ok}" != "1" ]; then
+    status="UNHEALTHY"
+fi
+
+printf 'health_status=%s\nos_release_ok=%s\ndata_writable=%s\nuniload_ok=%s\ncenter_ok=%s\nsession_ok=%s\nidle_heavy_count=%s\nram_used_mb=%s\n' \
+    "${status}" "${os_ok}" "${data_ok}" "${uniload_ok}" "${center_ok}" "${session_ok}" "${idle_heavy_count}" "${ram_used_mb}"
+
+case "${MODE}" in
+    --dry-run|check)
+        [ "${status}" = "HEALTHY" ] || exit 1
+        exit 0
+        ;;
+    confirm)
+        if [ "${status}" != "HEALTHY" ]; then
+            echo "[BOOT-HEALTH] Skipping A/B confirm-boot due to failed health checks; GRUB auto-rollback stays armed." >&2
+            exit 1
+        fi
+        if [ -r /mnt/unicore-boot.env ] && grep -q '^UNICORE_BOOT_MODE=installed$' /mnt/unicore-boot.env 2>/dev/null; then
+            exec doas /usr/libexec/unicore-sys-helper confirm-boot
+        fi
+        echo "[BOOT-HEALTH] Live mode healthy (A/B confirm not needed)."
+        exit 0
+        ;;
+    *)
+        echo "Usage: unicore-boot-health <check|--dry-run|confirm>" >&2
+        exit 2
+        ;;
+esac

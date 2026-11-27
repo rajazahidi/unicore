@@ -1695,3 +1695,81 @@ fn v090_unified_gamehub_gamepad_and_cloud_saves_work() {
     assert_ne!(en.gh_tab_saves, ms.gh_tab_saves);
     assert_ne!(en.btn_sync_cloud, ms.btn_sync_cloud);
 }
+
+#[test]
+fn v100_security_audit_bilingual_guide_and_cli_work() {
+    use unicore_center::guide::{
+        bilingual_guide_chapters, format_security_audit_summary, parse_security_audit_output,
+    };
+    use unicore_center::start_emoji::builtin_guide_apps;
+
+    // 1. CLI --help-guide and --guide
+    assert_eq!(
+        parse_args(&["--help-guide".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::HelpGuide(0)
+    );
+    assert_eq!(
+        parse_args(&["--guide".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::HelpGuide(0)
+    );
+
+    // 2. Bilingual 6-chapter offline User Guide
+    let ch_en = bilingual_guide_chapters(UiLang::En);
+    let ch_ms = bilingual_guide_chapters(UiLang::Ms);
+    assert_eq!(ch_en.len(), 6);
+    assert_eq!(ch_ms.len(), 6);
+    for (e, m) in ch_en.iter().zip(ch_ms.iter()) {
+        assert_eq!(e.id, m.id);
+        assert_ne!(e.title, m.title);
+        assert_ne!(e.body, m.body);
+        assert!(!e.tip.is_empty() && !m.tip.is_empty());
+    }
+
+    // 3. Live Security Audit & 0-MB-idle output parser + formatter
+    let sample = "\
+status=PASS
+checks_passed=6
+checks_total=6
+doas_conf_locked=1
+ota_signature_enforced=1
+libexec_perms_ok=1
+credentials_0600=1
+bwrap_available=1
+firewall_ready=1
+firewall_active=1
+idle_heavy_count=0
+idle_heavy_running=none
+ram_total_mb=3072
+ram_used_mb=210
+hw_tier=modern
+issues=none
+";
+    let rep = parse_security_audit_output(sample);
+    assert_eq!(rep.status, "PASS");
+    assert_eq!(rep.checks_passed, 6);
+    assert_eq!(rep.checks_total, 6);
+    assert!(rep.doas_locked && rep.ota_signed && rep.libexec_safe && rep.creds_0600 && rep.bwrap_ready && rep.firewall_ready && rep.firewall_active);
+    assert_eq!(rep.idle_heavy_count, 0);
+    assert_eq!(rep.ram_used_mb, 210);
+
+    let sum_en = format_security_audit_summary(&rep, UiLang::En);
+    let sum_ms = format_security_audit_summary(&rep, UiLang::Ms);
+    assert!(sum_en.contains("PASS (6/6)"));
+    assert!(sum_en.contains("0 MB idle"));
+    assert!(sum_ms.contains("PASS (6/6)"));
+    assert!(sum_ms.contains("0 MB terbiar"));
+
+    // 4. Start Menu Guide tile & bilingual labels
+    let g_en = builtin_guide_apps(UiLang::En);
+    let g_ms = builtin_guide_apps(UiLang::Ms);
+    assert_eq!(g_en.len(), 1);
+    assert_ne!(g_en[0].name, g_ms[0].name);
+    assert!(g_en[0].exec_cmd.contains("--help-guide"));
+
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.title_guide, ms.title_guide);
+    assert_ne!(en.btn_open_guide, ms.btn_open_guide);
+    assert_ne!(en.guide_sec_hdr, ms.guide_sec_hdr);
+    assert_ne!(en.btn_run_sec_audit, ms.btn_run_sec_audit);
+}

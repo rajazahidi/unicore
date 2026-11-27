@@ -1,8 +1,16 @@
-# UniCore OS (`0.9.0`)
+# UniCore OS (`1.0.0` — Production Daily Driver)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern x86_64 & ARM64 PCs**.
 
+> **Official Bilingual Documentation:** Read the complete [Official User Guide (EN / BM)](docs/user-guide.md) — also built directly into the OS offline via **Start Menu → User Guide / Panduan Pengguna** (`unicore-center --help-guide`).
+
 ## Key Capabilities
+
+* **Production Daily Driver Hardening, Health-Gated A/B Rollback & Offline Guide (`v1.0.0`)**:
+  * **Full Zero-Trust Security Audit & `bwrap` Hardening (`unicore-security-audit`, `uniload security-audit`)**: Enforces `mktemp` (`umask 077`) temp-file safety across all root/backup/update/AI scripts, strict username validation, `--unshare-uts` + `--unshare-ipc` + `--cap-drop ALL` + `--new-session` + `--die-with-parent` sandbox isolation, `0600` credential checks, and signed Ed25519 OTA enforcement (`REQUIRE_SIGNATURE=1`).
+  * **Verified 0-MB-Idle Architecture & RAM Budget Gate**: Automated QA verifies that heavy optional subsystems (`kdeconnectd`, `cupsd`, `fwupd`, `ollama`, `bluetoothd`) stay at **`0 MB` idle RAM** on boot until activated by the user.
+  * **Health-Gated A/B OTA Auto-Rollback (`unicore-boot-health`)**: Installed A/B slots are confirmed (`confirm-boot`) only after rootfs, `/data`, `uniload`, `unicore-center --check`, and the live Wayland compositor pass health checks; failed updates automatically roll back via GRUB.
+  * **Official Bilingual User Guide (`docs/user-guide.md` + `unicore-center --help-guide`)**: 6-chapter 100% offline EN/BM handbook built into Start Menu & UniCore Center alongside a live 1-click Security Audit viewer.
 
 * **Unified Game Hub & Controller Edition (`v0.9.0`)**:
   * **Unified Game Library (`--games`)**: Automatically gathers **Win98/XP/DOS**, **Steam (`appmanifest_*.acf`)**, **Heroic (Epic/GOG)**, **Lutris**, **Prism (Minecraft)**, **RetroArch**, and **Android (`.apk`)** games in one visual hub with platform badges, Favorites, local Playtime tracking, instant search, Game Mode & MangoHud FPS toggles, and 1-click Play.

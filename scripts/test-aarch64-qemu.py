@@ -154,6 +154,12 @@ test -x /usr/libexec/unicore-gamepad
 test -x /usr/libexec/unicore-gamesave
 command -v evtest >/dev/null
 uniload gamepad-map --profile dos_classic --dry-run | grep -q '"profile": "dos_classic"'
+test -x /usr/libexec/unicore-security-audit
+test -x /usr/libexec/unicore-boot-health
+uniload security-audit | grep -q '"all_passed": true'
+/usr/libexec/unicore-security-audit check | grep -q '^status=PASS$'
+/usr/libexec/unicore-security-audit check | grep -q '^idle_heavy_count=0$'
+/usr/libexec/unicore-boot-health --dry-run | grep -q '^health_status=HEALTHY$'
 
 echo "[ARM64-QA] 2/4 Verifying Box64 + Wine 11.0 WoW64 binaries..."
 test -x /usr/share/unicore/arm64-win32/run-wine-box64.sh

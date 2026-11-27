@@ -245,7 +245,7 @@ case "$1" in
         fi
         mode_arg="wipe"
         [ "$1" = "install-disk-alongside-encrypted" ] && mode_arg="alongside"
-        PASS_TMP="/tmp/.unicore-luks.$$"
+        PASS_TMP="$(umask 077 && mktemp /tmp/.unicore-luks.XXXXXX)"
         cleanup_pass() { rm -f "${PASS_TMP}"; }
         trap cleanup_pass EXIT
         IFS= read -r pass_val || pass_val=""
@@ -253,10 +253,7 @@ case "$1" in
             echo "Denied LUKS passphrase: minimum 8 characters required." >&2
             exit 1
         fi
-        (
-            umask 077
-            printf '%s' "${pass_val}" > "${PASS_TMP}"
-        )
+        printf '%s' "${pass_val}" > "${PASS_TMP}"
         unset pass_val
         /usr/sbin/unicore-install --disk "$2" --mode "${mode_arg}" --yes-wipe --encrypt-data --passphrase-file "${PASS_TMP}"
         ;;

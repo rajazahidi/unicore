@@ -371,6 +371,17 @@ export struct UiText {
     btn-backup-now: string,
     btn-sync-cloud: string,
     chk-auto-backup: string,
+    title-guide: string,
+    btn-open-guide: string,
+    guide-sec-hdr: string,
+    btn-run-sec-audit: string,
+}
+
+export struct GuideChapterItem {
+    title: string,
+    subtitle: string,
+    body: string,
+    tip: string,
 }
 
 export global UiTheme {
@@ -670,14 +681,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center))))))))))))));
-    preferred-width: root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px)))))))))))));
-    preferred-height: root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 590px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px)))))))))))));
+    title: root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))))));
+    preferred-width: root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))));
+    preferred-height: root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 590px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -714,6 +725,15 @@ export component MainWindow inherits Window {
     in-out property <int> eco-subtab: 0; // 0:Phone, 1:Cloud, 2:Migration, 3:Drivers
     in-out property <bool> gamehub-dialog-only: false;
     in-out property <int> gh-subtab: 0; // 0:Library, 1:Gamepad, 2:Saves
+    in-out property <bool> guide-dialog-only: false;
+    in-out property <int> guide-chapter-idx: 0;
+    in-out property <[GuideChapterItem]> guide-chapters: [];
+    in-out property <string> guide-active-title: "";
+    in-out property <string> guide-active-subtitle: "";
+    in-out property <string> guide-active-body: "";
+    in-out property <string> guide-active-tip: "";
+    in-out property <bool> guide-sec-ok: true;
+    in-out property <string> guide-sec-summary: "Security Audit: PASS (6/6)  •  0 MB idle";
     in-out property <bool> oobe-dialog-only: false;
     in-out property <bool> taskmgr-dialog-only: false;
     in-out property <bool> picker-open: false;
@@ -724,7 +744,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v0.9.0";
+    in-out property <string> login-clock-text: "UniCore OS v1.0.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1207,6 +1227,8 @@ export component MainWindow inherits Window {
     callback gh-open-tester();
     callback gh-save-policy(bool, string);
     callback gh-sync-cloud();
+    callback guide-select-chapter(int);
+    callback guide-run-security-audit();
     callback audio-profile-selected(int);
     callback toggle-dnd(bool);
     callback dismiss-all-notifications();
@@ -3765,6 +3787,194 @@ export component MainWindow inherits Window {
                     text: root.tr.btn-open-center;
                     clicked => {
                         root.gamehub-dialog-only = false;
+                        root.switch-to-full-center();
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // v1.0.0 Official Offline Bilingual User Guide & Live Security Audit (--help-guide)
+        if root.guide-dialog-only : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 62px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #0f766e 0%, #0284c7 100%);
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        Text {
+                            text: root.tr.title-guide;
+                            color: #ffffff;
+                            font-size: 16px;
+                            font-weight: 800;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: "100% Offline Bilingual Handbook (EN / BM)  •  Zero-Trust Sandboxes & A/B Auto-Rollback";
+                            color: #ccfbf1;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+                    Button {
+                        text: root.lang-badge;
+                        clicked => { root.toggle-language(); }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                vertical-stretch: 1;
+                spacing: 10px;
+
+                // Left Chapter Navigation Sidebar
+                Card {
+                    width: 235px;
+                    VerticalLayout {
+                        padding: 8px;
+                        spacing: 4px;
+                        alignment: start;
+                        for ch[idx] in root.guide-chapters : StoreNavItem {
+                            label: ch.title;
+                            active: root.guide-chapter-idx == idx;
+                            clicked => { root.guide-select-chapter(idx); }
+                        }
+                    }
+                }
+
+                // Right Content & Live Security Panel
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 10px;
+
+                    Card {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 8px;
+                            Text {
+                                text: root.guide-active-title;
+                                color: UiTheme.text-primary;
+                                font-size: 15px;
+                                font-weight: 800;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: root.guide-active-subtitle;
+                                color: UiTheme.text-accent;
+                                font-size: 11px;
+                                font-weight: 600;
+                                overflow: elide;
+                            }
+                            ScrollView {
+                                vertical-stretch: 1;
+                                VerticalLayout {
+                                    alignment: start;
+                                    Text {
+                                        text: root.guide-active-body;
+                                        color: UiTheme.text-secondary;
+                                        font-size: 12px;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                min-height: 32px;
+                                border-radius: 6px;
+                                background: UiTheme.surface-subtle;
+                                HorizontalLayout {
+                                    padding: 8px;
+                                    Text {
+                                        text: root.guide-active-tip;
+                                        color: UiTheme.text-primary;
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: root.tr.guide-sec-hdr;
+                                    color: UiTheme.text-primary;
+                                    font-size: 12px;
+                                    font-weight: 700;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: root.tr.btn-run-sec-audit;
+                                    primary: true;
+                                    clicked => { root.guide-run-security-audit(); }
+                                }
+                            }
+                            Text {
+                                text: root.guide-sec-summary;
+                                color: root.guide-sec-ok ? UiTheme.text-ok : UiTheme.text-accent;
+                                font-size: 11px;
+                                font-weight: 700;
+                                wrap: word-wrap;
+                            }
+                            HorizontalLayout {
+                                spacing: 6px;
+                                Button {
+                                    text: "Game Hub";
+                                    clicked => {
+                                        root.guide-dialog-only = false;
+                                        root.gamehub-dialog-only = true;
+                                        root.gh-refresh();
+                                    }
+                                }
+                                Button {
+                                    text: "Phone & Cloud";
+                                    clicked => {
+                                        root.guide-dialog-only = false;
+                                        root.ecosystem-dialog-only = true;
+                                        root.eco-refresh();
+                                    }
+                                }
+                                Button {
+                                    text: "Security Settings";
+                                    clicked => {
+                                        root.guide-dialog-only = false;
+                                        root.active-tab = 3;
+                                        root.settings-subtab = 5;
+                                        root.refresh-settings();
+                                    }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.tr.btn-open-center;
+                    clicked => {
+                        root.guide-dialog-only = false;
                         root.switch-to-full-center();
                     }
                 }

@@ -62,7 +62,7 @@ case "${cmd}" in
         mkdir -p "${DEST_DIR}"
         [ -w "${DEST_DIR}" ] || { echo "Backup directory is not writable: ${DEST_DIR}" >&2; exit 1; }
 
-        PASS_TMP="/tmp/.unicore-bkpass.$$"
+        PASS_TMP="$(umask 077 && mktemp /tmp/.unicore-bkpass.XXXXXX)"
         OUT_TMP=""
         cleanup_create() {
             rm -f "${PASS_TMP}"
@@ -153,8 +153,8 @@ case "${cmd}" in
             fi
         fi
 
-        PASS_TMP="/tmp/.unicore-bkrestore.$$"
-        LIST_TMP="/tmp/.unicore-bklist.$$"
+        PASS_TMP="$(umask 077 && mktemp /tmp/.unicore-bkrestore.XXXXXX)"
+        LIST_TMP="$(umask 077 && mktemp /tmp/.unicore-bklist.XXXXXX)"
         cleanup_restore() { rm -f "${PASS_TMP}" "${LIST_TMP}"; }
         trap cleanup_restore EXIT
 
