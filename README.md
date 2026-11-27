@@ -26,8 +26,8 @@
 * `core/orchestrator/` (`uniload`) — Pure-Rust binary inspector, sandbox planner (`bwrap`), Windows/DOS/Android subsystems, hardware profiler (`hw-profile`), verified App Store catalog (`store`), and A/B + Ed25519 OTA engine (`update`).
 * `core/center/` (`unicore-center`) — Rust + Slint (`renderer-software`) GUI App & Security Center (`~22–23 MB RSS`) with `--oobe`, `--open`, `--power`, `--taskmgr`, and `--tab store|settings:...`.
 * `os-builder/` — Alpine `3.20` (`linux-edge`) rootfs builder, Wayland overlay (`labwc`, `waybar`, `fuzzel`, `pcmanfm`), universal Stage-1 `initramfs-init`, and Hybrid Legacy BIOS + UEFI ISO builder.
-* `scripts/` — Windows cargo dev wrapper (`cargo-dev.ps1`), Ed25519 release signer (`sign-release.ps1`), safe Windows USB flasher helper (`write-usb-windows.ps1`), and automated BIOS/UEFI/2005 QA Matrix (`test-release-matrix.py`).
-* `docs/` — [Architecture](file:///c:/Project/Processor/docs/architecture.md) and [Release & QA Guide](file:///c:/Project/Processor/docs/release-guide.md).
+* `scripts/` — Unified environment controller (`unicore-env.ps1`), local LAN/QEMU OTA server (`ota-local-server.py`), Windows cargo wrapper (`cargo-dev.ps1`), Ed25519 release signer (`sign-release.ps1`), safe Windows USB flasher helper (`write-usb-windows.ps1`), and automated 5-gate QA Matrix (`test-release-matrix.py`) + A/B LUKS2 E2E (`test-ab-install-luks.py`).
+* `docs/` — [Architecture](docs/architecture.md), [Release & QA Guide](docs/release-guide.md), and [v1.0 Readiness Checklist](docs/v1-readiness-checklist.md).
 
 ## Quick Start (Windows Host)
 
