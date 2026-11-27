@@ -5,6 +5,7 @@ set -eu
 RT="${UNICORE_ARM64_WIN32_DIR:-/usr/share/unicore/arm64-win32}"
 export BOX64_LD_LIBRARY_PATH="${RT}/opt/wine/lib/wine/x86_64-unix:${RT}/sysroot/usr/lib/x86_64-linux-gnu:${RT}/sysroot/usr/lib/i386-linux-gnu"
 export BOX64_DYNAREC=1
+export BOX64_DYNAREC_STRONGMEM="${BOX64_DYNAREC_STRONGMEM:-1}"
 export BOX64_NOBANNER=1
 export WINELOADER="${RT}/opt/wine/bin/wine"
 export WINESERVER="${RT}/opt/wine/bin/wineserver"
