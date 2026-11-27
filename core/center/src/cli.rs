@@ -20,6 +20,9 @@ pub enum LaunchMode {
     CaptureTool,
     StartMenu,
     EmojiPicker,
+    RetroWizard(Option<PathBuf>),
+    RepairDialog(String),
+    RetroTargetPicker(String),
     CheckOnly(Option<PathBuf>),
 }
 
@@ -50,6 +53,9 @@ OPTIONS:
   --capture              Open Screen Capture & MP4 Video Recorder tool (grim + slurp + wf-recorder)
   --start-menu           Open Windows 11 / Zorin-style graphical Start Menu
   --emoji                Open Windows 11-style Emoji Picker (Win+.)
+  --retro-game [FILE]    Open Classic 98/XP Game Wizard (.exe/.msi/CD .iso/.zip/folder)
+  --repair <APP_ID>      Open 1-Click Auto-Repair dialog after a Win98/XP game crash
+  --retro-pick <APP_ID>  Choose the real installed game .exe after running Setup.exe
   --tab <NAME>           Open initial tab: apps | store[:retro] | dev | ai | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security|power|users]
   --state-dir <DIR>      Override sandbox registry root (default: /data/uniload or .uniload_state)
   --apps-dir <DIR>       Override .desktop applications folder (default: ~/.local/share/applications)
@@ -113,6 +119,23 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
             }
             "--emoji" => {
                 mode = LaunchMode::EmojiPicker;
+            }
+            "--retro-game" => {
+                let maybe_next = args.get(idx + 1).filter(|v| !v.starts_with('-'));
+                if let Some(path_str) = maybe_next {
+                    mode = LaunchMode::RetroWizard(Some(PathBuf::from(path_str)));
+                    idx += 1;
+                } else {
+                    mode = LaunchMode::RetroWizard(None);
+                }
+            }
+            "--repair" => {
+                let app_id = next_value(args, &mut idx, "--repair")?;
+                mode = LaunchMode::RepairDialog(app_id);
+            }
+            "--retro-pick" => {
+                let app_id = next_value(args, &mut idx, "--retro-pick")?;
+                mode = LaunchMode::RetroTargetPicker(app_id);
             }
             "--tab" => {
                 let raw = next_value(args, &mut idx, "--tab")?;

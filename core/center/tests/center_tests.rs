@@ -1333,3 +1333,139 @@ fn v060_start_menu_emoji_layouts_accents_friendly_header_and_oobe_packs_work() {
     assert_ne!(en.lbl_desktop_layout, ms.lbl_desktop_layout);
     assert_ne!(en.oobe_pack_office, ms.oobe_pack_office);
 }
+
+#[test]
+fn v070_classic_98_xp_presets_cli_importer_and_bilingual_work() {
+    use std::collections::BTreeMap;
+    use unicore_center::retro::{
+        apply_retro_profile_to_env, parse_retro_import_output, prepare_retro_source,
+        read_retro_profile_from_env, virtual_desktop_from_index, virtual_desktop_to_index,
+        RetroGameProfile, RetroPreset,
+    };
+    use unicore_center::start_emoji::builtin_pinned_apps;
+
+    // 1. CLI flags for --retro-game, --repair, and --retro-pick
+    let rg = parse_args(&["--retro-game".to_string()]).unwrap().unwrap();
+    assert_eq!(rg.mode, LaunchMode::RetroWizard(None));
+
+    let rg_iso = parse_args(&["--retro-game".to_string(), "/tmp/RedAlert2.iso".to_string()])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        rg_iso.mode,
+        LaunchMode::RetroWizard(Some(PathBuf::from("/tmp/RedAlert2.iso")))
+    );
+
+    let rep = parse_args(&["--repair".to_string(), "ra2-app".to_string()])
+        .unwrap()
+        .unwrap();
+    assert_eq!(rep.mode, LaunchMode::RepairDialog("ra2-app".to_string()));
+
+    let pick = parse_args(&["--retro-pick".to_string(), "ra2-app".to_string()])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        pick.mode,
+        LaunchMode::RetroTargetPicker("ra2-app".to_string())
+    );
+
+    // 2. RetroPreset & Virtual Desktop index/parse roundtrips
+    for (idx, preset, code) in [
+        (0, RetroPreset::Auto, "auto"),
+        (1, RetroPreset::Classic2d, "classic_2d"),
+        (2, RetroPreset::Classic3d, "classic_3d"),
+        (3, RetroPreset::DosWin16, "dos_win16"),
+    ] {
+        assert_eq!(preset.as_str(), code);
+        assert_eq!(RetroPreset::parse(code), preset);
+        assert_eq!(preset.to_index(), idx);
+        assert_eq!(RetroPreset::from_index(idx), preset);
+    }
+    assert_eq!(virtual_desktop_to_index("off"), 0);
+    assert_eq!(virtual_desktop_to_index("800x600"), 1);
+    assert_eq!(virtual_desktop_to_index("1024x768"), 2);
+    assert_eq!(virtual_desktop_from_index(1), "800x600");
+    assert_eq!(virtual_desktop_from_index(2), "1024x768");
+
+    // 3. Env persistence roundtrip for Classic 2D (cnc-ddraw + 60 FPS + 1 Core + CD ISO)
+    let mut env = BTreeMap::new();
+    let prof_2d = RetroGameProfile {
+        preset: RetroPreset::Classic2d,
+        fps_cap_60: true,
+        single_core_cpu: true,
+        virtual_desktop: "off".to_string(),
+        cd_iso_path: "/data/home/Games/RA2.iso".to_string(),
+    };
+    let era_2d = apply_retro_profile_to_env(&mut env, &prof_2d);
+    assert_eq!(era_2d, Some(WinEra::Win98));
+    assert_eq!(env.get("UNICORE_RETRO_PRESET").map(String::as_str), Some("classic_2d"));
+    assert_eq!(
+        env.get("UNILOAD_VK_BACKEND").map(String::as_str),
+        Some("ddraw-compat+wined3d")
+    );
+    assert_eq!(env.get("UNILOAD_VIRTUAL_DESKTOP").map(String::as_str), Some("off"));
+    assert_eq!(env.get("UNICORE_FPS_CAP_60").map(String::as_str), Some("1"));
+    assert_eq!(env.get("UNICORE_SINGLE_CORE").map(String::as_str), Some("1"));
+    assert_eq!(
+        env.get("UNICORE_CD_ISO").map(String::as_str),
+        Some("/data/home/Games/RA2.iso")
+    );
+    assert_eq!(read_retro_profile_from_env(&env, era_2d), prof_2d);
+
+    // Classic 3D (DXVK D3D8/D3D9 + Safe 1024x768 window)
+    let prof_3d = RetroGameProfile {
+        preset: RetroPreset::Classic3d,
+        fps_cap_60: false,
+        single_core_cpu: false,
+        virtual_desktop: "1024x768".to_string(),
+        cd_iso_path: String::new(),
+    };
+    let era_3d = apply_retro_profile_to_env(&mut env, &prof_3d);
+    assert_eq!(era_3d, Some(WinEra::WinXp));
+    assert_eq!(
+        env.get("UNILOAD_VK_BACKEND").map(String::as_str),
+        Some("dxvk-d3d8-d3d9")
+    );
+    assert_eq!(
+        env.get("UNILOAD_VIRTUAL_DESKTOP").map(String::as_str),
+        Some("1024x768")
+    );
+    assert!(!env.contains_key("UNICORE_FPS_CAP_60"));
+    assert!(!env.contains_key("UNICORE_SINGLE_CORE"));
+    assert!(!env.contains_key("UNICORE_CD_ISO"));
+    assert_eq!(read_retro_profile_from_env(&env, era_3d), prof_3d);
+
+    // 4. Retro media output parser & portable game folder scanner
+    let parsed = parse_retro_import_output(
+        "game_dir=/data/home/Games/Diablo2\nmain_exe=/data/home/Games/Diablo2/Diablo II.exe\nname=Diablo2\niso_path=/data/home/Diablo2.iso\n",
+    );
+    assert_eq!(parsed.name, "Diablo2");
+    assert!(parsed.main_exe.ends_with("Diablo II.exe"));
+    assert_eq!(parsed.iso_path, "/data/home/Diablo2.iso");
+
+    let root = make_temp_dir("v070_portable_folder");
+    fs::write(root.join("unins000.exe"), vec![0u8; 4096]).unwrap();
+    fs::write(root.join("StarCraft.exe"), vec![0u8; 2048]).unwrap();
+    let prep = prepare_retro_source(&root.display().to_string(), "StarCraft Brood War").unwrap();
+    assert_eq!(prep.name, "StarCraft Brood War");
+    assert!(prep.main_exe.ends_with("StarCraft.exe"));
+    let _ = fs::remove_dir_all(&root);
+
+    // 5. Start Menu pinned tile #8 opens Classic 98/XP Game Launcher & bilingual EN/BM labels
+    let pinned_en = builtin_pinned_apps(UiLang::En);
+    let pinned_ms = builtin_pinned_apps(UiLang::Ms);
+    assert_eq!(pinned_en[7].id, "unicore-retro");
+    assert_eq!(pinned_en[7].exec_cmd, "/usr/bin/unicore-center --retro-game");
+    assert_ne!(pinned_en[7].name, pinned_ms[7].name);
+
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.title_retro_wizard, ms.title_retro_wizard);
+    assert_ne!(en.hdr_retro_tuning, ms.hdr_retro_tuning);
+    assert_ne!(en.chk_fps_cap, ms.chk_fps_cap);
+    assert_ne!(en.chk_single_core, ms.chk_single_core);
+    assert_ne!(en.title_repair, ms.title_repair);
+    assert_ne!(en.title_retro_pick, ms.title_retro_pick);
+    assert_ne!(en.btn_retro_install_play, ms.btn_retro_install_play);
+    assert_ne!(en.btn_repair_retry, ms.btn_repair_retry);
+}

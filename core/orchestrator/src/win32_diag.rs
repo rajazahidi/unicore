@@ -156,8 +156,47 @@ pub fn diagnose_win32_log(log_text: &str) -> Win32Diagnosis {
         }
     }
     if suggest_win98_ddraw {
-        en_notes.push("Classic DirectDraw error: switch era to Win98/WinXP (cnc-ddraw)");
-        ms_notes.push("Ralat DirectDraw klasik: tukar era ke Win98/WinXP (cnc-ddraw)");
+        en_notes.push("Classic DirectDraw error: switch to Classic 2D (Win98/XP cnc-ddraw)");
+        ms_notes.push("Ralat DirectDraw klasik: tukar ke Mod 2D Klasik (Win98/XP cnc-ddraw)");
+    }
+
+    for needle in ["dplayx", "dplay.dll", "dpnet", "dpnhpast", "directplay"] {
+        if lower.contains(needle) {
+            push_unique(&mut patterns, needle);
+            push_unique(&mut verbs, "directplay");
+        }
+    }
+    if verbs.iter().any(|v| v == "directplay") {
+        en_notes.push("Missing classic DirectPlay LAN/multiplayer runtime (directplay)");
+        ms_notes.push("Runtime rangkaian klasik DirectPlay hilang (directplay)");
+    }
+
+    for needle in ["dsound.dll", "dmusic", "dmime", "dmloader", "idirectsound"] {
+        if lower.contains(needle) {
+            push_unique(&mut patterns, needle);
+            push_unique(&mut verbs, "dsound");
+        }
+    }
+    if verbs.iter().any(|v| v == "dsound") {
+        en_notes.push("Missing classic DirectSound / DirectMusic audio DLLs (dsound)");
+        ms_notes.push("DLL bunyi klasik DirectSound / DirectMusic hilang (dsound)");
+    }
+
+    for needle in ["quartz.dll", "amstream.dll", "indeo", "iv50", "devenum.dll"] {
+        if lower.contains(needle) {
+            push_unique(&mut patterns, needle);
+            push_unique(&mut verbs, "quartz");
+        }
+    }
+    if verbs.iter().any(|v| v == "quartz") {
+        en_notes.push("Missing classic cutscene video codec (quartz / DirectShow)");
+        ms_notes.push("Codec video intro klasik hilang (quartz / DirectShow)");
+    }
+
+    if lower.contains("glide2x") || lower.contains("glide3x") {
+        push_unique(&mut patterns, "glide");
+        en_notes.push("3dfx Glide renderer requested: select Direct3D/OpenGL in game setup or Classic 3D mode");
+        ms_notes.push("Game perlukan 3dfx Glide: pilih Direct3D/OpenGL dalam tetapan game atau Mod 3D Klasik");
     }
 
     if patterns.is_empty() {

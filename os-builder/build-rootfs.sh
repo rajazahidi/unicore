@@ -129,6 +129,8 @@ DESKTOP_PKGS=(
     zip
     7zip
     libarchive-tools
+    archivemount
+    util-linux-misc
     swaybg
     mako
     libnotify
@@ -494,6 +496,7 @@ chmod 0755 \
     "${ROOTFS_DIR}/usr/libexec/unicore-shares" \
     "${ROOTFS_DIR}/usr/libexec/unicore-a11y" \
     "${ROOTFS_DIR}/usr/libexec/unicore-osd" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-retro-media" \
     "${ROOTFS_DIR}/etc/local.d/unicore-binfmt.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-android.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-hwprofile.start" \
@@ -839,7 +842,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="0.6.1"
+OS_VERSION="0.7.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

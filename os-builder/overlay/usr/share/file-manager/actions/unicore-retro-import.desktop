@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Action
+Name=Play / Import as Classic 98/XP Game...
+Name[ms]=Main / Import sebagai Game Klasik 98/XP...
+Tooltip=Auto-configure Win98/XP 2D/3D mode, 60 FPS cap, 1-Core CPU & Drive D: CD mount
+Icon=applications-games
+Profiles=profile-retro-import;
+
+[X-Action-Profile profile-retro-import]
+MimeTypes=application/x-cd-image;application/x-iso9660-image;application/zip;application/x-7z-compressed;application/x-ms-dos-executable;application/x-dosexec;application/x-msi;inode/directory;
+Basenames=*.iso;*.ISO;*.zip;*.ZIP;*.7z;*.7Z;*.exe;*.EXE;*.msi;*.MSI;*;
+SelectionCount==1
+Exec=/usr/bin/unicore-center --retro-game %f

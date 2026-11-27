@@ -64,6 +64,8 @@ COMMANDS:
                                        Activate subsystem and run app (ERA: win98|winxp|win7|win10)
   era <APP_ID> <win98|winxp|win7|win10>
                                        Override Windows era compatibility profile
+  scan-game-exe <APP_ID>               Scan a sandbox drive_c for playable game .exe after Setup.exe
+  set-target <APP_ID> <NEW_EXE>        Repoint an app shortcut/sandbox from Setup.exe to the real game .exe
   config <APP_ID> [--args <ARGS>] [--env K=V,...]
                                        Configure per-app launch arguments & environment variables
   save-backup <APP_ID> <ARCHIVE.tar.gz>
@@ -390,6 +392,37 @@ pub fn run_cli(args: &[String]) -> Result<String, String> {
                 idx += 1;
             }
             let updated = manager.update_launch_config(app_id, next_args, next_env)?;
+            Ok(to_json_pretty(&updated.to_json()))
+        }
+        "scan-game-exe" => {
+            let app_id = rest
+                .first()
+                .ok_or_else(|| "scan-game-exe requires <APP_ID>".to_string())?;
+            let app = manager.get_app(app_id)?;
+            let is_inst = crate::sandbox::is_likely_installer_path(Path::new(&app.source_path));
+            let found = manager.scan_installed_game_exes(app_id)?;
+            let mut out = BTreeMap::new();
+            out.insert("app_id".to_string(), JsonValue::Str(app_id.clone()));
+            out.insert("is_installer".to_string(), JsonValue::Bool(is_inst));
+            out.insert(
+                "candidates".to_string(),
+                JsonValue::Array(
+                    found
+                        .into_iter()
+                        .map(|p| JsonValue::Str(p.display().to_string()))
+                        .collect(),
+                ),
+            );
+            Ok(to_json_pretty(&JsonValue::Object(out)))
+        }
+        "set-target" => {
+            let app_id = rest
+                .first()
+                .ok_or_else(|| "set-target requires <APP_ID> <NEW_EXE>".to_string())?;
+            let new_exe = rest
+                .get(1)
+                .ok_or_else(|| "set-target requires <APP_ID> <NEW_EXE>".to_string())?;
+            let updated = manager.set_source_path(app_id, Path::new(new_exe))?;
             Ok(to_json_pretty(&updated.to_json()))
         }
         "save-backup" => {

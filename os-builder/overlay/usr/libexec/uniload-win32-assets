@@ -14,7 +14,7 @@ DEFAULT_DXVK_URL="https://github.com/doitsujin/dxvk/releases/download/v2.4.1/dxv
 DEFAULT_VKD3D_URL="https://github.com/HansKristian-Work/vkd3d-proton/releases/download/v2.13/vkd3d-proton-2.13.tar.zst"
 DEFAULT_OTVDM_URL="https://github.com/otya128/winevdm/releases/download/v0.9.0/otvdm-v0.9.0.zip"
 DEFAULT_CNCDDRAW_URL="https://github.com/FunkyFr3sh/cnc-ddraw/releases/download/v7.1.0.0/cnc-ddraw.zip"
-DEFAULT_RUNTIME_VERBS="d3dx9 d3dcompiler_43 d3dcompiler_47 vcrun2005 vcrun2008 vcrun2010 vcrun2015 xact"
+DEFAULT_RUNTIME_VERBS="d3dx9 d3dcompiler_43 d3dcompiler_47 vcrun6 vcrun2005 vcrun2008 vcrun2010 vcrun2015 directplay dsound corefonts"
 
 usage() {
     cat <<'EOF'

@@ -83,7 +83,7 @@ EOF
 }
 
 collect_system_context() {
-    os_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || echo 0.6.1)"
+    os_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || echo 0.7.0)"
     arch="$(uname -m 2>/dev/null || echo x86_64)"
     kern="$(uname -r 2>/dev/null || echo unknown)"
     ram_mb="$(detect_ram_mb)"

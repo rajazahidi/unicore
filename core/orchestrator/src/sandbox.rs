@@ -996,6 +996,111 @@ pub fn stop_wineserver_for_prefix(wine_prefix: &Path) -> bool {
     }
 }
 
+/// Heuristic check whether a binary path looks like a Windows game installer rather than the playable game.
+pub fn is_likely_installer_path(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+    if ext == "msi" {
+        return true;
+    }
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+    for kw in [
+        "setup",
+        "install",
+        "autorun",
+        "gog_",
+        "setup_",
+        "vcredist",
+        "dxsetup",
+        "unins",
+    ] {
+        if name.contains(kw) {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_ignored_game_exe_name(lower_name: &str) -> bool {
+    for kw in [
+        "unins",
+        "uninstall",
+        "dxsetup",
+        "vcredist",
+        "vc_redist",
+        "directx",
+        "dotnet",
+        "crash",
+        "report",
+        "setup",
+        "install",
+        "autorun",
+        "register",
+        "redist",
+        "helper",
+        "updater",
+    ] {
+        if lower_name.contains(kw) {
+            return true;
+        }
+    }
+    false
+}
+
+fn collect_playable_exes_recursive(
+    dir: &Path,
+    depth: usize,
+    out: &mut Vec<(u64, PathBuf)>,
+) {
+    if depth > 4 || out.len() >= 64 {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+        if path.is_dir() {
+            if matches!(
+                name.as_str(),
+                "windows"
+                    | "users"
+                    | "programdata"
+                    | "common files"
+                    | "internet explorer"
+                    | "windows media player"
+                    | "windows nt"
+                    | "directx"
+                    | "redist"
+                    | "_commonredist"
+            ) {
+                continue;
+            }
+            collect_playable_exes_recursive(&path, depth + 1, out);
+        } else if path.is_file() && name.ends_with(".exe") && !is_ignored_game_exe_name(&name) {
+            let size = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            out.push((size, path));
+        }
+    }
+}
+
+/// Scan a directory (such as a sandbox `drive_c` or extracted portable game folder) for playable `.exe` binaries,
+/// filtering out uninstallers/redists and ordering the largest main game executable first.
+pub fn scan_playable_exes_in_dir(root: &Path) -> Vec<PathBuf> {
+    let mut found: Vec<(u64, PathBuf)> = Vec::new();
+    collect_playable_exes_recursive(root, 0, &mut found);
+    found.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    found.into_iter().map(|(_, p)| p).collect()
+}
+
 fn slugify(name: &str) -> String {
     let mut out = String::new();
     let mut prev_dash = false;
@@ -1472,6 +1577,50 @@ impl SandboxManager {
                 ));
             }
             sandbox.win_era = era.or(Some(WinEra::Win10));
+            sandbox.clone()
+        };
+        self.save_registry()?;
+        Ok(updated)
+    }
+
+    /// Scan an installed Win32 app's sandbox `drive_c` for real playable `.exe` game binaries
+    /// (so users who installed via `Setup.exe` can switch their shortcut directly to the real game).
+    pub fn scan_installed_game_exes(&self, app_id: &str) -> Result<Vec<PathBuf>, String> {
+        let app = self.get_app(app_id)?;
+        let drive_c = Path::new(&app.sandbox_dir)
+            .join("drive_c_root")
+            .join("drive_c");
+        if !drive_c.is_dir() {
+            return Ok(Vec::new());
+        }
+        Ok(scan_playable_exes_in_dir(&drive_c))
+    }
+
+    /// Repoint an existing app sandbox from an installer (e.g. `Setup.exe`) to the real game `.exe`
+    /// while preserving the Wine prefix, save data, permissions, and retro tuning env vars.
+    pub fn set_source_path(&mut self, app_id: &str, new_path: &Path) -> Result<AppSandbox, String> {
+        let canonical = fs::canonicalize(new_path)
+            .map_err(|e| format!("Target binary not found ({}): {e}", new_path.display()))?;
+        let info = inspect_binary(&canonical)?;
+        if info.platform == AppPlatform::Unknown {
+            return Err(format!(
+                "Unsupported executable format for target: {}",
+                canonical.display()
+            ));
+        }
+        let updated = {
+            let sandbox = self
+                .apps
+                .get_mut(app_id)
+                .ok_or_else(|| format!("Application not registered: {app_id}"))?;
+            sandbox.source_path = canonical.display().to_string();
+            sandbox.platform = info.platform;
+            sandbox.arch = info.arch;
+            sandbox.sub_abis = info.sub_abis;
+            sandbox.is_gui = info.is_gui;
+            if sandbox.win_era.is_none() {
+                sandbox.win_era = info.win_era;
+            }
             sandbox.clone()
         };
         self.save_registry()?;

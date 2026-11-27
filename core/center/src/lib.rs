@@ -9,6 +9,7 @@ pub mod gaming;
 pub mod i18n;
 pub mod installer;
 pub mod oobe;
+pub mod retro;
 pub mod settings;
 pub mod start_emoji;
 pub mod store;

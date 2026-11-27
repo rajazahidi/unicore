@@ -1,0 +1,218 @@
+#!/bin/sh
+# UniCore OS Classic 98/XP Game Media Helper:
+# - Mount/stage Game CD .iso images rootlessly and link as Wine Drive D:\ (for Win98/XP CD-checks)
+# - Parse AUTORUN.INF or locate Setup.exe / playable .exe inside CDs & portable .zip/.7z/folders
+set -eu
+
+CD_CACHE_ROOT="${UNICORE_CD_CACHE:-/data/uniload/cd_cache}"
+GAMES_ROOT="${UNICORE_GAMES_DIR:-/data/games}"
+
+slugify() {
+    s="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//' | cut -c1-36)"
+    [ -n "${s}" ] || s="classic-game"
+    printf '%s\n' "${s}"
+}
+
+iso_hash() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        printf '%s' "$1" | sha256sum | awk '{print substr($1,1,12)}'
+    else
+        printf '%s' "$1" | cksum | awk '{print $1}'
+    fi
+}
+
+find_best_exe() {
+    dir="$1"
+    prefer_setup="${2:-0}"
+
+    # 1. Check AUTORUN.INF if looking for CD installer/autorun
+    if [ "${prefer_setup}" = "1" ]; then
+        ar="$(find "${dir}" -maxdepth 2 -iname 'autorun.inf' -type f 2>/dev/null | head -n1 || true)"
+        if [ -n "${ar}" ] && [ -r "${ar}" ]; then
+            open_rel="$(awk -F= 'tolower($1) ~ /^[[:space:]]*open[[:space:]]*$/ {
+                v=$2; gsub(/\r/, "", v); gsub(/^[[:space:]]+|[[:space:]]+$/, "", v);
+                gsub(/^"/, "", v); sub(/[[:space:]].*$/, "", v); gsub(/\\/, "/", v);
+                print v; exit
+            }' "${ar}" 2>/dev/null || true)"
+            if [ -n "${open_rel}" ]; then
+                base_ar="$(basename "${open_rel}")"
+                cand="$(find "${dir}" -maxdepth 3 -iname "${base_ar}" -type f 2>/dev/null | head -n1 || true)"
+                if [ -n "${cand}" ]; then
+                    printf '%s\n' "${cand}"
+                    return 0
+                fi
+            fi
+        fi
+        for pat in 'setup.exe' 'install.exe' 'autorun.exe' '*.msi'; do
+            cand="$(find "${dir}" -maxdepth 3 -iname "${pat}" -type f 2>/dev/null | head -n1 || true)"
+            if [ -n "${cand}" ]; then
+                printf '%s\n' "${cand}"
+                return 0
+            fi
+        done
+    fi
+
+    # 2. Find largest non-uninstaller .exe (most likely the main game executable)
+    best=""
+    best_sz=-1
+    for f in $(find "${dir}" -maxdepth 4 -iname '*.exe' -type f 2>/dev/null | head -n 80); do
+        bn="$(basename "${f}" | tr '[:upper:]' '[:lower:]')"
+        case "${bn}" in
+            *unins*|*dxsetup*|*vcredist*|*vc_redist*|*crash*|*redist*|*dotnet*) continue ;;
+        esac
+        sz="$(wc -c < "${f}" 2>/dev/null || echo 0)"
+        if [ "${sz}" -gt "${best_sz}" ] 2>/dev/null; then
+            best_sz="${sz}"
+            best="${f}"
+        fi
+    done
+    [ -n "${best}" ] && printf '%s\n' "${best}"
+}
+
+stage_iso() {
+    iso="$1"
+    [ -r "${iso}" ] || { echo "ISO file not readable: ${iso}" >&2; return 1; }
+    hid="$(iso_hash "${iso}")"
+    base_slug="$(slugify "$(basename "${iso}" .iso)")"
+    target="${CD_CACHE_ROOT}/${base_slug}-${hid}"
+    mkdir -p "${target}"
+
+    # Reuse already-mounted or cached read-only CD tree
+    if [ -f "${target}/.unicore_cd_ready" ] && [ -n "$(ls -A "${target}" 2>/dev/null | grep -v '^\.unicore_cd_ready$' | head -n1 || true)" ]; then
+        printf '%s\n' "${target}"
+        return 0
+    fi
+
+    # Prefer rootless archivemount FUSE if available & /dev/fuse usable
+    if command -v archivemount >/dev/null 2>&1 && [ -w /dev/fuse ]; then
+        if grep -q " ${target} " /proc/mounts 2>/dev/null; then
+            printf '%s\n' "${target}"
+            return 0
+        fi
+        if archivemount -o readonly "${iso}" "${target}" >/dev/null 2>&1; then
+            printf '%s\n' "${target}"
+            return 0
+        fi
+    fi
+
+    # Universal rootless extraction fallback (works inside bubblewrap & without FUSE!)
+    if command -v bsdtar >/dev/null 2>&1; then
+        bsdtar -xf "${iso}" -C "${target}" >/dev/null 2>&1 || true
+    elif command -v 7z >/dev/null 2>&1; then
+        7z x -y "-o${target}" "${iso}" >/dev/null 2>&1 || true
+    elif command -v 7zz >/dev/null 2>&1; then
+        7zz x -y "-o${target}" "${iso}" >/dev/null 2>&1 || true
+    else
+        echo "No ISO reader (archivemount/bsdtar/7z) available." >&2
+        return 1
+    fi
+    chmod -R u+rwX "${target}" 2>/dev/null || true
+    touch "${target}/.unicore_cd_ready"
+    printf '%s\n' "${target}"
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        am=0; bt=0; sz=0; ts=0
+        command -v archivemount >/dev/null 2>&1 && am=1 || true
+        command -v bsdtar >/dev/null 2>&1 && bt=1 || true
+        { command -v 7z >/dev/null 2>&1 || command -v 7zz >/dev/null 2>&1; } && sz=1 || true
+        command -v taskset >/dev/null 2>&1 && ts=1 || true
+        printf 'archivemount=%s\nbsdtar=%s\nsevenzip=%s\ntaskset=%s\ngames_dir=%s\n' \
+            "${am}" "${bt}" "${sz}" "${ts}" "${GAMES_ROOT}"
+        ;;
+
+    inspect-iso)
+        iso="${1:-}"
+        [ -n "${iso}" ] || { echo "Usage: unicore-retro-media inspect-iso <ISO_PATH>" >&2; exit 2; }
+        mdir="$(stage_iso "${iso}")"
+        exe="$(find_best_exe "${mdir}" 1 || true)"
+        label="$(basename "${iso}" | sed 's/\.[iI][sS][oO]$//')"
+        printf 'mount_dir=%s\nautorun_exe=%s\nlabel=%s\n' "${mdir}" "${exe}" "${label}"
+        ;;
+
+    mount-prefix)
+        iso="${1:-}"
+        prefix="${2:-}"
+        [ -n "${iso}" ] && [ -n "${prefix}" ] || { echo "Usage: unicore-retro-media mount-prefix <ISO_PATH> <WINEPREFIX>" >&2; exit 2; }
+        mdir="$(stage_iso "${iso}")"
+        mkdir -p "${prefix}/dosdevices"
+        rm -f "${prefix}/dosdevices/d:" "${prefix}/dosdevices/d::" 2>/dev/null || true
+        ln -s "${mdir}" "${prefix}/dosdevices/d:"
+        ln -s "${iso}" "${prefix}/dosdevices/d::"
+        # Hint Wine drive D: type as cdrom via system.reg/user.reg if wine exists later
+        printf 'mount_dir=%s\ndrive=D:\\\n' "${mdir}"
+        ;;
+
+    import-game)
+        src="${1:-}"
+        custom_name="${2:-}"
+        [ -n "${src}" ] || { echo "Usage: unicore-retro-media import-game <ZIP|7Z|ISO|DIR> [NAME]" >&2; exit 2; }
+        mkdir -p "${GAMES_ROOT}"
+
+        if [ -d "${src}" ]; then
+            game_dir="${src}"
+            raw_name="${custom_name:-$(basename "${src}")}"
+            exe="$(find_best_exe "${game_dir}" 0 || true)"
+            [ -n "${exe}" ] || exe="$(find_best_exe "${game_dir}" 1 || true)"
+            printf 'game_dir=%s\nmain_exe=%s\nname=%s\niso_path=\n' "${game_dir}" "${exe}" "${raw_name}"
+            exit 0
+        fi
+
+        [ -r "${src}" ] || { echo "Source file not found: ${src}" >&2; exit 1; }
+        lower="$(printf '%s' "${src}" | tr '[:upper:]' '[:lower:]')"
+        case "${lower}" in
+            *.iso)
+                mdir="$(stage_iso "${src}")"
+                exe="$(find_best_exe "${mdir}" 1 || true)"
+                raw_name="${custom_name:-$(basename "${src}" | sed 's/\.[iI][sS][oO]$//')}"
+                printf 'game_dir=%s\nmain_exe=%s\nname=%s\niso_path=%s\n' "${mdir}" "${exe}" "${raw_name}" "${src}"
+                exit 0
+                ;;
+        esac
+
+        raw_name="${custom_name:-$(basename "${src}" | sed 's/\.\(zip\|7z\|tar\.gz\|tgz\|tar\.xz\|rar\)$//i')}"
+        slug="$(slugify "${raw_name}")"
+        dest="${GAMES_ROOT}/${slug}"
+        mkdir -p "${dest}"
+        case "${lower}" in
+            *.zip)
+                if command -v unzip >/dev/null 2>&1; then
+                    unzip -q -o "${src}" -d "${dest}"
+                elif command -v bsdtar >/dev/null 2>&1; then
+                    bsdtar -xf "${src}" -C "${dest}"
+                else
+                    echo "unzip/bsdtar unavailable" >&2; exit 1
+                fi
+                ;;
+            *.7z|*.rar)
+                if command -v 7z >/dev/null 2>&1; then
+                    7z x -y "-o${dest}" "${src}" >/dev/null
+                elif command -v 7zz >/dev/null 2>&1; then
+                    7zz x -y "-o${dest}" "${src}" >/dev/null
+                elif command -v bsdtar >/dev/null 2>&1; then
+                    bsdtar -xf "${src}" -C "${dest}"
+                else
+                    echo "7z/bsdtar unavailable" >&2; exit 1
+                fi
+                ;;
+            *.tar.gz|*.tgz|*.tar.xz|*.tar.zst|*.tar)
+                tar -xf "${src}" -C "${dest}"
+                ;;
+            *)
+                echo "Unsupported game archive: ${src}" >&2; exit 2
+                ;;
+        esac
+        exe="$(find_best_exe "${dest}" 0 || true)"
+        [ -n "${exe}" ] || exe="$(find_best_exe "${dest}" 1 || true)"
+        printf 'game_dir=%s\nmain_exe=%s\nname=%s\niso_path=\n' "${dest}" "${exe}" "${raw_name}"
+        ;;
+
+    *)
+        echo "Usage: unicore-retro-media <status|inspect-iso <ISO>|mount-prefix <ISO> <PREFIX>|import-game <SRC> [NAME]>" >&2
+        exit 2
+        ;;
+esac

@@ -1,8 +1,14 @@
-# UniCore OS (`0.6.1`)
+# UniCore OS (`0.7.0`)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern x86_64 & ARM64 PCs**.
 
 ## Key Capabilities
+
+* **Classic 98/XP Gaming Edition (`v0.7.0`)**:
+  * **1-Click Classic 98/XP Game Launcher (`--retro-game`, pinned in Start Menu & `+ 98/XP Game`)**: Pick any `.exe`, `.msi`, **Game CD `.iso`**, **`.zip`/`.7z` portable archive**, or game folder and choose from 3 plain-language presets: **Classic 2D (Win98/XP `cnc-ddraw` with crisp 4:3 scaling)**, **Classic 3D (WinXP DXVK D3D8/D3D9 with automatic OpenGL fallback on legacy GPUs)**, or **DOS / Win16 (90s)**.
+  * **Rootless Game CD `.iso` Mount as Drive `D:\` (`unicore-retro-media`)**: Double-click any `.iso` or right-click *"Play/Import as Classic 98/XP Game"* in File Explorer to auto-mount (`archivemount` + rootless `bsdtar`/`7z` fallback), read `AUTORUN.INF`/`Setup.exe`, and keep the CD mounted on Wine `D:\` for DRM/music checks.
+  * **Smart Post-Install `.exe` Auto-Scanner (`--retro-pick`)**: After a `Setup.exe` finishes inside a sandbox, UniCore automatically scans `drive_c` (ignoring uninstallers/redists) and lets you switch the shortcut to the real playable game `.exe` in 1 click.
+  * **1-Click Classic Troubleshooting Switches & Automatic Crash Auto-Repair (`--repair`)**: Per-game toggles for **Cap 60 FPS** (`DXVK_FRAME_RATE=60` + `ddraw.ini maxfps=60`), **Lock 1 CPU Core** (`taskset -c 0` + `singlecpu=true`), **Safe Windowed Screen** (`off` / `800x600` / `1024x768`), expanded Classic Runtime Pack (`vcrun6`, `directplay`, `dsound`, `corefonts`, `d3dx9`), and automatic fast-crash popup diagnosis (`DirectPlay`, `DirectSound`, `Quartz/Indeo`, `DirectDraw`, `3dfx Glide`, `VC++`/`DX9`).
 
 * **Windows 11 & Zorin Familiarity Edition (`v0.6.1`)**:
   * **Native Graphical Start Menu (`--start-menu` / `Win` key)**: Instant search, 2×4 Pinned Apps grid, Category filters (*All, Internet, Office, Media, Games, System*), user quick folders (*Docs, Downloads, Pictures*), Emoji & Power controls (`Alt+Space` preserved for `fuzzel`).

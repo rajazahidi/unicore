@@ -39,6 +39,34 @@ ERA="${UNILOAD_WIN_ERA:-win10}"
 VDESK="${UNILOAD_VIRTUAL_DESKTOP:-off}"
 VK_BACKEND="${UNILOAD_VK_BACKEND:-dxvk+vkd3d}"
 ALLOW_GPU="${UNILOAD_ALLOW_GPU:-1}"
+RETRO_PRESET="${UNICORE_RETRO_PRESET:-auto}"
+FPS_CAP_60="${UNICORE_FPS_CAP_60:-0}"
+SINGLE_CORE="${UNICORE_SINGLE_CORE:-0}"
+CD_ISO="${UNICORE_CD_ISO:-}"
+
+if [ "${RETRO_PRESET}" = "classic_2d" ]; then
+    VK_BACKEND="ddraw-compat+wined3d"
+    [ "${ERA}" = "win10" ] && ERA="win98"
+elif [ "${RETRO_PRESET}" = "classic_3d" ]; then
+    VK_BACKEND="dxvk-d3d8-d3d9"
+    [ "${ERA}" = "win10" ] && ERA="winxp"
+fi
+
+if [ "${FPS_CAP_60}" = "1" ]; then
+    export DXVK_FRAME_RATE=60
+    export UNICORE_MAX_FPS=60
+fi
+
+# Graceful Vulkan check: if a legacy PC has no hardware Vulkan ICD, fall back from DXVK to WineD3D OpenGL cleanly
+if [ "${ALLOW_GPU}" = "1" ]; then
+    case "${VK_BACKEND}" in
+        dxvk+vkd3d|dxvk-d3d8-d3d11|dxvk-d3d8-d3d9)
+            if [ ! -e /dev/dri/renderD128 ] && [ ! -e /dev/dri/card0 ]; then
+                VK_BACKEND="wined3d-opengl"
+            fi
+            ;;
+    esac
+fi
 
 if [ "${ALLOW_GPU}" = "0" ] || [ "${VK_BACKEND}" = "software" ]; then
     export LIBGL_ALWAYS_SOFTWARE=1
@@ -203,20 +231,50 @@ provision_cnc_ddraw() {
     done
     [ -n "${ddraw_root}" ] || return 0
 
+    sys32="${WINEPREFIX}/drive_c/windows/system32"
     syswow="${WINEPREFIX}/drive_c/windows/syswow64"
-    mkdir -p "${syswow}"
+    mkdir -p "${sys32}" "${syswow}"
     cp -f "${ddraw_root}/ddraw.dll" "${syswow}/ddraw.dll"
-    if [ -f "${ddraw_root}/ddraw.ini" ] && [ ! -f "${syswow}/ddraw.ini" ]; then
-        cp -f "${ddraw_root}/ddraw.ini" "${syswow}/ddraw.ini"
-    fi
+    cp -f "${ddraw_root}/ddraw.dll" "${sys32}/ddraw.dll"
+
+    # Generate crisp 4:3 aspect-preserving modern ddraw.ini (prevents Wayland mode corruption & rainbow palette bugs)
+    maxfps_val="0"
+    [ "${FPS_CAP_60}" = "1" ] && maxfps_val="60"
+    for ddir in "${syswow}" "${sys32}"; do
+        cat <<EOF > "${ddir}/ddraw.ini"
+[ddraw]
+fullscreen=true
+windowed=false
+maintas=true
+adjmouse=true
+vhack=true
+renderer=auto
+maxfps=${maxfps_val}
+border=true
+boxing=false
+singlecpu=${SINGLE_CORE}
+EOF
+    done
     export WINEDLLOVERRIDES="${WINEDLLOVERRIDES};ddraw=n,b"
 }
 
 provision_dxvk_vkd3d
 provision_cnc_ddraw
 
+# Auto-mount per-app Game CD (.iso) as Wine Drive D:\ so classic Win98/XP CD-checks pass
+if [ -n "${CD_ISO}" ] && [ -r "${CD_ISO}" ] && [ -x /usr/libexec/unicore-retro-media ]; then
+    /usr/libexec/unicore-retro-media mount-prefix "${CD_ISO}" "${WINEPREFIX}" >/dev/null 2>&1 || true
+    "${WINE_CMD}" reg add "HKLM\\Software\\Wine\\Drives" /v "d:" /t REG_SZ /d "cdrom" /f >/dev/null 2>&1 || true
+fi
+
 if [ -n "${UNILOAD_APP_WORKDIR:-}" ] && [ -d "${UNILOAD_APP_WORKDIR}" ]; then
     cd "${UNILOAD_APP_WORKDIR}" || true
+fi
+
+# Optional Single-Core CPU Affinity (fixes classic Win98/XP multi-core stutter/freezes)
+RUN_PREFIX=""
+if [ "${SINGLE_CORE}" = "1" ] && command -v taskset >/dev/null 2>&1; then
+    RUN_PREFIX="taskset -c 0"
 fi
 
 if [ "$1" = "msiexec" ]; then
@@ -228,7 +286,7 @@ fi
 if [ "${UNILOAD_WIN16_MODE:-0}" = "1" ]; then
     for otvdm_bin in /data/uniload/otvdm/otvdm.exe /usr/share/unicore/otvdm/otvdm.exe; do
         if [ -f "${otvdm_bin}" ]; then
-            exec /usr/libexec/uniload-sandbox-exec "${WINE_CMD}" "${otvdm_bin}" "$@"
+            exec /usr/libexec/uniload-sandbox-exec ${RUN_PREFIX} "${WINE_CMD}" "${otvdm_bin}" "$@"
         fi
     done
 fi
@@ -236,7 +294,7 @@ fi
 # Classic Win98/XP 640x480 or 800x600 games run inside an isolated virtual desktop
 # so fullscreen mode switches cannot break the Wayland compositor.
 if [ "${VDESK}" != "off" ] && [ -n "${DISPLAY:-}" ]; then
-    exec /usr/libexec/uniload-sandbox-exec "${WINE_CMD}" explorer "/desktop=UniCore-${ERA},${VDESK}" "$@"
+    exec /usr/libexec/uniload-sandbox-exec ${RUN_PREFIX} "${WINE_CMD}" explorer "/desktop=UniCore-${ERA},${VDESK}" "$@"
 fi
 
-exec /usr/libexec/uniload-sandbox-exec "${WINE_CMD}" "$@"
+exec /usr/libexec/uniload-sandbox-exec ${RUN_PREFIX} "${WINE_CMD}" "$@"

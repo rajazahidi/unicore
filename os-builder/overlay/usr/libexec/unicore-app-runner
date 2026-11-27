@@ -36,6 +36,7 @@ if command -v notify-send >/dev/null 2>&1; then
     notify-send -a "UniCore OS" "Launching ${APP_NAME}" "Starting isolated sandbox..." >/dev/null 2>&1 || true
 fi
 
+START_TS="$(date +%s 2>/dev/null || echo 0)"
 set +e
 if [ "${UNICORE_GAME_MODE}" = "1" ] && command -v nice >/dev/null 2>&1; then
     if nice -n -5 true 2>/dev/null; then
@@ -50,19 +51,41 @@ else
     rc=$?
 fi
 set -e
+END_TS="$(date +%s 2>/dev/null || echo 0)"
+ELAPSED=$((END_TS - START_TS))
 
-printf '=== Exited with code %s ===\n' "${rc}" >> "${LOG_FILE}"
-if [ "${rc}" -ne 0 ] && command -v notify-send >/dev/null 2>&1; then
+printf '=== Exited with code %s (elapsed=%ss) ===\n' "${rc}" "${ELAPSED}" >> "${LOG_FILE}"
+
+# 1. Smart Post-Install Game Scanner: if user just ran Setup.exe / installer, auto-prompt to switch shortcut to the real game .exe!
+if [ "${rc}" -eq 0 ] && [ -x "${UNILOAD_BIN}" ] && [ -n "${WAYLAND_DISPLAY:-}" ] && [ -x /usr/bin/unicore-center ]; then
+    scan_json="$("${UNILOAD_BIN}" --state-dir "${STATE_DIR}" scan-game-exe "${APP_ID}" 2>/dev/null || true)"
+    if printf '%s\n' "${scan_json}" | grep -q '"is_installer":[[:space:]]*true' && printf '%s\n' "${scan_json}" | grep -q '\.exe'; then
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send -a "UniCore OS" "${APP_NAME} installed!" "Detected playable game executable — opening 1-click shortcut selector..." >/dev/null 2>&1 || true
+        fi
+        /usr/bin/unicore-center --retro-pick "${APP_ID}" </dev/null >/dev/null 2>&1 &
+    fi
+fi
+
+# 2. Automatic Crash Diagnosis & 1-Click Auto-Repair Dialog for Win98/XP Games
+if [ "${rc}" -ne 0 ]; then
     diag_hint="Open UniCore Center -> View Log for details."
+    has_fix="0"
     if [ -x "${UNILOAD_BIN}" ]; then
         diag_json="$("${UNILOAD_BIN}" diagnose-log "${LOG_FILE}" 2>/dev/null || true)"
         if printf '%s\n' "${diag_json}" | grep -q '"issue_detected":[[:space:]]*true'; then
+            has_fix="1"
             parsed_sum="$(printf '%s\n' "${diag_json}" | sed -n 's/^[[:space:]]*"summary_en":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
             if [ -n "${parsed_sum}" ]; then
-                diag_hint="${parsed_sum} — Open App Center -> Auto-Fix Runtime."
+                diag_hint="${parsed_sum} — Click Repair & Retry!"
             fi
         fi
     fi
-    notify-send -u critical -a "UniCore OS" "${APP_NAME} exited (code ${rc})" "${diag_hint}" >/dev/null 2>&1 || true
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -u critical -a "UniCore OS" "${APP_NAME} exited (code ${rc})" "${diag_hint}" >/dev/null 2>&1 || true
+    fi
+    if [ "${has_fix}" = "1" ] && [ "${ELAPSED}" -le 25 ] && [ -n "${WAYLAND_DISPLAY:-}" ] && [ -x /usr/bin/unicore-center ]; then
+        /usr/bin/unicore-center --repair "${APP_ID}" </dev/null >/dev/null 2>&1 &
+    fi
 fi
 exit "${rc}"

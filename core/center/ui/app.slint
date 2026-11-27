@@ -288,6 +288,21 @@ export struct UiText {
     oobe-pack-office: string,
     oobe-pack-creative: string,
     oobe-pack-gaming: string,
+    title-retro-wizard: string,
+    title-repair: string,
+    title-retro-pick: string,
+    btn-add-retro: string,
+    hdr-retro-tuning: string,
+    lbl-retro-preset: string,
+    chk-fps-cap: string,
+    chk-single-core: string,
+    lbl-safe-window: string,
+    lbl-cd-iso: string,
+    btn-save-retro: string,
+    btn-scan-game-exe: string,
+    btn-retro-install-play: string,
+    btn-repair-retry: string,
+    btn-use-game-exe: string,
 }
 
 export global UiTheme {
@@ -587,14 +602,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))));
-    preferred-width: root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))));
-    preferred-height: root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))));
-    min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only) ? 360px : 520px;
-    min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only) ? 280px : 360px;
+    title: root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center))))))))))));
+    preferred-width: root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px)))))))))));
+    preferred-height: root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px)))))))))));
+    min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
+    min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -624,6 +639,9 @@ export component MainWindow inherits Window {
     in-out property <bool> capture-dialog-only: false;
     in-out property <bool> start-menu-only: false;
     in-out property <bool> emoji-dialog-only: false;
+    in-out property <bool> retro-wizard-only: false;
+    in-out property <bool> repair-dialog-only: false;
+    in-out property <bool> retro-pick-only: false;
     in-out property <bool> oobe-dialog-only: false;
     in-out property <bool> taskmgr-dialog-only: false;
     in-out property <bool> picker-open: false;
@@ -634,7 +652,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v0.6.1";
+    in-out property <string> login-clock-text: "UniCore OS v0.7.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -916,6 +934,32 @@ export component MainWindow inherits Window {
     in-out property <bool> oobe-pack-creative: false;
     in-out property <bool> oobe-pack-gaming: false;
 
+    // v0.7.0 Classic 98/XP Game Wizard, Auto-Repair & Post-Install Target Picker
+    in-out property <string> retro-src-input: "";
+    in-out property <string> retro-name-input: "";
+    in-out property <int> retro-preset-idx: 1; // default Classic 2D (Win98/XP) in wizard
+    in-out property <bool> retro-fps-cap: true;
+    in-out property <bool> retro-single-core: false;
+    in-out property <int> retro-vdesk-idx: 0;
+    in-out property <string> retro-cd-iso-input: "";
+    in-out property <bool> retro-busy: false;
+    in-out property <string> retro-status: "";
+    in-out property <string> repair-app-id: "";
+    in-out property <string> repair-app-name: "";
+    in-out property <string> repair-summary: "";
+    in-out property <string> repair-verbs: "";
+    in-out property <bool> repair-suggest-2d: false;
+    in-out property <bool> repair-busy: false;
+    in-out property <string> retro-pick-app-id: "";
+    in-out property <string> retro-pick-app-name: "";
+    in-out property <[string]> retro-pick-candidates: [];
+    in-out property <int> retro-pick-selected-idx: 0;
+    in-out property <int> sel-retro-preset-idx: 0;
+    in-out property <bool> sel-retro-fps-cap: false;
+    in-out property <bool> sel-retro-single-core: false;
+    in-out property <int> sel-retro-vdesk-idx: 0;
+    in-out property <string> sel-retro-cd-iso: "";
+
     // App Catalog / Store state (Tab 4)
     in-out property <[StoreEntry]> store-entries: [];
     in-out property <[StoreRow]> store-rows: [];
@@ -990,6 +1034,11 @@ export component MainWindow inherits Window {
     callback start-open-folder(string);
     callback emoji-filter-changed(string, string);
     callback emoji-selected(string);
+    callback retro-install-and-play(string, string, int, bool, bool, int, string);
+    callback save-sel-retro-profile(int, bool, bool, int, string);
+    callback scan-sel-game-exe();
+    callback repair-run-and-retry();
+    callback retro-pick-apply(int);
     callback audio-profile-selected(int);
     callback toggle-dnd(bool);
     callback dismiss-all-notifications();
@@ -1073,7 +1122,7 @@ export component MainWindow inherits Window {
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -2173,6 +2222,337 @@ export component MainWindow inherits Window {
             }
         }
 
+        // v0.7.0 Classic 98/XP Game Launcher & Importer Wizard (--retro-game)
+        if root.retro-wizard-only && !root.picker-open : VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Rectangle {
+                height: 64px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #3b0764 0%, #6d28d9 55%, #0284c7 100%);
+                border-width: 1px;
+                border-color: UiTheme.accent-bright;
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        Text {
+                            text: root.tr.title-retro-wizard;
+                            color: #ffffff;
+                            font-size: 16px;
+                            font-weight: 800;
+                        }
+                        Text {
+                            text: "1-Click Win98 / WinXP / DOS games: .exe, Setup.exe, CD .iso (Drive D:) or Portable .zip / Folder";
+                            color: #e0f2fe;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+                    TabPill {
+                        label: root.lang-badge;
+                        active: false;
+                        clicked => { root.toggle-language(); }
+                    }
+                }
+            }
+
+            Card {
+                vertical-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+                        alignment: start;
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: "Game File / CD / ZIP:"; color: UiTheme.text-muted; font-size: 12px; width: 140px; vertical-alignment: center; }
+                            LineEdit {
+                                text <=> root.retro-src-input;
+                                placeholder-text: "Select .exe, Setup.exe, CD .iso, .zip, or portable game folder...";
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: root.tr.btn-browse;
+                                clicked => { root.open-file-picker("retro-src"); }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: "Game Name (Optional):"; color: UiTheme.text-muted; font-size: 12px; width: 140px; vertical-alignment: center; }
+                            LineEdit {
+                                text <=> root.retro-name-input;
+                                placeholder-text: "e.g. Red Alert 2, GTA San Andreas, Age of Empires II";
+                                horizontal-stretch: 1;
+                            }
+                        }
+
+                        Text {
+                            text: root.tr.lbl-retro-preset;
+                            color: UiTheme.text-secondary;
+                            font-size: 12px;
+                            font-weight: 700;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 64px;
+                                border-radius: 8px;
+                                background: root.retro-preset-idx == 1 ? UiTheme.accent : UiTheme.surface-subtle;
+                                border-width: 1px;
+                                border-color: root.retro-preset-idx == 1 ? UiTheme.accent-bright : UiTheme.card-border;
+                                TouchArea { clicked => { root.retro-preset-idx = 1; root.retro-fps-cap = true; } }
+                                VerticalLayout {
+                                    padding: 8px;
+                                    alignment: center;
+                                    spacing: 2px;
+                                    Text { text: "Classic 2D (Win98/XP)"; color: root.retro-preset-idx == 1 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
+                                    Text { text: "Red Alert 2, AoE2, Diablo II, StarCraft"; color: root.retro-preset-idx == 1 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
+                                }
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 64px;
+                                border-radius: 8px;
+                                background: root.retro-preset-idx == 2 ? UiTheme.accent : UiTheme.surface-subtle;
+                                border-width: 1px;
+                                border-color: root.retro-preset-idx == 2 ? UiTheme.accent-bright : UiTheme.card-border;
+                                TouchArea { clicked => { root.retro-preset-idx = 2; root.retro-fps-cap = true; } }
+                                VerticalLayout {
+                                    padding: 8px;
+                                    alignment: center;
+                                    spacing: 2px;
+                                    Text { text: "Classic 3D (WinXP)"; color: root.retro-preset-idx == 2 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
+                                    Text { text: "GTA SA, NFS U2, War3, CS 1.6"; color: root.retro-preset-idx == 2 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
+                                }
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 64px;
+                                border-radius: 8px;
+                                background: root.retro-preset-idx == 3 ? UiTheme.accent : UiTheme.surface-subtle;
+                                border-width: 1px;
+                                border-color: root.retro-preset-idx == 3 ? UiTheme.accent-bright : UiTheme.card-border;
+                                TouchArea { clicked => { root.retro-preset-idx = 3; } }
+                                VerticalLayout {
+                                    padding: 8px;
+                                    alignment: center;
+                                    spacing: 2px;
+                                    Text { text: "DOS / Win16 (90s)"; color: root.retro-preset-idx == 3 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
+                                    Text { text: "DOSBox-Staging & OTVDM"; color: root.retro-preset-idx == 3 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 16px;
+                            Switch {
+                                text: root.tr.chk-fps-cap;
+                                checked <=> root.retro-fps-cap;
+                            }
+                            Switch {
+                                text: root.tr.chk-single-core;
+                                checked <=> root.retro-single-core;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: root.tr.lbl-safe-window; color: UiTheme.text-muted; font-size: 12px; width: 140px; vertical-alignment: center; }
+                            ComboBox {
+                                model: ["Auto Fullscreen (Sharp 4:3 Scaling)", "Safe Window (800x600)", "Safe Window (1024x768)"];
+                                current-index <=> root.retro-vdesk-idx;
+                                horizontal-stretch: 1;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: root.tr.lbl-cd-iso; color: UiTheme.text-muted; font-size: 12px; width: 140px; vertical-alignment: center; }
+                            LineEdit {
+                                text <=> root.retro-cd-iso-input;
+                                placeholder-text: "Optional: attach .iso game disc as Drive D:";
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: root.tr.btn-browse;
+                                clicked => { root.open-file-picker("retro-iso"); }
+                            }
+                        }
+
+                        if root.retro-busy : ProgressIndicator {
+                            indeterminate: true;
+                            height: 6px;
+                        }
+
+                        if root.retro-status != "" : Text {
+                            text: root.retro-status;
+                            color: UiTheme.text-accent;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.tr.btn-retro-install-play;
+                    primary: true;
+                    enabled: !root.retro-busy && root.retro-src-input != "";
+                    clicked => {
+                        root.retro-install-and-play(
+                            root.retro-src-input,
+                            root.retro-name-input,
+                            root.retro-preset-idx,
+                            root.retro-fps-cap,
+                            root.retro-single-core,
+                            root.retro-vdesk-idx,
+                            root.retro-cd-iso-input
+                        );
+                    }
+                }
+                Button {
+                    text: root.tr.btn-open-center;
+                    clicked => {
+                        root.retro-wizard-only = false;
+                        root.active-tab = 0;
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // v0.7.0 Automatic Crash Diagnosis & 1-Click Auto-Repair Popup (--repair <APP_ID>)
+        if root.repair-dialog-only : VerticalLayout {
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            Rectangle {
+                height: 58px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #7c2d12 0%, #d97706 100%);
+                border-width: 1px;
+                border-color: #fbbf24;
+                VerticalLayout {
+                    padding: 12px;
+                    alignment: center;
+                    Text { text: root.tr.title-repair; color: #ffffff; font-size: 15px; font-weight: 800; }
+                    Text { text: root.repair-app-name; color: #fef3c7; font-size: 11px; }
+                }
+            }
+
+            Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+                    Text {
+                        text: root.repair-summary != "" ? root.repair-summary : "Detected a classic Win98/XP compatibility issue. Click below to install missing DLLs / enable Classic 2D mode automatically.";
+                        color: UiTheme.text-primary;
+                        font-size: 13px;
+                        wrap: word-wrap;
+                    }
+                    if root.repair-verbs != "" : InfoRow { label: "Recommended Fix:"; value: root.repair-verbs; value-color: UiTheme.text-accent; }
+                    if root.repair-suggest-2d : InfoRow { label: "Graphics Fix:"; value: "Switch to Classic 2D (cnc-ddraw 4:3)"; value-color: UiTheme.text-ok; }
+                    if root.repair-busy : ProgressIndicator { indeterminate: true; height: 6px; }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.repair-busy ? "Repairing..." : root.tr.btn-repair-retry;
+                    primary: true;
+                    enabled: !root.repair-busy;
+                    clicked => { root.repair-run-and-retry(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // v0.7.0 Post-Install Game .exe Selector (--retro-pick <APP_ID> after Setup.exe completes)
+        if root.retro-pick-only : VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+                    Text {
+                        text: root.tr.title-retro-pick + " (" + root.retro-pick-app-name + ")";
+                        color: UiTheme.text-primary;
+                        font-size: 15px;
+                        font-weight: 800;
+                    }
+                    Text {
+                        text: "Setup finished! Pick the real game .exe below so Desktop & Start Menu shortcuts launch the game directly:";
+                        color: UiTheme.text-muted;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: 6px;
+                            alignment: start;
+                            for cand[cidx] in root.retro-pick-candidates : Rectangle {
+                                height: 38px;
+                                border-radius: 6px;
+                                background: cidx == root.retro-pick-selected-idx ? UiTheme.accent-dark : (cta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                border-width: 1px;
+                                border-color: cidx == root.retro-pick-selected-idx ? UiTheme.accent-bright : UiTheme.card-border;
+                                cta := TouchArea { clicked => { root.retro-pick-selected-idx = cidx; } }
+                                Text {
+                                    text: cand;
+                                    color: cidx == root.retro-pick-selected-idx ? #ffffff : UiTheme.text-primary;
+                                    font-size: 12px;
+                                    x: 10px;
+                                    vertical-alignment: center;
+                                    width: parent.width - 20px;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.tr.btn-use-game-exe;
+                    primary: true;
+                    enabled: root.retro-pick-candidates.length > 0;
+                    clicked => { root.retro-pick-apply(root.retro-pick-selected-idx); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
         // Built-in Graphical File Picker Overlay
         if root.picker-open : Card {
             vertical-stretch: 1;
@@ -2241,7 +2621,7 @@ export component MainWindow inherits Window {
 
                 HorizontalLayout {
                     spacing: 8px;
-                    if root.picker-target == "backup-dir" : Button {
+                    if root.picker-target == "backup-dir" || root.picker-target == "retro-src" : Button {
                         text: "Select Current Folder";
                         primary: true;
                         clicked => { root.picker-use-current-dir(); }
@@ -2776,6 +3156,14 @@ export component MainWindow inherits Window {
                             clicked => { root.active-tab = 1; }
                         }
                     }
+                    Button {
+                        text: root.tr.btn-add-retro;
+                        primary: true;
+                        clicked => {
+                            root.retro-status = "";
+                            root.retro-wizard-only = true;
+                        }
+                    }
 
                     ScrollView {
                         vertical-stretch: 1;
@@ -2853,6 +3241,75 @@ export component MainWindow inherits Window {
                             label-font-size: 12px;
                             current-index <=> root.sel-win-era-idx;
                             era-selected(idx) => { root.selected-era-changed(idx); }
+                        }
+
+                        if root.has-selected-app && root.sel-supports-era : Card {
+                            VerticalLayout {
+                                padding: 10px;
+                                spacing: 8px;
+                                Text {
+                                    text: root.tr.hdr-retro-tuning;
+                                    color: UiTheme.text-accent;
+                                    font-size: 12px;
+                                    font-weight: 700;
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { text: root.tr.lbl-retro-preset; color: UiTheme.text-muted; font-size: 12px; width: 122px; vertical-alignment: center; }
+                                    ComboBox {
+                                        model: ["Auto (Default)", "Classic 2D (Win98/XP cnc-ddraw)", "Classic 3D (WinXP DX8/9)", "DOS / Win16 (90s)"];
+                                        current-index <=> root.sel-retro-preset-idx;
+                                        horizontal-stretch: 1;
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 14px;
+                                    Switch { text: root.tr.chk-fps-cap; checked <=> root.sel-retro-fps-cap; }
+                                    Switch { text: root.tr.chk-single-core; checked <=> root.sel-retro-single-core; }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { text: root.tr.lbl-safe-window; color: UiTheme.text-muted; font-size: 12px; width: 122px; vertical-alignment: center; }
+                                    ComboBox {
+                                        model: ["Auto Fullscreen", "Safe Window (800x600)", "Safe Window (1024x768)"];
+                                        current-index <=> root.sel-retro-vdesk-idx;
+                                        horizontal-stretch: 1;
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text { text: root.tr.lbl-cd-iso; color: UiTheme.text-muted; font-size: 12px; width: 122px; vertical-alignment: center; }
+                                    LineEdit {
+                                        text <=> root.sel-retro-cd-iso;
+                                        placeholder-text: "Optional CD .iso mounted as Drive D:";
+                                        horizontal-stretch: 1;
+                                    }
+                                    Button {
+                                        text: root.tr.btn-browse;
+                                        clicked => { root.open-file-picker("sel-retro-iso"); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Button {
+                                        text: root.tr.btn-save-retro;
+                                        primary: true;
+                                        clicked => {
+                                            root.save-sel-retro-profile(
+                                                root.sel-retro-preset-idx,
+                                                root.sel-retro-fps-cap,
+                                                root.sel-retro-single-core,
+                                                root.sel-retro-vdesk-idx,
+                                                root.sel-retro-cd-iso
+                                            );
+                                        }
+                                    }
+                                    Button {
+                                        text: root.tr.btn-scan-game-exe;
+                                        clicked => { root.scan-sel-game-exe(); }
+                                    }
+                                }
+                            }
                         }
 
                         Rectangle { height: 1px; background: UiTheme.card-border; }

@@ -293,11 +293,21 @@ command -v wtype
 command -v ffmpegthumbnailer
 command -v xarchiver
 /usr/libexec/unicore-osd status | grep -q '^wob=1$'
+echo "Checking v0.7.0 Classic 98/XP Gaming Edition (Retro Media Helper, CD .iso Handler, taskset, archivemount, Classic Crash Diag)..."
+test -x /usr/libexec/unicore-retro-media
+test -f /usr/share/applications/unicore-retro-iso.desktop
+test -f /usr/share/file-manager/actions/unicore-retro-import.desktop
+command -v taskset
+command -v archivemount
+command -v bsdtar
+/usr/libexec/unicore-retro-media status | grep -q '^taskset=1$'
+/usr/libexec/unicore-retro-media status | grep -q '^archivemount=1$'
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
-printf 'err:module:import_dll Library MSVCP140.dll not found\n' > /tmp/fake_win32.log
+printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_dll Library dplayx.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
+uniload diagnose-log /tmp/fake_win32.log | grep -q 'directplay'
 rm -f /tmp/fake_win32.log
-echo "Verified all v0.2.0-v0.5.0 helpers, Boot Splash, Capture, DND, Network Drives, BlueZ PipeWire, Accessibility & drivers OK"
+echo "Verified all v0.2.0-v0.7.0 helpers, Boot Splash, Capture, DND, Network Drives, BlueZ PipeWire, Accessibility, Classic 98/XP Gaming & drivers OK"
 
 echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
 mkdir -p /data/unicore
@@ -369,11 +379,17 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --start-menu >/tmp/center_start.log 2>&1 &
     sleep 3
     grim /tmp/v060_start.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --retro-game >/tmp/center_retro.log 2>&1 &
+    sleep 3
+    grim /tmp/v070_retro.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
 test -s /tmp/v050_capture.png
 test -s /tmp/v060_start.png
+test -s /tmp/v070_retro.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -387,6 +403,9 @@ echo "===PNG_CAP_B64_END==="
 echo "===PNG_START_B64_START==="
 base64 /tmp/v060_start.png
 echo "===PNG_START_B64_END==="
+echo "===PNG_RETRO_B64_START==="
+base64 /tmp/v070_retro.png
+echo "===PNG_RETRO_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -455,7 +474,13 @@ printf '\n===GATE1_OK===\n'
         start_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v060_start.png")
         with open(start_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", start_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}")
+        retro_m = re.search(r"===PNG_RETRO_B64_START===\s*(.*?)\s*===PNG_RETRO_B64_END===", out, re.DOTALL)
+        if not retro_m:
+            raise RuntimeError("Missing v0.7.0 Classic 98/XP Game Launcher screenshot payload in Gate 1 output")
+        retro_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v070_retro.png")
+        with open(retro_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", retro_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}")
     finally:
         h.close()
 

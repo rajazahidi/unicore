@@ -1447,3 +1447,149 @@ fn phase25_app_launch_config_env_and_prefix_reset_work() {
         Some(true)
     );
 }
+
+#[test]
+fn v070_retro_scanner_target_switch_and_classic_diag_work() {
+    use uniload::sandbox::{is_likely_installer_path, scan_playable_exes_in_dir};
+    use uniload::win32_diag::diagnose_win32_log;
+
+    // 1. Installer heuristic distinguishes Setup.exe/.msi from playable game binaries
+    assert!(is_likely_installer_path(Path::new("/tmp/Setup.exe")));
+    assert!(is_likely_installer_path(Path::new("/tmp/setup_ra2.exe")));
+    assert!(is_likely_installer_path(Path::new("/tmp/InstallGame.exe")));
+    assert!(is_likely_installer_path(Path::new("/tmp/GameInstaller.msi")));
+    assert!(!is_likely_installer_path(Path::new("/tmp/RA2.exe")));
+    assert!(!is_likely_installer_path(Path::new("/tmp/hl.exe")));
+
+    // 2. Post-install drive_c scanner filters uninstallers/redists & sorts main game .exe first
+    let tmp = TempWorkspace::new("v070_retro_scan");
+    let state_dir = tmp.root.join("state");
+    let setup_exe = tmp.root.join("Setup.exe");
+    write_file(&setup_exe, &build_pe_bytes_with_ver(0x014C, 2, 0x010B, 0x0002, 4));
+
+    let inst_out = run_cli(&[
+        "--state-dir".to_string(),
+        state_dir.display().to_string(),
+        "install".to_string(),
+        setup_exe.display().to_string(),
+        "--name".to_string(),
+        "Red Alert 2".to_string(),
+    ])
+    .unwrap();
+    let inst_json = parse_json(&inst_out).unwrap();
+    let inst_obj = inst_json.as_object().unwrap();
+    let app_id = inst_obj
+        .get("app_id")
+        .and_then(JsonValue::as_str)
+        .unwrap()
+        .to_string();
+    let sandbox_dir = PathBuf::from(
+        inst_obj
+            .get("sandbox_dir")
+            .and_then(JsonValue::as_str)
+            .unwrap(),
+    );
+
+    let game_dir = sandbox_dir
+        .join("drive_c_root")
+        .join("drive_c")
+        .join("Program Files")
+        .join("RedAlert2");
+    fs::create_dir_all(&game_dir).unwrap();
+
+    // Uninstaller & redist should be filtered out
+    let uninst = game_dir.join("unins000.exe");
+    let dxsetup = game_dir.join("dxsetup.exe");
+    let small_helper = game_dir.join("config.exe");
+    let main_game = game_dir.join("RA2.exe");
+    let pe_base = build_pe_bytes_with_ver(0x014C, 2, 0x010B, 0x0002, 4);
+    let mut big_pe = pe_base.clone();
+    big_pe.extend(vec![0u8; 4096]);
+
+    write_file(&uninst, &big_pe);
+    write_file(&dxsetup, &big_pe);
+    write_file(&small_helper, &pe_base);
+    write_file(&main_game, &big_pe);
+
+    let direct_scan = scan_playable_exes_in_dir(&game_dir);
+    assert_eq!(direct_scan.len(), 2);
+    assert!(direct_scan[0].ends_with("RA2.exe"));
+    assert!(direct_scan[1].ends_with("config.exe"));
+
+    // 3. CLI `scan-game-exe` and `set-target` workflow
+    let scan_out = run_cli(&[
+        "--state-dir".to_string(),
+        state_dir.display().to_string(),
+        "scan-game-exe".to_string(),
+        app_id.clone(),
+    ])
+    .unwrap();
+    let scan_json = parse_json(&scan_out).unwrap();
+    let scan_obj = scan_json.as_object().unwrap();
+    assert_eq!(
+        scan_obj.get("is_installer").and_then(JsonValue::as_bool),
+        Some(true)
+    );
+    let cands: Vec<String> = scan_obj
+        .get("candidates")
+        .and_then(JsonValue::as_array)
+        .unwrap()
+        .iter()
+        .filter_map(JsonValue::as_str)
+        .map(str::to_string)
+        .collect();
+    assert_eq!(cands.len(), 2);
+    assert!(cands[0].ends_with("RA2.exe"));
+
+    let switch_out = run_cli(&[
+        "--state-dir".to_string(),
+        state_dir.display().to_string(),
+        "set-target".to_string(),
+        app_id.clone(),
+        main_game.display().to_string(),
+    ])
+    .unwrap();
+    let switched_source = parse_json(&switch_out)
+        .unwrap()
+        .as_object()
+        .unwrap()
+        .get("source_path")
+        .and_then(JsonValue::as_str)
+        .unwrap()
+        .to_string();
+    assert!(switched_source.ends_with("RA2.exe"));
+
+    let scan_after = run_cli(&[
+        "--state-dir".to_string(),
+        state_dir.display().to_string(),
+        "scan-game-exe".to_string(),
+        app_id,
+    ])
+    .unwrap();
+    assert_eq!(
+        parse_json(&scan_after)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .get("is_installer")
+            .and_then(JsonValue::as_bool),
+        Some(false)
+    );
+
+    // 4. Expanded Classic 98/XP crash diagnostics (DirectPlay, DirectSound, Quartz/Indeo, Glide, DirectDraw)
+    let classic_log = "\
+0024:err:module:import_dll Library dplayx.dll not found
+0024:err:module:import_dll Library dsound.dll not found
+0024:err:module:import_dll Library quartz.dll not found
+0024:err:ddraw:DirectDrawCreate failed DDERR_UNSUPPORTED
+0024:err:module:import_dll Library glide2x.dll not found
+";
+    let diag = diagnose_win32_log(classic_log);
+    assert!(diag.issue_detected);
+    assert!(diag.suggest_win98_ddraw);
+    assert!(diag.recommended_verbs.contains(&"directplay".to_string()));
+    assert!(diag.recommended_verbs.contains(&"dsound".to_string()));
+    assert!(diag.recommended_verbs.contains(&"quartz".to_string()));
+    assert!(diag.matched_patterns.contains(&"glide".to_string()));
+    assert!(diag.summary_ms.contains("DirectPlay"));
+}

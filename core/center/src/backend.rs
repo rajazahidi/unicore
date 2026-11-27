@@ -191,6 +191,36 @@ impl CenterBackend {
         manager.update_launch_config(app_id, parsed_args, parsed_env)
     }
 
+    pub fn apply_retro_profile(
+        &self,
+        app_id: &str,
+        profile: &crate::retro::RetroGameProfile,
+    ) -> Result<AppSandbox, String> {
+        let mut manager = self.open_manager()?;
+        let existing = manager.get_app(app_id)?.clone();
+        let mut next_env = existing.env_vars.clone();
+        let rec_era = crate::retro::apply_retro_profile_to_env(&mut next_env, profile);
+        let mut updated = manager.update_launch_config(app_id, existing.launch_args, next_env)?;
+        if supports_win_era(updated.platform) {
+            if let Some(era) = rec_era {
+                updated = manager.set_win_era(app_id, Some(era))?;
+            }
+        }
+        Ok(updated)
+    }
+
+    pub fn scan_installed_game_exes(&self, app_id: &str) -> Result<Vec<PathBuf>, String> {
+        let manager = self.open_manager()?;
+        manager.scan_installed_game_exes(app_id)
+    }
+
+    pub fn switch_app_target_exe(&self, app_id: &str, new_exe: &Path) -> Result<AppSandbox, String> {
+        let mut manager = self.open_manager()?;
+        let updated = manager.set_source_path(app_id, new_exe)?;
+        let _ = self.create_shortcuts_for_app(&updated);
+        Ok(updated)
+    }
+
     pub fn reset_win32_prefix(&self, app_id: &str) -> Result<PathBuf, String> {
         let manager = self.open_manager()?;
         manager.reset_win32_prefix(app_id)

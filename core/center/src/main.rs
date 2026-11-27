@@ -36,6 +36,10 @@ use unicore_center::oobe::{
     apply_oobe_on_host, save_oobe_state, validate_hostname, validate_user_password,
     OobeSettings, DEFAULT_OOBE_DIR, OOBE_LANGUAGES, OOBE_TIMEZONES,
 };
+use unicore_center::retro::{
+    prepare_retro_source, read_retro_profile_from_env, virtual_desktop_from_index,
+    virtual_desktop_to_index, RetroGameProfile, RetroPreset,
+};
 use unicore_center::settings::{
     accent_color_from_index, accent_color_to_index, add_printer, apply_and_save_display,
     apply_firewall_settings, bt_device_action, clamp_pointer_speed, connect_wifi,
@@ -281,6 +285,21 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         oobe_pack_office: l.oobe_pack_office.into(),
         oobe_pack_creative: l.oobe_pack_creative.into(),
         oobe_pack_gaming: l.oobe_pack_gaming.into(),
+        title_retro_wizard: l.title_retro_wizard.into(),
+        title_repair: l.title_repair.into(),
+        title_retro_pick: l.title_retro_pick.into(),
+        btn_add_retro: l.btn_add_retro.into(),
+        hdr_retro_tuning: l.hdr_retro_tuning.into(),
+        lbl_retro_preset: l.lbl_retro_preset.into(),
+        chk_fps_cap: l.chk_fps_cap.into(),
+        chk_single_core: l.chk_single_core.into(),
+        lbl_safe_window: l.lbl_safe_window.into(),
+        lbl_cd_iso: l.lbl_cd_iso.into(),
+        btn_save_retro: l.btn_save_retro.into(),
+        btn_scan_game_exe: l.btn_scan_game_exe.into(),
+        btn_retro_install_play: l.btn_retro_install_play.into(),
+        btn_repair_retry: l.btn_repair_retry.into(),
+        btn_use_game_exe: l.btn_use_game_exe.into(),
     });
 }
 
@@ -935,6 +954,12 @@ fn apply_selected_app(ui: &MainWindow, app: Option<&AppSandbox>, idx: i32) {
             ui.set_sel_perm_microphone(a.permissions.microphone);
             ui.set_sel_launch_args(SharedString::from(a.launch_args.join(" ")));
             ui.set_sel_env_vars(SharedString::from(format_env_vars_str(&a.env_vars)));
+            let retro = read_retro_profile_from_env(&a.env_vars, a.win_era);
+            ui.set_sel_retro_preset_idx(retro.preset.to_index());
+            ui.set_sel_retro_fps_cap(retro.fps_cap_60);
+            ui.set_sel_retro_single_core(retro.single_core_cpu);
+            ui.set_sel_retro_vdesk_idx(virtual_desktop_to_index(&retro.virtual_desktop));
+            ui.set_sel_retro_cd_iso(SharedString::from(retro.cd_iso_path.as_str()));
         }
         None => {
             ui.set_has_selected_app(false);
@@ -1366,6 +1391,51 @@ fn main() {
             LaunchMode::EmojiPicker => {
                 ui.set_emoji_dialog_only(true);
                 refresh_emoji_grid(&ui, "all", "");
+            }
+            LaunchMode::RetroWizard(maybe_path) => {
+                ui.set_retro_wizard_only(true);
+                if let Some(p) = maybe_path {
+                    let ps = p.display().to_string();
+                    ui.set_retro_src_input(SharedString::from(ps.as_str()));
+                    if ps.to_ascii_lowercase().ends_with(".iso") {
+                        ui.set_retro_cd_iso_input(SharedString::from(ps.as_str()));
+                    }
+                }
+            }
+            LaunchMode::RepairDialog(app_id) => {
+                ui.set_repair_dialog_only(true);
+                ui.set_repair_app_id(SharedString::from(app_id.as_str()));
+                let app_name = b
+                    .get_app(app_id)
+                    .map(|a| a.name)
+                    .unwrap_or_else(|_| app_id.clone());
+                ui.set_repair_app_name(SharedString::from(app_name.as_str()));
+                let diag = b.diagnose_app_log(app_id);
+                let summary = if initial_lang == UiLang::Ms {
+                    diag.summary_ms
+                } else {
+                    diag.summary_en
+                };
+                ui.set_repair_summary(SharedString::from(summary.as_str()));
+                ui.set_repair_verbs(SharedString::from(diag.recommended_verbs.join(" ")));
+                ui.set_repair_suggest_2d(diag.suggest_win98_ddraw);
+            }
+            LaunchMode::RetroTargetPicker(app_id) => {
+                ui.set_retro_pick_only(true);
+                ui.set_retro_pick_app_id(SharedString::from(app_id.as_str()));
+                let app_name = b
+                    .get_app(app_id)
+                    .map(|a| a.name)
+                    .unwrap_or_else(|_| app_id.clone());
+                ui.set_retro_pick_app_name(SharedString::from(app_name.as_str()));
+                let cands: Vec<SharedString> = b
+                    .scan_installed_game_exes(app_id)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|p| SharedString::from(p.display().to_string()))
+                    .collect();
+                ui.set_retro_pick_candidates(ModelRc::new(VecModel::from(cands)));
+                ui.set_retro_pick_selected_idx(0);
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -3325,6 +3395,18 @@ fn main() {
                 "backup-restore" => {
                     ui.set_set_backup_restore_path(SharedString::from(entry.path.as_str()))
                 }
+                "retro-src" => {
+                    ui.set_retro_src_input(SharedString::from(entry.path.as_str()));
+                    if entry.path.to_ascii_lowercase().ends_with(".iso") {
+                        ui.set_retro_cd_iso_input(SharedString::from(entry.path.as_str()));
+                    }
+                }
+                "retro-iso" => {
+                    ui.set_retro_cd_iso_input(SharedString::from(entry.path.as_str()))
+                }
+                "sel-retro-iso" => {
+                    ui.set_sel_retro_cd_iso(SharedString::from(entry.path.as_str()))
+                }
                 _ => {}
             }
             ui.set_picker_open(false);
@@ -3333,8 +3415,13 @@ fn main() {
 
     {
         let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
         ui.on_picker_use_current_dir(move || {
             let Some(ui) = ui_weak.upgrade() else { return };
+            if ui.get_picker_target().as_str() == "retro-src" {
+                let dir_str = st.borrow().picker_dir.display().to_string();
+                ui.set_retro_src_input(SharedString::from(dir_str.as_str()));
+            }
             ui.set_picker_open(false);
         });
     }
@@ -4039,6 +4126,228 @@ fn main() {
             match insert_emoji(&sym) {
                 Ok(msg) => ui.set_emoji_status(SharedString::from(msg.as_str())),
                 Err(err) => ui.set_emoji_status(SharedString::from(err.as_str())),
+            }
+        });
+    }
+
+    // v0.7.0 Classic 98/XP Game Launcher, Auto-Repair & Post-Install Target Picker callbacks
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_retro_install_and_play(
+            move |src, name, preset_idx, fps_cap, single_core, vdesk_idx, cd_iso| {
+                let Some(ui) = ui_weak.upgrade() else { return };
+                let src_s = src.trim().to_string();
+                let name_s = name.trim().to_string();
+                let cd_s = cd_iso.trim().to_string();
+                if src_s.is_empty() {
+                    ui.set_retro_status(SharedString::from("Please select a game .exe, .iso, .zip, or folder first."));
+                    return;
+                }
+                let cfg = b.borrow().config.clone();
+                ui.set_retro_busy(true);
+                ui.set_retro_status(SharedString::from("Preparing Classic 98/XP game & sandbox..."));
+                let thread_ui = ui.as_weak();
+                std::thread::spawn(move || {
+                    let result: Result<String, String> = (|| {
+                        let media = prepare_retro_source(&src_s, &name_s)?;
+                        let preset = RetroPreset::from_index(preset_idx);
+                        let effective_iso = if !cd_s.is_empty() {
+                            cd_s
+                        } else {
+                            media.iso_path.clone()
+                        };
+                        let profile = RetroGameProfile {
+                            preset,
+                            fps_cap_60: fps_cap,
+                            single_core_cpu: single_core,
+                            virtual_desktop: virtual_desktop_from_index(vdesk_idx).to_string(),
+                            cd_iso_path: effective_iso,
+                        };
+                        let worker = CenterBackend::new(cfg);
+                        let req = InstallRequest {
+                            app_name: Some(if !name_s.is_empty() { name_s } else { media.name }),
+                            win_era: match preset {
+                                RetroPreset::Classic2d | RetroPreset::DosWin16 => Some(WinEra::Win98),
+                                RetroPreset::Classic3d => Some(WinEra::WinXp),
+                                RetroPreset::Auto => None,
+                            },
+                            permissions: PermissionProfile::default(),
+                            create_shortcut: true,
+                        };
+                        let installed = worker.install_file(Path::new(&media.main_exe), &req)?;
+                        let tuned = worker.apply_retro_profile(&installed.app_id, &profile)?;
+                        worker.spawn_app_detached(&tuned.app_id)?;
+                        Ok(format!(
+                            "Launched '{}' (Desktop & Start Menu shortcut created!)",
+                            tuned.name
+                        ))
+                    })();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = thread_ui.upgrade() {
+                            ui.set_retro_busy(false);
+                            match result {
+                                Ok(msg) => {
+                                    ui.set_retro_status(SharedString::from(msg.as_str()));
+                                    ui.invoke_refresh_all();
+                                    set_status(&ui, msg, false);
+                                }
+                                Err(err) => {
+                                    ui.set_retro_status(SharedString::from(err.as_str()));
+                                    set_status(&ui, err, true);
+                                }
+                            }
+                        }
+                    });
+                });
+            },
+        );
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        ui.on_save_sel_retro_profile(move |preset_idx, fps_cap, single_core, vdesk_idx, cd_iso| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            let profile = RetroGameProfile {
+                preset: RetroPreset::from_index(preset_idx),
+                fps_cap_60: fps_cap,
+                single_core_cpu: single_core,
+                virtual_desktop: virtual_desktop_from_index(vdesk_idx).to_string(),
+                cd_iso_path: cd_iso.trim().to_string(),
+            };
+            match b.borrow().apply_retro_profile(&app_id, &profile) {
+                Ok(updated) => {
+                    refresh_apps_and_browse(&ui, &b.borrow(), &cache, Some(&updated.app_id));
+                    set_status(
+                        &ui,
+                        format!("Saved Classic 98/XP settings for '{}'", updated.name),
+                        false,
+                    );
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_scan_sel_game_exe(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_sel_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            match b.borrow().scan_installed_game_exes(&app_id) {
+                Ok(found) if !found.is_empty() => {
+                    let cands: Vec<SharedString> = found
+                        .into_iter()
+                        .map(|p| SharedString::from(p.display().to_string()))
+                        .collect();
+                    ui.set_retro_pick_app_id(SharedString::from(app_id.as_str()));
+                    ui.set_retro_pick_app_name(ui.get_sel_name());
+                    ui.set_retro_pick_candidates(ModelRc::new(VecModel::from(cands)));
+                    ui.set_retro_pick_selected_idx(0);
+                    ui.set_retro_pick_only(true);
+                }
+                Ok(_) => set_status(
+                    &ui,
+                    "No extra game .exe found in drive_c yet (run Setup.exe first if not installed).",
+                    false,
+                ),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        ui.on_repair_run_and_retry(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_repair_app_id().to_string();
+            if app_id.is_empty() {
+                return;
+            }
+            let verbs = ui.get_repair_verbs().trim().to_string();
+            let suggest_2d = ui.get_repair_suggest_2d();
+            let cfg = b.borrow().config.clone();
+            ui.set_repair_busy(true);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res: Result<String, String> = (|| {
+                    let worker = CenterBackend::new(cfg.clone());
+                    if suggest_2d {
+                        let profile = RetroGameProfile {
+                            preset: RetroPreset::Classic2d,
+                            fps_cap_60: true,
+                            single_core_cpu: false,
+                            virtual_desktop: "off".to_string(),
+                            cd_iso_path: String::new(),
+                        };
+                        let _ = worker.apply_retro_profile(&app_id, &profile);
+                    }
+                    if !verbs.is_empty() {
+                        CenterBackend::run_win32_runtimes_blocking(&cfg, &app_id, Some(&verbs))?;
+                    }
+                    worker.spawn_app_detached(&app_id)?;
+                    Ok("Repair complete — relaunching game!".to_string())
+                })();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_repair_busy(false);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_repair_summary(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                                let _ = slint::quit_event_loop();
+                            }
+                            Err(err) => {
+                                ui.set_repair_summary(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        ui.on_retro_pick_apply(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let app_id = ui.get_retro_pick_app_id().to_string();
+            let cands = ui.get_retro_pick_candidates();
+            let Some(chosen) = slint::Model::row_data(&cands, idx as usize) else {
+                return;
+            };
+            match b
+                .borrow()
+                .switch_app_target_exe(&app_id, Path::new(chosen.as_str()))
+            {
+                Ok(updated) => {
+                    let _ = b.borrow().spawn_app_detached(&updated.app_id);
+                    ui.set_retro_pick_only(false);
+                    refresh_apps_and_browse(&ui, &b.borrow(), &cache, Some(&updated.app_id));
+                    set_status(
+                        &ui,
+                        format!(
+                            "Updated shortcut for '{}' -> {} and launched!",
+                            updated.name, chosen
+                        ),
+                        false,
+                    );
+                }
+                Err(err) => set_status(&ui, err, true),
             }
         });
     }
