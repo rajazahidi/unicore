@@ -214,7 +214,7 @@ jobs:
               tar --zstd -cf /out/arm64-win32-runtime.tar.zst -C /stage .
               ls -lh /out/arm64-win32-runtime.tar.zst
             '
-          rm -rf /tmp/arm64-stage
+          sudo rm -rf /tmp/arm64-stage
 
           echo "==> Smoke-testing isolated Box64 + Wine WoW64 inside Alpine 3.20 musl (aarch64)"
           docker run --rm \
