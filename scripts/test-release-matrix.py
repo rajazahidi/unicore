@@ -264,11 +264,27 @@ command -v swaylock
 /usr/libexec/unicore-proton status | grep -q '^dir=/data/gaming/proton-ge$'
 /usr/libexec/unicore-ai status | grep -q '^provider=ollama$'
 /usr/libexec/unicore-ai context | grep -q 'UniCore OS Live Read-Only System Diagnostics'
+echo "Checking v0.5.0 Boot Splash, Capture/Recorder, DND Notify, Network Drives, PipeWire BlueZ, Avahi & Accessibility..."
+test -s /usr/share/unicore/splash.ppm
+test -f /usr/share/unicore/splash.ini
+test -x /usr/libexec/unicore-capture
+test -x /usr/libexec/unicore-notify
+test -x /usr/libexec/unicore-shares
+test -x /usr/libexec/unicore-a11y
+command -v wf-recorder
+command -v espeak-ng
+command -v sshfs
+test -d /usr/lib/spa-0.2/bluez5
+test -e /usr/libexec/gvfsd-smb || test -e /usr/lib/gvfs/gvfsd-smb
+/usr/libexec/unicore-capture status | grep -q '^wf_recorder=1$'
+/usr/libexec/unicore-capture waybar-status | grep -q '"class":"idle"'
+/usr/libexec/unicore-notify status | grep -q '^dnd='
+/usr/libexec/unicore-a11y status | grep -q '^tts_available=1$'
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
 rm -f /tmp/fake_win32.log
-echo "Verified all v0.2.0-v0.4.0 helpers, Flatpak, GE-Proton, TLP, Papirus, Gamepads, AI Copilot & dx2355/TL-WN851ND drivers OK"
+echo "Verified all v0.2.0-v0.5.0 helpers, Boot Splash, Capture, DND, Network Drives, BlueZ PipeWire, Accessibility & drivers OK"
 
 echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
 mkdir -p /data/unicore
@@ -326,9 +342,15 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --tab dev >/tmp/center_dev.log 2>&1 &
     sleep 4
     grim /tmp/v020_dev_ai.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --capture >/tmp/center_cap.log 2>&1 &
+    sleep 3
+    grim /tmp/v050_capture.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
+test -s /tmp/v050_capture.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -336,6 +358,9 @@ echo "===PNG_B64_END==="
 echo "===PNG_DEV_B64_START==="
 base64 /tmp/v020_dev_ai.png
 echo "===PNG_DEV_B64_END==="
+echo "===PNG_CAP_B64_START==="
+base64 /tmp/v050_capture.png
+echo "===PNG_CAP_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -392,7 +417,13 @@ printf '\n===GATE1_OK===\n'
         dev_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v020.png")
         with open(dev_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", dev_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}")
+        cap_m = re.search(r"===PNG_CAP_B64_START===\s*(.*?)\s*===PNG_CAP_B64_END===", out, re.DOTALL)
+        if not cap_m:
+            raise RuntimeError("Missing v0.5.0 Capture screenshot payload in Gate 1 output")
+        cap_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v050_capture.png")
+        with open(cap_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", cap_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}")
     finally:
         h.close()
 

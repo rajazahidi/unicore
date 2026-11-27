@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Screen Capture & Recorder
+Name[ms]=Tangkapan & Perakam Skrin
+Comment=Take timed screenshots or record MP4 screen videos with audio
+Exec=/usr/bin/unicore-center --capture
+Icon=camera-photo
+Terminal=false
+Categories=Utility;AudioVideo;
+Keywords=screenshot;snipping;recorder;video;capture;

@@ -1255,7 +1255,7 @@ fn catalog_parse_filter_sha256_and_offline_install() {
 
     let catalog = parse_catalog_json(EMBEDDED_CATALOG_JSON).unwrap();
     assert_eq!(catalog.version, 2);
-    assert_eq!(catalog.apps.len(), 32);
+    assert_eq!(catalog.apps.len(), 33);
     for app in &catalog.apps {
         if !app.download_url.is_empty() {
             assert!(app.download_url.starts_with("https://"), "{}", app.id);
@@ -1297,7 +1297,7 @@ fn catalog_parse_filter_sha256_and_offline_install() {
 
     let list_out = run_cli(&["store".to_string(), "list".to_string()]).unwrap();
     let list_json = parse_json(&list_out).unwrap();
-    assert_eq!(list_json.as_object().unwrap().get("apps").and_then(JsonValue::as_array).unwrap().len(), 32);
+    assert_eq!(list_json.as_object().unwrap().get("apps").and_then(JsonValue::as_array).unwrap().len(), 33);
 
     let dry_out = run_cli(&[
         "store".to_string(),

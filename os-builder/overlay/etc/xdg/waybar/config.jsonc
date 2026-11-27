@@ -14,7 +14,9 @@
     "wlr/taskbar"
   ],
   "modules-right": [
+    "custom/rec",
     "custom/update",
+    "tray",
     "network",
     "pulseaudio",
     "battery",
@@ -50,11 +52,22 @@
     "on-click": "/usr/bin/unicore-center --taskmgr &"
   },
   "wlr/taskbar": {
-    "format": "{title:.22}",
+    "format": "{title:.14}",
     "tooltip-format": "{title}",
     "on-click": "activate",
     "on-click-middle": "close",
     "all-outputs": true
+  },
+  "tray": {
+    "icon-size": 16,
+    "spacing": 5
+  },
+  "custom/rec": {
+    "exec": "/usr/libexec/unicore-capture waybar-status",
+    "return-type": "json",
+    "interval": 3,
+    "signal": 8,
+    "on-click": "/usr/libexec/unicore-capture record-stop"
   },
   "custom/update": {
     "exec": "/usr/libexec/unicore-update-check --waybar",

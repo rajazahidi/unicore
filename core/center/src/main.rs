@@ -6,6 +6,12 @@ use std::rc::Rc;
 
 use slint::{ModelRc, SharedString, VecModel};
 use unicore_center::backend::{CenterBackend, InstallRequest};
+use unicore_center::capture_a11y::{
+    add_network_share, dismiss_all_notifications, list_network_shares, open_capture_dir,
+    read_a11y_overview, read_capture_overview, read_notify_overview, restore_last_notification,
+    run_capture_shot, set_dnd_state, share_action, speak_text_offline, start_screen_recording,
+    stop_screen_recording, toggle_on_screen_keyboard, NetworkShare,
+};
 use unicore_center::cli::{help_text, parse_args, LaunchMode};
 use unicore_center::desktop::{
     platform_display_name, supports_win_era, win_era_display_name, win_era_from_index,
@@ -39,11 +45,11 @@ use unicore_center::settings::{
     read_display_overview, read_firewall_overview, read_network_overview, read_printers_overview,
     read_secureboot_overview, remove_printer, run_backup_create, run_backup_restore,
     run_power_action, save_and_apply_nightlight, save_and_apply_personalize, scan_bluetooth_brief,
-    set_audio_mute, set_audio_volume, set_bluetooth_enabled, set_brightness, set_cups_enabled,
-    set_default_printer, set_default_sink, set_mic_mute, set_wifi_radio, toggle_vpn_connection,
-    validate_backup_passphrase, validate_backup_path, AudioSink, BackupTarget, BluetoothDevice,
-    DiscoveredPrinter, DisplayOutput, PersonalizeConfig, PrinterInfo, VpnConnection, WifiNetwork,
-    KB_LAYOUTS, WALLPAPER_PRESETS,
+    set_audio_card_profile, set_audio_mute, set_audio_volume, set_bluetooth_enabled,
+    set_brightness, set_cups_enabled, set_default_printer, set_default_sink, set_mic_mute,
+    set_wifi_radio, toggle_vpn_connection, validate_backup_passphrase, validate_backup_path,
+    AudioCardProfile, AudioSink, BackupTarget, BluetoothDevice, DiscoveredPrinter, DisplayOutput,
+    PersonalizeConfig, PrinterInfo, VpnConnection, WifiNetwork, KB_LAYOUTS, WALLPAPER_PRESETS,
 };
 use unicore_center::store::{
     chunk_into_triples, install_latest_proton_blocking, install_native_browser_blocking,
@@ -74,6 +80,8 @@ struct SettingsUiState {
     wifi: Vec<WifiNetwork>,
     bt: Vec<BluetoothDevice>,
     sinks: Vec<AudioSink>,
+    audio_profiles: Vec<AudioCardProfile>,
+    shares: Vec<NetworkShare>,
     outputs: Vec<DisplayOutput>,
     printers: Vec<PrinterInfo>,
     discovered_printers: Vec<DiscoveredPrinter>,
@@ -216,7 +224,51 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         hdr_local_ai: l.hdr_local_ai.into(),
         hdr_devbox: l.hdr_devbox.into(),
         btn_browse: l.btn_browse.into(),
+        title_capture: l.title_capture.into(),
+        title_ai: l.title_ai.into(),
+        lbl_taskbar_style: l.lbl_taskbar_style.into(),
+        hdr_accessibility: l.hdr_accessibility.into(),
+        chk_high_contrast: l.chk_high_contrast.into(),
+        chk_large_text: l.chk_large_text.into(),
+        btn_osk_toggle: l.btn_osk_toggle.into(),
+        btn_read_aloud: l.btn_read_aloud.into(),
+        hdr_net_shares: l.hdr_net_shares.into(),
+        btn_add_share: l.btn_add_share.into(),
+        btn_mount: l.btn_mount.into(),
+        btn_unmount: l.btn_unmount.into(),
+        btn_open_folder: l.btn_open_folder.into(),
+        lbl_audio_profile: l.lbl_audio_profile.into(),
+        tile_dnd: l.tile_dnd.into(),
+        tile_capture: l.tile_capture.into(),
+        btn_dismiss_notifs: l.btn_dismiss_notifs.into(),
+        btn_restore_notif: l.btn_restore_notif.into(),
+        store_cat_gaming: l.store_cat_gaming.into(),
+        store_cat_creative: l.store_cat_creative.into(),
+        store_cat_social: l.store_cat_social.into(),
+        store_cat_dev: l.store_cat_dev.into(),
+        btn_shot_full: l.btn_shot_full.into(),
+        btn_shot_region: l.btn_shot_region.into(),
+        btn_rec_start: l.btn_rec_start.into(),
+        btn_rec_stop: l.btn_rec_stop.into(),
+        chk_rec_audio: l.chk_rec_audio.into(),
+        lbl_delay: l.lbl_delay.into(),
+        btn_open_shots: l.btn_open_shots.into(),
+        btn_open_videos: l.btn_open_videos.into(),
     });
+}
+
+fn refresh_capture_and_notify(ui: &MainWindow) {
+    let cap = read_capture_overview();
+    ui.set_cap_recording(cap.recording);
+    ui.set_cap_active_file(SharedString::from(cap.active_file.as_str()));
+    ui.set_cap_wf_available(cap.wf_recorder || !cfg!(target_os = "linux"));
+
+    let notif = read_notify_overview();
+    ui.set_notify_dnd(notif.dnd);
+
+    let a11y = read_a11y_overview();
+    ui.set_a11y_osk_running(a11y.osk_running);
+    ui.set_a11y_tts_available(a11y.tts_available || !cfg!(target_os = "linux"));
 }
 
 fn refresh_tasks(ui: &MainWindow, tasks_cache: &Rc<RefCell<Vec<ProcessInfo>>>) {
@@ -416,6 +468,46 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
     ui.set_set_audio_sink_idx(active_sink_idx);
     state.sinks = audio.sinks;
 
+    let prof_labels: Vec<SharedString> = if audio.card_profiles.is_empty() {
+        vec![SharedString::from("Default Audio Profile")]
+    } else {
+        audio
+            .card_profiles
+            .iter()
+            .map(|p| SharedString::from(p.label.as_str()))
+            .collect()
+    };
+    let active_prof_idx = audio
+        .card_profiles
+        .iter()
+        .position(|p| p.active)
+        .unwrap_or(0) as i32;
+    ui.set_set_audio_profiles(ModelRc::new(VecModel::from(prof_labels)));
+    ui.set_set_audio_profile_idx(active_prof_idx);
+    state.audio_profiles = audio.card_profiles;
+
+    let shares = list_network_shares();
+    let share_rows: Vec<ShareEntry> = shares
+        .iter()
+        .map(|s| ShareEntry {
+            id: SharedString::from(s.id.as_str()),
+            label: SharedString::from(s.label.as_str()),
+            uri: SharedString::from(s.uri.as_str()),
+            username: SharedString::from(s.username.as_str()),
+            mounted: s.mounted,
+        })
+        .collect();
+    ui.set_set_share_list(ModelRc::new(VecModel::from(share_rows)));
+    if let Some(first) = shares.first() {
+        ui.set_set_selected_share_idx(0);
+        ui.set_set_selected_share_id(SharedString::from(first.id.as_str()));
+    } else {
+        ui.set_set_selected_share_idx(-1);
+        ui.set_set_selected_share_id(SharedString::new());
+    }
+    state.shares = shares;
+    refresh_capture_and_notify(ui);
+
     let disp = read_display_overview();
     ui.set_set_backlight_available(disp.backlight_available);
     ui.set_set_brightness_pct(disp.brightness_pct as f32);
@@ -455,6 +547,9 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
     ui.set_set_pointer_speed_tenths((pers.pointer_speed * 10.0).round());
     ui.set_set_desktop_icons(pers.desktop_icons);
     ui.set_set_taskbar_style_idx(if pers.taskbar_style == "floating" { 1 } else { 0 });
+    ui.set_set_high_contrast(pers.high_contrast);
+    ui.set_set_large_text(pers.large_text);
+    ui.invoke_set_high_contrast_theme(pers.high_contrast);
 
     if cfg!(target_os = "linux") {
         if let Ok(out) = std::process::Command::new("date")
@@ -1072,6 +1167,7 @@ fn main() {
 
     let pers_cfg = load_personalize_config(&persistent_display_config_dir());
     ui.invoke_set_theme(pers_cfg.theme == "light");
+    ui.invoke_set_high_contrast_theme(pers_cfg.high_contrast);
 
     {
         let b = backend.borrow();
@@ -1113,6 +1209,10 @@ fn main() {
             LaunchMode::AiAssistant => {
                 ui.set_ai_dialog_only(true);
                 refresh_dev_ai(&ui, &mut settings_state.borrow_mut());
+            }
+            LaunchMode::CaptureTool => {
+                ui.set_capture_dialog_only(true);
+                refresh_capture_and_notify(&ui);
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -2014,7 +2114,7 @@ fn main() {
     {
         let ui_weak = ui.as_weak();
         ui.on_apply_personalize(
-            move |theme_idx, wp_idx, wp_custom, kb_idx, natural_scroll, tap_to_click, speed_tenths, desktop_icons, taskbar_style_idx| {
+            move |theme_idx, wp_idx, wp_custom, kb_idx, natural_scroll, tap_to_click, speed_tenths, desktop_icons, taskbar_style_idx, high_contrast, large_text| {
                 let Some(ui) = ui_weak.upgrade() else { return };
                 let theme = if theme_idx == 1 { "light" } else { "dark" }.to_string();
                 let wallpaper = WALLPAPER_PRESETS
@@ -2035,20 +2135,26 @@ fn main() {
                     pointer_speed: clamp_pointer_speed((speed_tenths as f32) / 10.0),
                     desktop_icons,
                     taskbar_style,
+                    high_contrast,
+                    large_text,
                 };
                 let cfg_dir = persistent_display_config_dir();
                 match save_and_apply_personalize(&cfg_dir, &req) {
                     Ok(saved) => {
                         ui.invoke_set_theme(saved.theme == "light");
+                        ui.invoke_set_high_contrast_theme(saved.high_contrast);
                         ui.set_set_wallpaper_custom(SharedString::from(saved.wallpaper.as_str()));
                         ui.set_set_desktop_icons(saved.desktop_icons);
                         ui.set_set_taskbar_style_idx(if saved.taskbar_style == "floating" { 1 } else { 0 });
+                        ui.set_set_high_contrast(saved.high_contrast);
+                        ui.set_set_large_text(saved.large_text);
                         let msg = format!(
-                            "Applied theme={} | taskbar={} | kb={} | icons={}",
+                            "Applied theme={} | taskbar={} | hc={} | large_text={} | kb={}",
                             saved.theme,
                             saved.taskbar_style,
-                            saved.kb_layout,
-                            if saved.desktop_icons { "on" } else { "off" }
+                            if saved.high_contrast { "on" } else { "off" },
+                            if saved.large_text { "on" } else { "off" },
+                            saved.kb_layout
                         );
                         ui.set_set_personalize_status(SharedString::from(msg.as_str()));
                         set_status(&ui, msg, false);
@@ -3435,6 +3541,230 @@ fn main() {
                 }
             } else {
                 set_status(&ui, "Lock screen is available inside UniCore OS Wayland session", false);
+            }
+        });
+    }
+
+    // v0.5.0 Audio Card Profiles, Notifications/DND, Capture/Recorder, Network Drives & Accessibility
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_audio_profile_selected(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let prof_opt = st.borrow().audio_profiles.get(idx as usize).cloned();
+            if let Some(p) = prof_opt {
+                report_result(
+                    &ui,
+                    set_audio_card_profile(&p.card_name, &p.profile_name),
+                    format!("Audio profile set: {}", p.label),
+                );
+                refresh_settings(&ui, &mut st.borrow_mut());
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_toggle_dnd(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match set_dnd_state(enabled) {
+                Ok(msg) => set_status(&ui, msg, false),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_dismiss_all_notifications(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(&ui, dismiss_all_notifications().map(|_| ()), "Notifications cleared");
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_restore_last_notification(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            report_result(&ui, restore_last_notification().map(|_| ()), "Restored last notification");
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_capture_take_shot(move |region, delay_sec| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_cap_busy(true);
+            ui.set_cap_status(SharedString::from("Capturing screenshot..."));
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = run_capture_shot(region, delay_sec);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_cap_busy(false);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_cap_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_cap_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_capture_start_recording(move |region, audio| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_cap_busy(true);
+            ui.set_cap_status(SharedString::from("Starting MP4 screen recording..."));
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = start_screen_recording(region, audio);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_cap_busy(false);
+                        refresh_capture_and_notify(&ui);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_cap_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_cap_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_capture_stop_recording(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_cap_busy(true);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = stop_screen_recording();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        ui.set_cap_busy(false);
+                        refresh_capture_and_notify(&ui);
+                        match res {
+                            Ok(msg) => {
+                                ui.set_cap_status(SharedString::from(msg.as_str()));
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => {
+                                ui.set_cap_status(SharedString::from(err.as_str()));
+                                set_status(&ui, err, true);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_capture_open_dir(move |which| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match open_capture_dir(&which) {
+                Ok(msg) => set_status(&ui, msg, false),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_select_share(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            if let Some(sh) = st.borrow().shares.get(idx as usize) {
+                ui.set_set_selected_share_idx(idx);
+                ui.set_set_selected_share_id(SharedString::from(sh.id.as_str()));
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_add_network_share(move |label, uri, user, pass| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match add_network_share(&label, &uri, &user, &pass) {
+                Ok(msg) => {
+                    ui.set_set_share_label_input(SharedString::new());
+                    ui.set_set_share_uri_input(SharedString::new());
+                    ui.set_set_share_user_input(SharedString::new());
+                    ui.set_set_share_pass_input(SharedString::new());
+                    refresh_settings(&ui, &mut st.borrow_mut());
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_share_action(move |action, id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let act = action.to_string();
+            let sid = id.to_string();
+            set_status(&ui, format!("Network drive: {act} '{sid}'..."), false);
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let res = share_action(&act, &sid);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        match res {
+                            Ok(msg) => {
+                                ui.invoke_refresh_settings();
+                                set_status(&ui, msg, false);
+                            }
+                            Err(err) => set_status(&ui, err, true),
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_toggle_osk(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match toggle_on_screen_keyboard() {
+                Ok(msg) => {
+                    refresh_capture_and_notify(&ui);
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_cell = Rc::clone(&current_lang);
+        ui.on_speak_clipboard(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let code = lang_cell.borrow().code();
+            match speak_text_offline(code, "") {
+                Ok(msg) => set_status(&ui, msg, false),
+                Err(err) => set_status(&ui, err, true),
             }
         });
     }

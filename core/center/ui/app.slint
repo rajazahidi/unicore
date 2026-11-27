@@ -86,6 +86,14 @@ export struct UserRow {
     has-password: bool,
 }
 
+export struct ShareEntry {
+    id: string,
+    label: string,
+    uri: string,
+    username: string,
+    mounted: bool,
+}
+
 export struct UiText {
     title-center: string,
     title-open: string,
@@ -213,17 +221,48 @@ export struct UiText {
     hdr-local-ai: string,
     hdr-devbox: string,
     btn-browse: string,
+    title-capture: string,
+    title-ai: string,
+    lbl-taskbar-style: string,
+    hdr-accessibility: string,
+    chk-high-contrast: string,
+    chk-large-text: string,
+    btn-osk-toggle: string,
+    btn-read-aloud: string,
+    hdr-net-shares: string,
+    btn-add-share: string,
+    btn-mount: string,
+    btn-unmount: string,
+    btn-open-folder: string,
+    lbl-audio-profile: string,
+    tile-dnd: string,
+    tile-capture: string,
+    btn-dismiss-notifs: string,
+    btn-restore-notif: string,
+    store-cat-gaming: string,
+    store-cat-creative: string,
+    store-cat-social: string,
+    store-cat-dev: string,
+    btn-shot-full: string,
+    btn-shot-region: string,
+    btn-rec-start: string,
+    btn-rec-stop: string,
+    chk-rec-audio: string,
+    lbl-delay: string,
+    btn-open-shots: string,
+    btn-open-videos: string,
 }
 
 export global UiTheme {
     in-out property <bool> light: false;
-    out property <color> bg: light ? #f1f5f9 : #0f172a;
-    out property <color> card-bg: light ? #ffffff : #1e293b;
-    out property <color> card-border: light ? #cbd5e1 : #334155;
-    out property <color> text-primary: light ? #0f172a : #f8fafc;
-    out property <color> text-secondary: light ? #334155 : #e2e8f0;
-    out property <color> text-muted: light ? #475569 : #94a3b8;
-    out property <color> text-accent: light ? #0369a1 : #38bdf8;
+    in-out property <bool> high-contrast: false;
+    out property <color> bg: high-contrast ? (light ? #ffffff : #000000) : (light ? #f1f5f9 : #0f172a);
+    out property <color> card-bg: high-contrast ? (light ? #ffffff : #090d16) : (light ? #ffffff : #1e293b);
+    out property <color> card-border: high-contrast ? (light ? #0f172a : #facc15) : (light ? #cbd5e1 : #334155);
+    out property <color> text-primary: high-contrast ? (light ? #000000 : #ffffff) : (light ? #0f172a : #f8fafc);
+    out property <color> text-secondary: high-contrast ? (light ? #0f172a : #f8fafc) : (light ? #334155 : #e2e8f0);
+    out property <color> text-muted: high-contrast ? (light ? #1e293b : #e2e8f0) : (light ? #475569 : #94a3b8);
+    out property <color> text-accent: high-contrast ? (light ? #0c4a6e : #fde047) : (light ? #0369a1 : #38bdf8);
     out property <color> text-ok: light ? #15803d : #4ade80;
     out property <color> surface-subtle: light ? #e2e8f0 : #263449;
     out property <color> surface-hover: light ? #cbd5e1 : #334155;
@@ -507,18 +546,22 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.ai-dialog-only ? "UniCore AI Assistant" : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center))))));
-    preferred-width: root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 410px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px)))));
-    preferred-height: root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 520px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px)))));
-    min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only) ? 360px : 520px;
-    min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only) ? 280px : 360px;
+    title: root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))));
+    preferred-width: root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))));
+    preferred-height: root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))));
+    min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only) ? 360px : 520px;
+    min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
         Palette.color-scheme = light ? ColorScheme.light : ColorScheme.dark;
+    }
+
+    public function set-high-contrast-theme(hc: bool) {
+        UiTheme.high-contrast = hc;
     }
 
     init => {
@@ -533,6 +576,7 @@ export component MainWindow inherits Window {
     in-out property <bool> quick-settings-only: false;
     in-out property <bool> login-dialog-only: false;
     in-out property <bool> ai-dialog-only: false;
+    in-out property <bool> capture-dialog-only: false;
     in-out property <bool> oobe-dialog-only: false;
     in-out property <bool> taskmgr-dialog-only: false;
     in-out property <bool> picker-open: false;
@@ -543,7 +587,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v0.4.0";
+    in-out property <string> login-clock-text: "UniCore OS v0.5.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -644,7 +688,7 @@ export component MainWindow inherits Window {
     in-out property <string> sys-cpu-governor: "-";
 
     // A/B OS Updater & Rollback state (Tab 2)
-    in-out property <string> upd-current-version: "0.4.0";
+    in-out property <string> upd-current-version: "0.5.0";
     in-out property <string> upd-active-slot: "UNICORE_SYS_A";
     in-out property <string> upd-standby-slot: "UNICORE_SYS_B";
     in-out property <string> upd-pending-summary: "Checking...";
@@ -786,6 +830,29 @@ export component MainWindow inherits Window {
     in-out property <string> store-proton-summary: "GE-Proton: Not installed yet";
     in-out property <bool> store-proton-busy: false;
 
+    // v0.5.0 Capture & Screen Recorder, DND, Network Drives, Audio Profiles & Accessibility
+    in-out property <bool> cap-recording: false;
+    in-out property <string> cap-active-file: "";
+    in-out property <bool> cap-wf-available: true;
+    in-out property <int> cap-delay-idx: 0;
+    in-out property <bool> cap-record-audio: true;
+    in-out property <string> cap-status: "";
+    in-out property <bool> cap-busy: false;
+    in-out property <bool> notify-dnd: false;
+    in-out property <bool> set-high-contrast: false;
+    in-out property <bool> set-large-text: false;
+    in-out property <bool> a11y-osk-running: false;
+    in-out property <bool> a11y-tts-available: true;
+    in-out property <[string]> set-audio-profiles: ["Default Audio Profile"];
+    in-out property <int> set-audio-profile-idx: 0;
+    in-out property <[ShareEntry]> set-share-list: [];
+    in-out property <int> set-selected-share-idx: -1;
+    in-out property <string> set-selected-share-id: "";
+    in-out property <string> set-share-label-input: "";
+    in-out property <string> set-share-uri-input: "";
+    in-out property <string> set-share-user-input: "";
+    in-out property <string> set-share-pass-input: "";
+
     // App Catalog / Store state (Tab 4)
     in-out property <[StoreEntry]> store-entries: [];
     in-out property <[StoreRow]> store-rows: [];
@@ -853,7 +920,20 @@ export component MainWindow inherits Window {
     callback apply-display(int, int, int);
     callback brightness-changed(int);
     callback nightlight-changed(bool, int);
-    callback apply-personalize(int, int, string, int, bool, bool, int, bool, int);
+    callback apply-personalize(int, int, string, int, bool, bool, int, bool, int, bool, bool);
+    callback audio-profile-selected(int);
+    callback toggle-dnd(bool);
+    callback dismiss-all-notifications();
+    callback restore-last-notification();
+    callback capture-take-shot(bool, int);
+    callback capture-start-recording(bool, bool);
+    callback capture-stop-recording();
+    callback capture-open-dir(string);
+    callback select-share(int);
+    callback add-network-share(string, string, string, string);
+    callback share-action(string, string);
+    callback toggle-osk();
+    callback speak-clipboard();
     callback toggle-cups(bool);
     callback scan-printers();
     callback open-document-scanner();
@@ -1151,6 +1231,67 @@ export component MainWindow inherits Window {
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
                             }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 42px;
+                            border-radius: 8px;
+                            background: root.notify-dnd ? #7c3aed : UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: root.notify-dnd ? #c084fc : UiTheme.card-border;
+                            TouchArea { clicked => { root.notify-dnd = !root.notify-dnd; root.toggle-dnd(root.notify-dnd); } }
+                            Text {
+                                text: root.notify-dnd ? root.tr.tile-dnd + ": ON" : root.tr.tile-dnd + ": OFF";
+                                color: root.notify-dnd ? #ffffff : UiTheme.text-primary;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 42px;
+                            border-radius: 8px;
+                            background: root.cap-recording ? #dc2626 : UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: root.cap-recording ? #f87171 : UiTheme.card-border;
+                            TouchArea {
+                                clicked => {
+                                    root.quick-settings-only = false;
+                                    root.capture-dialog-only = true;
+                                }
+                            }
+                            Text {
+                                text: root.cap-recording ? "REC ● Stop" : root.tr.tile-capture;
+                                color: root.cap-recording ? #ffffff : UiTheme.text-primary;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Button {
+                            text: root.tr.btn-dismiss-notifs;
+                            horizontal-stretch: 1;
+                            clicked => { root.dismiss-all-notifications(); }
+                        }
+                        Button {
+                            text: root.tr.btn-restore-notif;
+                            horizontal-stretch: 1;
+                            clicked => { root.restore-last-notification(); }
+                        }
+                        Button {
+                            text: "OSK";
+                            clicked => { root.toggle-osk(); }
                         }
                     }
 
@@ -1464,6 +1605,140 @@ export component MainWindow inherits Window {
                         Rectangle { horizontal-stretch: 1; }
                         Button { text: root.tr.btn-close; clicked => { root.cancel-open(); } }
                     }
+                }
+            }
+        }
+
+        // Screen Capture & MP4 Video Recorder Dialog (--capture / Print / Win+Shift+R)
+        if root.capture-dialog-only : VerticalLayout {
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Rectangle {
+                height: 60px;
+                border-radius: 10px;
+                background: root.cap-recording
+                    ? @linear-gradient(135deg, #7f1d1d 0%, #dc2626 60%, #991b1b 100%)
+                    : @linear-gradient(135deg, #0f172a 0%, #0369a1 55%, #1d4ed8 100%);
+                border-width: 1px;
+                border-color: root.cap-recording ? #f87171 : #38bdf8;
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        Text {
+                            text: root.tr.title-capture;
+                            color: #ffffff;
+                            font-size: 15px;
+                            font-weight: 800;
+                        }
+                        Text {
+                            text: root.cap-recording
+                                ? "REC ACTIVE -> " + root.cap-active-file
+                                : "Screenshots -> Pictures/Screenshots (auto-copied) | Video MP4 -> Videos/Recordings";
+                            color: #e0f2fe;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+                }
+            }
+
+            Card {
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text {
+                            text: root.tr.lbl-delay;
+                            color: UiTheme.text-muted;
+                            font-size: 12px;
+                            width: 110px;
+                            vertical-alignment: center;
+                        }
+                        ComboBox {
+                            model: ["0s (Instant)", "3s Delay", "5s Delay"];
+                            current-index <=> root.cap-delay-idx;
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Button {
+                            text: root.tr.btn-shot-full;
+                            primary: !root.cap-recording;
+                            enabled: !root.cap-busy;
+                            horizontal-stretch: 1;
+                            clicked => { root.capture-take-shot(false, root.cap-delay-idx == 2 ? 5 : (root.cap-delay-idx == 1 ? 3 : 0)); }
+                        }
+                        Button {
+                            text: root.tr.btn-shot-region;
+                            enabled: !root.cap-busy;
+                            horizontal-stretch: 1;
+                            clicked => { root.capture-take-shot(true, root.cap-delay-idx == 2 ? 5 : (root.cap-delay-idx == 1 ? 3 : 0)); }
+                        }
+                    }
+
+                    Rectangle { height: 1px; background: UiTheme.card-border; }
+
+                    Switch {
+                        text: root.tr.chk-rec-audio;
+                        checked <=> root.cap-record-audio;
+                        enabled: !root.cap-recording && root.cap-wf-available;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        if !root.cap-recording : Button {
+                            text: root.tr.btn-rec-start;
+                            primary: true;
+                            enabled: root.cap-wf-available && !root.cap-busy;
+                            horizontal-stretch: 1;
+                            clicked => { root.capture-start-recording(false, root.cap-record-audio); }
+                        }
+                        if !root.cap-recording : Button {
+                            text: "Record Region (MP4)";
+                            enabled: root.cap-wf-available && !root.cap-busy;
+                            horizontal-stretch: 1;
+                            clicked => { root.capture-start-recording(true, root.cap-record-audio); }
+                        }
+                        if root.cap-recording : Button {
+                            text: root.tr.btn-rec-stop;
+                            primary: true;
+                            horizontal-stretch: 1;
+                            clicked => { root.capture-stop-recording(); }
+                        }
+                    }
+
+                    if root.cap-status != "" : Text {
+                        text: root.cap-status;
+                        color: UiTheme.text-accent;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.tr.btn-open-shots;
+                    clicked => { root.capture-open-dir("shots"); }
+                }
+                Button {
+                    text: root.tr.btn-open-videos;
+                    clicked => { root.capture-open-dir("videos"); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
                 }
             }
         }
@@ -2802,110 +3077,232 @@ export component MainWindow inherits Window {
                 }
             }
 
-            // Subtab 0: Wi-Fi & Network
-            if root.settings-subtab == 0 : Card {
+            // Subtab 0: Wi-Fi, Network & Network Drives (SMB / SFTP / WebDAV)
+            if root.settings-subtab == 0 : ScrollView {
                 vertical-stretch: 1;
                 VerticalLayout {
-                    padding: 14px;
                     spacing: 10px;
+                    alignment: start;
 
-                    InfoRow { label: "Network Status:"; value: root.set-net-summary; value-color: UiTheme.text-accent; }
+                    Card {
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 10px;
 
-                    HorizontalLayout {
-                        spacing: 12px;
-                        Switch {
-                            text: "Wi-Fi Radio";
-                            checked <=> root.set-wifi-enabled;
-                            enabled: root.set-net-available;
-                            toggled => { root.toggle-wifi-radio(self.checked); }
-                        }
-                        Rectangle { horizontal-stretch: 1; }
-                        Button {
-                            text: "Scan Wi-Fi";
-                            enabled: root.set-net-available;
-                            clicked => { root.refresh-settings(); }
+                            InfoRow { label: "Network Status:"; value: root.set-net-summary; value-color: UiTheme.text-accent; }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Switch {
+                                    text: "Wi-Fi Radio";
+                                    checked <=> root.set-wifi-enabled;
+                                    enabled: root.set-net-available;
+                                    toggled => { root.toggle-wifi-radio(self.checked); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                                Button {
+                                    text: "Scan Wi-Fi";
+                                    enabled: root.set-net-available;
+                                    clicked => { root.refresh-settings(); }
+                                }
+                            }
+
+                            VerticalLayout {
+                                spacing: 6px;
+                                alignment: start;
+
+                                if root.set-wifi-list.length == 0 : Text {
+                                    text: root.set-wifi-enabled ? "No Wi-Fi networks detected yet (wired Ethernet DHCP connects automatically)." : "Wi-Fi radio is off or no Wi-Fi adapter found.";
+                                    color: UiTheme.text-muted;
+                                    font-size: 12px;
+                                    wrap: word-wrap;
+                                }
+
+                                for net[idx] in root.set-wifi-list : Rectangle {
+                                    height: 40px;
+                                    border-radius: 6px;
+                                    background: idx == root.set-selected-wifi-idx ? #0369a1 : (wta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                    border-width: 1px;
+                                    border-color: net.in-use ? #22c55e : (idx == root.set-selected-wifi-idx ? #38bdf8 : UiTheme.card-border);
+
+                                    wta := TouchArea {
+                                        clicked => { root.select-wifi(idx); }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+                                        spacing: 10px;
+                                        Text {
+                                            text: net.in-use ? "* " + net.ssid : net.ssid;
+                                            color: idx == root.set-selected-wifi-idx ? #ffffff : UiTheme.text-primary;
+                                            font-size: 13px;
+                                            font-weight: net.in-use ? 700 : 500;
+                                            horizontal-stretch: 1;
+                                            vertical-alignment: center;
+                                        }
+                                        Text {
+                                            text: net.security + " | " + net.signal + "%";
+                                            color: UiTheme.text-muted;
+                                            font-size: 11px;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    text <=> root.set-wifi-ssid;
+                                    placeholder-text: "Wi-Fi SSID";
+                                    horizontal-stretch: 1;
+                                }
+                                LineEdit {
+                                    text <=> root.set-wifi-password;
+                                    placeholder-text: "Password (blank if open)";
+                                    input-type: InputType.password;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Button {
+                                    text: "Connect";
+                                    primary: true;
+                                    enabled: root.set-net-available;
+                                    clicked => { root.connect-wifi(root.set-wifi-ssid, root.set-wifi-password); }
+                                }
+                                Button {
+                                    text: "Disconnect";
+                                    enabled: root.set-net-available;
+                                    clicked => { root.disconnect-wifi(); }
+                                }
+                                Button {
+                                    text: "Forget Saved";
+                                    enabled: root.set-net-available;
+                                    clicked => { root.forget-wifi(root.set-wifi-ssid); }
+                                }
+                            }
                         }
                     }
 
-                    ScrollView {
-                        vertical-stretch: 1;
+                    // Network Drives & File Shares (Windows SMB, SFTP, WebDAV, Phone MTP/AFC)
+                    Card {
                         VerticalLayout {
-                            spacing: 6px;
-                            alignment: start;
+                            padding: 14px;
+                            spacing: 8px;
 
-                            if root.set-wifi-list.length == 0 : Text {
-                                text: root.set-wifi-enabled ? "No Wi-Fi networks detected yet (wired Ethernet DHCP connects automatically)." : "Wi-Fi radio is off or no Wi-Fi adapter found.";
+                            Text {
+                                text: root.tr.hdr-net-shares;
+                                color: UiTheme.text-primary;
+                                font-size: 15px;
+                                font-weight: 700;
+                            }
+                            Text {
+                                text: "Connect Windows/NAS SMB shares (smb://192.168.1.10/Share), SFTP servers (sftp://host/path), or WebDAV/Nextcloud (davs://...). Android MTP & iPhone AFC auto-mount in Files.";
                                 color: UiTheme.text-muted;
-                                font-size: 12px;
+                                font-size: 11px;
                                 wrap: word-wrap;
                             }
 
-                            for net[idx] in root.set-wifi-list : Rectangle {
-                                height: 42px;
-                                border-radius: 6px;
-                                background: idx == root.set-selected-wifi-idx ? #0369a1 : (wta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
-                                border-width: 1px;
-                                border-color: net.in-use ? #22c55e : (idx == root.set-selected-wifi-idx ? #38bdf8 : #334155);
+                            if root.set-share-list.length == 0 : Text {
+                                text: "No saved network drives yet.";
+                                color: UiTheme.text-muted;
+                                font-size: 12px;
+                            }
 
-                                wta := TouchArea {
-                                    clicked => { root.select-wifi(idx); }
-                                }
+                            for sh[idx] in root.set-share-list : Rectangle {
+                                height: 38px;
+                                border-radius: 6px;
+                                background: idx == root.set-selected-share-idx ? #0369a1 : (sta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                                border-width: 1px;
+                                border-color: sh.mounted ? #22c55e : (idx == root.set-selected-share-idx ? #38bdf8 : UiTheme.card-border);
+
+                                sta := TouchArea { clicked => { root.select-share(idx); } }
 
                                 HorizontalLayout {
-                                    padding-left: 12px;
-                                    padding-right: 12px;
+                                    padding-left: 10px;
+                                    padding-right: 10px;
                                     spacing: 10px;
                                     Text {
-                                        text: net.in-use ? "* " + net.ssid : net.ssid;
-                                        color: idx == root.set-selected-wifi-idx ? #ffffff : UiTheme.text-primary;
-                                        font-size: 13px;
-                                        font-weight: net.in-use ? 700 : 500;
+                                        text: (sh.mounted ? "[Mounted] " : "") + sh.label + "  (" + sh.uri + ")";
+                                        color: idx == root.set-selected-share-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 12px;
+                                        font-weight: sh.mounted ? 700 : 500;
                                         horizontal-stretch: 1;
                                         vertical-alignment: center;
-                                    }
-                                    Text {
-                                        text: net.security + " | " + net.signal + "%";
-                                        color: UiTheme.text-muted;
-                                        font-size: 11px;
-                                        vertical-alignment: center;
+                                        overflow: elide;
                                     }
                                 }
                             }
-                        }
-                    }
 
-                    HorizontalLayout {
-                        spacing: 8px;
-                        LineEdit {
-                            text <=> root.set-wifi-ssid;
-                            placeholder-text: "Wi-Fi SSID";
-                            horizontal-stretch: 1;
-                        }
-                        LineEdit {
-                            text <=> root.set-wifi-password;
-                            placeholder-text: "Password (blank if open)";
-                            input-type: InputType.password;
-                            horizontal-stretch: 1;
-                        }
-                    }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-mount;
+                                    primary: true;
+                                    enabled: root.set-selected-share-id != "";
+                                    clicked => { root.share-action("mount", root.set-selected-share-id); }
+                                }
+                                Button {
+                                    text: root.tr.btn-open-folder;
+                                    enabled: root.set-selected-share-id != "";
+                                    clicked => { root.share-action("open", root.set-selected-share-id); }
+                                }
+                                Button {
+                                    text: root.tr.btn-unmount;
+                                    enabled: root.set-selected-share-id != "";
+                                    clicked => { root.share-action("unmount", root.set-selected-share-id); }
+                                }
+                                Button {
+                                    text: root.tr.btn-remove-printer;
+                                    enabled: root.set-selected-share-id != "";
+                                    clicked => { root.share-action("remove", root.set-selected-share-id); }
+                                }
+                            }
 
-                    HorizontalLayout {
-                        spacing: 10px;
-                        Button {
-                            text: "Connect";
-                            primary: true;
-                            enabled: root.set-net-available;
-                            clicked => { root.connect-wifi(root.set-wifi-ssid, root.set-wifi-password); }
-                        }
-                        Button {
-                            text: "Disconnect";
-                            enabled: root.set-net-available;
-                            clicked => { root.disconnect-wifi(); }
-                        }
-                        Button {
-                            text: "Forget Saved";
-                            enabled: root.set-net-available;
-                            clicked => { root.forget-wifi(root.set-wifi-ssid); }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    text <=> root.set-share-label-input;
+                                    placeholder-text: "Drive Name (e.g. Home NAS)";
+                                    width: 170px;
+                                }
+                                LineEdit {
+                                    text <=> root.set-share-uri-input;
+                                    placeholder-text: "smb://192.168.1.10/Share or sftp://host/home";
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                LineEdit {
+                                    text <=> root.set-share-user-input;
+                                    placeholder-text: "Username (optional)";
+                                    horizontal-stretch: 1;
+                                }
+                                LineEdit {
+                                    text <=> root.set-share-pass-input;
+                                    placeholder-text: "Password (stored chmod 600, optional)";
+                                    input-type: InputType.password;
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: root.tr.btn-add-share;
+                                    primary: true;
+                                    clicked => {
+                                        root.add-network-share(
+                                            root.set-share-label-input,
+                                            root.set-share-uri-input,
+                                            root.set-share-user-input,
+                                            root.set-share-pass-input
+                                        );
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -3069,6 +3466,32 @@ export component MainWindow inherits Window {
                             enabled: root.set-audio-available;
                             toggled => { root.mic-mute-toggled(self.checked); }
                         }
+                    }
+
+                    Rectangle { height: 1px; background: UiTheme.card-border; }
+
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: root.tr.lbl-audio-profile;
+                            color: UiTheme.text-muted;
+                            font-size: 13px;
+                            width: 190px;
+                            vertical-alignment: center;
+                        }
+                        ComboBox {
+                            model: root.set-audio-profiles;
+                            current-index <=> root.set-audio-profile-idx;
+                            enabled: root.set-audio-available;
+                            selected => { root.audio-profile-selected(self.current-index); }
+                            horizontal-stretch: 1;
+                        }
+                    }
+                    Text {
+                        text: "PipeWire Bluetooth A2DP Stereo & HFP Headset profiles are enabled automatically when Bluetooth headphones connect.";
+                        color: UiTheme.text-muted;
+                        font-size: 11px;
+                        wrap: word-wrap;
                     }
                 }
             }
@@ -3281,7 +3704,7 @@ export component MainWindow inherits Window {
                             HorizontalLayout {
                                 spacing: 12px;
                                 Text {
-                                    text: "Taskbar Style:";
+                                    text: root.tr.lbl-taskbar-style;
                                     color: UiTheme.text-muted;
                                     font-size: 13px;
                                     width: 160px;
@@ -3307,6 +3730,18 @@ export component MainWindow inherits Window {
                                 Switch {
                                     text: "Desktop Icons";
                                     checked <=> root.set-desktop-icons;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 18px;
+                                Switch {
+                                    text: root.tr.chk-high-contrast;
+                                    checked <=> root.set-high-contrast;
+                                }
+                                Switch {
+                                    text: root.tr.chk-large-text;
+                                    checked <=> root.set-large-text;
                                 }
                             }
 
@@ -3343,7 +3778,9 @@ export component MainWindow inherits Window {
                                             root.set-tap-to-click,
                                             Math.round(root.set-pointer-speed-tenths),
                                             root.set-desktop-icons,
-                                            root.set-taskbar-style-idx
+                                            root.set-taskbar-style-idx,
+                                            root.set-high-contrast,
+                                            root.set-large-text
                                         );
                                     }
                                 }
@@ -3354,6 +3791,33 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                     horizontal-stretch: 1;
                                     overflow: elide;
+                                }
+                            }
+                        }
+                    }
+
+                    // Accessibility & Touch Helpers (0 MB Idle RAM)
+                    Card {
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 10px;
+                            Text {
+                                text: root.tr.hdr-accessibility;
+                                color: UiTheme.text-primary;
+                                font-size: 15px;
+                                font-weight: 700;
+                            }
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Button {
+                                    text: root.a11y-osk-running ? root.tr.btn-osk-toggle + " (ON)" : root.tr.btn-osk-toggle;
+                                    primary: root.a11y-osk-running;
+                                    clicked => { root.toggle-osk(); }
+                                }
+                                Button {
+                                    text: root.tr.btn-read-aloud;
+                                    enabled: root.a11y-tts-available;
+                                    clicked => { root.speak-clipboard(); }
                                 }
                             }
                         }
@@ -4150,7 +4614,7 @@ export component MainWindow inherits Window {
                         }
                     }
                     StoreNavItem {
-                        label: "Gaming";
+                        label: root.tr.store-cat-gaming;
                         active: root.store-category == "gaming";
                         clicked => {
                             root.store-detail-open = false;
@@ -4159,7 +4623,7 @@ export component MainWindow inherits Window {
                         }
                     }
                     StoreNavItem {
-                        label: "Creative";
+                        label: root.tr.store-cat-creative;
                         active: root.store-category == "creative";
                         clicked => {
                             root.store-detail-open = false;
@@ -4168,7 +4632,7 @@ export component MainWindow inherits Window {
                         }
                     }
                     StoreNavItem {
-                        label: "Social";
+                        label: root.tr.store-cat-social;
                         active: root.store-category == "social";
                         clicked => {
                             root.store-detail-open = false;
@@ -4177,7 +4641,7 @@ export component MainWindow inherits Window {
                         }
                     }
                     StoreNavItem {
-                        label: "Developer";
+                        label: root.tr.store-cat-dev;
                         active: root.store-category == "dev";
                         clicked => {
                             root.store-detail-open = false;

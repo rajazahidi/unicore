@@ -1,0 +1,188 @@
+#!/bin/sh
+# UniCore OS Rootless Network Drives & Shares Manager (SMB Windows, SFTP, WebDAV, NFS)
+# Uses gio mount (gvfs-smb/gvfs-dav/gvfs-nfs/gvfs-fuse) and sshfs without requiring root privileges.
+set -eu
+
+SHARES_ROOT="${UNICORE_SHARES_ROOT:-/data/network}"
+SHARES_DB="${SHARES_ROOT}/shares.tsv"
+SECRETS_DIR="${SHARES_ROOT}/share_secrets"
+USER_HOME="${HOME:-/home/unicore}"
+NET_MNT_BASE="${USER_HOME}/Network"
+GVFS_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gvfs"
+
+ensure_dirs() {
+    mkdir -p "${SHARES_ROOT}" "${SECRETS_DIR}" "${NET_MNT_BASE}"
+    chmod 700 "${SECRETS_DIR}" 2>/dev/null || true
+}
+
+validate_id() {
+    printf '%s' "$1" | grep -Eq '^[a-z0-9][a-z0-9_-]{0,31}$'
+}
+
+validate_uri() {
+    printf '%s' "$1" | grep -Eq '^(smb|sftp|dav|davs|nfs)://[^[:space:]"'\''$`\\;<>|&]{3,}$'
+}
+
+make_id() {
+    raw="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//' | cut -c1-24)"
+    [ -n "${raw}" ] || raw="share"
+    printf '%s\n' "${raw}"
+}
+
+detect_mount_path() {
+    id="$1"
+    uri="$2"
+    if [ -d "${NET_MNT_BASE}/${id}" ] && grep -q " ${NET_MNT_BASE}/${id} " /proc/mounts 2>/dev/null; then
+        printf '%s\n' "${NET_MNT_BASE}/${id}"
+        return 0
+    fi
+    if [ -d "${GVFS_DIR}" ]; then
+        host="$(printf '%s' "${uri}" | sed -n 's|^[a-z]*://\([^/@]*@\)\?\([^/:]*\).*|\2|p')"
+        if [ -n "${host}" ]; then
+            cand="$(find "${GVFS_DIR}" -maxdepth 1 -mindepth 1 -name "*host=${host}*" 2>/dev/null | head -n1 || true)"
+            if [ -n "${cand}" ]; then
+                printf '%s\n' "${cand}"
+                return 0
+            fi
+        fi
+    fi
+    return 1
+}
+
+cmd="${1:-list}"
+shift || true
+
+case "${cmd}" in
+    list)
+        [ -r "${SHARES_DB}" ] || exit 0
+        while IFS='	' read -r sid label uri user; do
+            [ -n "${sid}" ] || continue
+            mpath=""
+            mounted=0
+            if mpath="$(detect_mount_path "${sid}" "${uri}" 2>/dev/null)"; then
+                mounted=1
+            fi
+            printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${sid}" "${label}" "${uri}" "${user}" "${mounted}" "${mpath}"
+        done < "${SHARES_DB}"
+        ;;
+
+    add)
+        label="${1:-}"
+        uri="${2:-}"
+        user="${3:-}"
+        [ -n "${label}" ] || { echo "Share label cannot be empty." >&2; exit 2; }
+        validate_uri "${uri}" || { echo "URI must start with smb://, sftp://, dav://, davs://, or nfs://." >&2; exit 2; }
+        ensure_dirs
+        clean_label="$(printf '%s' "${label}" | tr '\t\r\n' '   ')"
+        clean_user="$(printf '%s' "${user}" | tr '\t\r\n' '   ')"
+        sid="$(make_id "${clean_label}")"
+        if [ -f "${SHARES_DB}" ]; then
+            grep -v "^${sid}	" "${SHARES_DB}" > "${SHARES_DB}.tmp" 2>/dev/null || true
+            mv "${SHARES_DB}.tmp" "${SHARES_DB}"
+        fi
+        printf '%s\t%s\t%s\t%s\n' "${sid}" "${clean_label}" "${uri}" "${clean_user}" >> "${SHARES_DB}"
+        chmod 600 "${SHARES_DB}" 2>/dev/null || true
+        if [ ! -t 0 ]; then
+            IFS= read -r pw || pw=""
+            pw="$(printf '%s' "${pw}" | tr -d '\r\n')"
+            if [ -n "${pw}" ]; then
+                (umask 077; printf '%s\n' "${pw}" > "${SECRETS_DIR}/${sid}")
+            fi
+        fi
+        echo "Saved network drive '${clean_label}' (${uri})"
+        ;;
+
+    mount)
+        sid="${1:-}"
+        validate_id "${sid}" || { echo "Invalid share ID '${sid}'" >&2; exit 2; }
+        [ -r "${SHARES_DB}" ] || { echo "No saved network shares." >&2; exit 1; }
+        row="$(grep "^${sid}	" "${SHARES_DB}" | head -n1 || true)"
+        [ -n "${row}" ] || { echo "Network share '${sid}' not found." >&2; exit 1; }
+        uri="$(printf '%s' "${row}" | awk -F'\t' '{print $3}')"
+        user="$(printf '%s' "${row}" | awk -F'\t' '{print $4}')"
+        pw=""
+        [ -r "${SECRETS_DIR}/${sid}" ] && pw="$(cat "${SECRETS_DIR}/${sid}" 2>/dev/null | tr -d '\r\n' || true)"
+
+        case "${uri}" in
+            sftp://*)
+                if command -v sshfs >/dev/null 2>&1; then
+                    ensure_dirs
+                    spec="${uri#sftp://}"
+                    host_part="${spec%%/*}"
+                    remote_path="/${spec#*/}"
+                    [ "${remote_path}" = "/${spec}" ] && remote_path="/"
+                    target="${host_part}:${remote_path}"
+                    case "${host_part}" in
+                        *@*) ;;
+                        *) [ -n "${user}" ] && target="${user}@${target}" ;;
+                    esac
+                    mkdir -p "${NET_MNT_BASE}/${sid}"
+                    if [ -n "${pw}" ]; then
+                        printf '%s\n' "${pw}" | sshfs "${target}" "${NET_MNT_BASE}/${sid}" -o password_stdin,StrictHostKeyChecking=accept-new,reconnect
+                    else
+                        sshfs "${target}" "${NET_MNT_BASE}/${sid}" -o StrictHostKeyChecking=accept-new,reconnect
+                    fi
+                    echo "Mounted SFTP drive at ${NET_MNT_BASE}/${sid}"
+                    exit 0
+                fi
+                ;;
+        esac
+
+        command -v gio >/dev/null 2>&1 || { echo "gio/GVFS is unavailable." >&2; exit 1; }
+        if [ -n "${user}" ] || [ -n "${pw}" ]; then
+            printf '%s\n%s\n' "${user}" "${pw}" | gio mount "${uri}"
+        else
+            gio mount -a "${uri}" 2>/dev/null || gio mount "${uri}"
+        fi
+        echo "Mounted network drive ${uri}"
+        ;;
+
+    unmount)
+        sid="${1:-}"
+        validate_id "${sid}" || { echo "Invalid share ID '${sid}'" >&2; exit 2; }
+        [ -r "${SHARES_DB}" ] || exit 0
+        row="$(grep "^${sid}	" "${SHARES_DB}" | head -n1 || true)"
+        uri="$(printf '%s' "${row}" | awk -F'\t' '{print $3}')"
+        if [ -d "${NET_MNT_BASE}/${sid}" ] && grep -q " ${NET_MNT_BASE}/${sid} " /proc/mounts 2>/dev/null; then
+            fusermount3 -u "${NET_MNT_BASE}/${sid}" 2>/dev/null || umount "${NET_MNT_BASE}/${sid}" 2>/dev/null || true
+        fi
+        if [ -n "${uri}" ] && command -v gio >/dev/null 2>&1; then
+            gio mount -u "${uri}" >/dev/null 2>&1 || true
+        fi
+        echo "Unmounted network drive '${sid}'"
+        ;;
+
+    open)
+        sid="${1:-}"
+        validate_id "${sid}" || { echo "Invalid share ID '${sid}'" >&2; exit 2; }
+        [ -r "${SHARES_DB}" ] || { echo "No saved network shares." >&2; exit 1; }
+        row="$(grep "^${sid}	" "${SHARES_DB}" | head -n1 || true)"
+        uri="$(printf '%s' "${row}" | awk -F'\t' '{print $3}')"
+        dest="${uri}"
+        if mpath="$(detect_mount_path "${sid}" "${uri}" 2>/dev/null)"; then
+            dest="${mpath}"
+        fi
+        if command -v pcmanfm >/dev/null 2>&1; then
+            pcmanfm "${dest}" </dev/null >/dev/null 2>&1 &
+        fi
+        echo "Opened ${dest}"
+        ;;
+
+    remove)
+        sid="${1:-}"
+        validate_id "${sid}" || { echo "Invalid share ID '${sid}'" >&2; exit 2; }
+        "$0" unmount "${sid}" >/dev/null 2>&1 || true
+        if [ -f "${SHARES_DB}" ]; then
+            grep -v "^${sid}	" "${SHARES_DB}" > "${SHARES_DB}.tmp" 2>/dev/null || true
+            mv "${SHARES_DB}.tmp" "${SHARES_DB}"
+        fi
+        rm -f "${SECRETS_DIR}/${sid}" 2>/dev/null || true
+        rmdir "${NET_MNT_BASE}/${sid}" 2>/dev/null || true
+        echo "Removed network drive '${sid}'"
+        ;;
+
+    *)
+        echo "Usage: unicore-shares <list|add <label> <uri> [user]|mount <id>|unmount <id>|open <id>|remove <id>>" >&2
+        exit 2
+        ;;
+esac

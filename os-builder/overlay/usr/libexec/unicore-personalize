@@ -20,6 +20,8 @@ UNICORE_TAP_TO_CLICK="yes"
 UNICORE_POINTER_SPEED="0.0"
 UNICORE_DESKTOP_ICONS="yes"
 UNICORE_TASKBAR_STYLE="docked"
+UNICORE_HIGH_CONTRAST="no"
+UNICORE_LARGE_TEXT="no"
 
 validate_theme() {
     case "$1" in
@@ -81,6 +83,8 @@ load_conf() {
     UNICORE_POINTER_SPEED="0.0"
     UNICORE_DESKTOP_ICONS="yes"
     UNICORE_TASKBAR_STYLE="docked"
+    UNICORE_HIGH_CONTRAST="no"
+    UNICORE_LARGE_TEXT="no"
     if [ -r "${CONF_PATH}" ]; then
         while IFS='=' read -r k v; do
             case "${k}" in
@@ -108,6 +112,12 @@ load_conf() {
                 UNICORE_TASKBAR_STYLE)
                     if ts="$(validate_taskbar_style "${v}" 2>/dev/null)"; then UNICORE_TASKBAR_STYLE="${ts}"; fi
                     ;;
+                UNICORE_HIGH_CONTRAST)
+                    if hc="$(validate_bool_yn "${v}" 2>/dev/null)"; then UNICORE_HIGH_CONTRAST="${hc}"; fi
+                    ;;
+                UNICORE_LARGE_TEXT)
+                    if lt="$(validate_bool_yn "${v}" 2>/dev/null)"; then UNICORE_LARGE_TEXT="${lt}"; fi
+                    ;;
             esac
         done < "${CONF_PATH}"
     fi
@@ -124,6 +134,8 @@ UNICORE_TAP_TO_CLICK=${UNICORE_TAP_TO_CLICK}
 UNICORE_POINTER_SPEED=${UNICORE_POINTER_SPEED}
 UNICORE_DESKTOP_ICONS=${UNICORE_DESKTOP_ICONS}
 UNICORE_TASKBAR_STYLE=${UNICORE_TASKBAR_STYLE}
+UNICORE_HIGH_CONTRAST=${UNICORE_HIGH_CONTRAST}
+UNICORE_LARGE_TEXT=${UNICORE_LARGE_TEXT}
 EOF
 }
 
@@ -149,11 +161,14 @@ apply_configs() {
         [ -d /usr/share/icons/Papirus-Dark ] || ICON_THEME="Adwaita"
     fi
 
+    GTK_FONT="DejaVu Sans 10"
+    [ "${UNICORE_LARGE_TEXT}" = "yes" ] && GTK_FONT="DejaVu Sans 13"
+
     cat <<EOF > "${CFG_ROOT}/gtk-3.0/settings.ini"
 [Settings]
 gtk-theme-name=${GTK_THEME}
 gtk-icon-theme-name=${ICON_THEME}
-gtk-font-name=DejaVu Sans 10
+gtk-font-name=${GTK_FONT}
 gtk-application-prefer-dark-theme=${GTK_PREFER_DARK}
 EOF
 
@@ -178,9 +193,28 @@ EOF
 
 /* Floating macOS-style Pill Taskbar Override */
 window#waybar {
-    margin: 6px 14px;
+    margin: 4px 8px;
     border-radius: 14px;
     border: 1px solid ${FLOAT_BORDER};
+}
+EOF
+        fi
+        if [ "${UNICORE_HIGH_CONTRAST}" = "yes" ]; then
+            cat <<'EOF' >> "${CFG_ROOT}/waybar/style.css"
+
+/* High-Contrast Accessibility Override */
+window#waybar {
+    border: 2px solid #facc15;
+}
+#taskbar button.active {
+    border-bottom: 3px solid #facc15;
+}
+EOF
+        fi
+        if [ "${UNICORE_LARGE_TEXT}" = "yes" ]; then
+            cat <<'EOF' >> "${CFG_ROOT}/waybar/style.css"
+* {
+    font-size: 13px;
 }
 EOF
         fi
@@ -191,9 +225,9 @@ EOF
             awk '{
                 if ($0 ~ /"height": 40,/) {
                     print "  \"height\": 42,"
-                    print "  \"margin-bottom\": 6,"
-                    print "  \"margin-left\": 14,"
-                    print "  \"margin-right\": 14,"
+                    print "  \"margin-bottom\": 4,"
+                    print "  \"margin-left\": 8,"
+                    print "  \"margin-right\": 8,"
                 } else {
                     print
                 }
@@ -287,10 +321,11 @@ shift || true
 case "${cmd}" in
     status)
         load_conf
-        printf 'theme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\ntaskbar_style=%s\n' \
+        printf 'theme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\ntaskbar_style=%s\nhigh_contrast=%s\nlarge_text=%s\n' \
             "${UNICORE_THEME}" "${UNICORE_WALLPAPER}" "${UNICORE_KB_LAYOUT}" \
             "${UNICORE_NATURAL_SCROLL}" "${UNICORE_TAP_TO_CLICK}" "${UNICORE_POINTER_SPEED}" \
-            "${UNICORE_DESKTOP_ICONS}" "${UNICORE_TASKBAR_STYLE}"
+            "${UNICORE_DESKTOP_ICONS}" "${UNICORE_TASKBAR_STYLE}" \
+            "${UNICORE_HIGH_CONTRAST}" "${UNICORE_LARGE_TEXT}"
         ;;
     apply)
         no_reload=0
@@ -334,6 +369,14 @@ case "${cmd}" in
                 --taskbar-style)
                     shift || { echo "Missing value for --taskbar-style" >&2; exit 2; }
                     UNICORE_TASKBAR_STYLE="$(validate_taskbar_style "$1")" || { echo "Invalid taskbar-style value: $1" >&2; exit 2; }
+                    ;;
+                --high-contrast)
+                    shift || { echo "Missing value for --high-contrast" >&2; exit 2; }
+                    UNICORE_HIGH_CONTRAST="$(validate_bool_yn "$1")" || { echo "Invalid high-contrast value: $1" >&2; exit 2; }
+                    ;;
+                --large-text)
+                    shift || { echo "Missing value for --large-text" >&2; exit 2; }
+                    UNICORE_LARGE_TEXT="$(validate_bool_yn "$1")" || { echo "Invalid large-text value: $1" >&2; exit 2; }
                     ;;
                 *)
                     echo "Unknown option: $1" >&2

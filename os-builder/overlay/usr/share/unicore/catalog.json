@@ -254,6 +254,24 @@
       "summary_ms": "Pelanggan e-mel, kalendar dan kenalan sumber terbuka Mozilla dengan sokongan Gmail/Outlook/IMAP."
     },
     {
+      "id": "localsend",
+      "name": "LocalSend (Wi-Fi Drop)",
+      "version": "Flathub",
+      "size_label": "Flatpak",
+      "category": "social",
+      "platform": "linux_flatpak",
+      "flatpak_id": "org.localsend.localsend_app",
+      "arches": ["x86_64", "aarch64"],
+      "win_era": null,
+      "download_url": "",
+      "sha256": "",
+      "filename": "org.localsend.localsend_app",
+      "archive_entry": "",
+      "bundled_path": "",
+      "summary_en": "Instant offline AirDrop-style file & photo transfer over Wi-Fi between UniCore, Android, iPhone, Windows, and macOS.",
+      "summary_ms": "Pemindahan fail & foto pantas ala AirDrop tanpa internet melalui Wi-Fi antara UniCore, Android, iPhone, Windows & macOS."
+    },
+    {
       "id": "libreoffice-native",
       "name": "LibreOffice Native Linux",
       "version": "Flathub",

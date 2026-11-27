@@ -94,6 +94,7 @@ pub fn store_icon_meta(id: &str, name: &str, category: &str) -> (String, (u8, u8
         "vesktop" => ("DSC".to_string(), (88, 101, 242)),
         "telegram" => ("TG".to_string(), (14, 165, 233)),
         "thunderbird" => ("TB".to_string(), (37, 99, 235)),
+        "localsend" => ("LS".to_string(), (20, 184, 166)),
         "libreoffice-native" | "libreoffice" => ("LO".to_string(), (22, 163, 74)),
         "flatseal" => ("FSL".to_string(), (79, 70, 229)),
         "7zip" => ("7Z".to_string(), (5, 150, 105)),

@@ -1,0 +1,87 @@
+#!/bin/sh
+# UniCore OS Lightweight Accessibility Helper (0 MB idle RAM):
+# - Wayland On-Screen Touch/Virtual Keyboard (wvkbd-mobintl)
+# - Offline Bilingual EN / Bahasa Melayu Speech Synthesizer (espeak-ng)
+set -eu
+
+find_osk_bin() {
+    for b in wvkbd-mobintl wvkbd-deskinst wvkbd; do
+        if command -v "${b}" >/dev/null 2>&1; then
+            printf '%s\n' "${b}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+osk_running() {
+    pgrep -u "$(id -u)" -f 'wvkbd' >/dev/null 2>&1
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        osk_avail=0
+        osk_run=0
+        tts_avail=0
+        find_osk_bin >/dev/null 2>&1 && osk_avail=1 || true
+        osk_running && osk_run=1 || true
+        command -v espeak-ng >/dev/null 2>&1 && tts_avail=1 || true
+        printf 'osk_available=%s\nosk_running=%s\ntts_available=%s\n' "${osk_avail}" "${osk_run}" "${tts_avail}"
+        ;;
+
+    osk-start)
+        bin="$(find_osk_bin)" || { echo "On-screen keyboard (wvkbd) is not installed." >&2; exit 1; }
+        if ! osk_running; then
+            "${bin}" -L 260 </dev/null >/dev/null 2>&1 &
+        fi
+        echo "On-screen keyboard started"
+        ;;
+
+    osk-stop)
+        pkill -u "$(id -u)" -f 'wvkbd' >/dev/null 2>&1 || true
+        echo "On-screen keyboard closed"
+        ;;
+
+    osk-toggle)
+        if osk_running; then
+            pkill -u "$(id -u)" -f 'wvkbd' >/dev/null 2>&1 || true
+            echo "On-screen keyboard closed"
+        else
+            bin="$(find_osk_bin)" || { echo "On-screen keyboard (wvkbd) is not installed." >&2; exit 1; }
+            "${bin}" -L 260 </dev/null >/dev/null 2>&1 &
+            echo "On-screen keyboard started"
+        fi
+        ;;
+
+    speak)
+        lang="${1:-en}"
+        shift || true
+        case "${lang}" in
+            ms|bm|ms_MY*) voice="ms" ;;
+            *) voice="en" ;;
+        esac
+        command -v espeak-ng >/dev/null 2>&1 || { echo "espeak-ng is not installed." >&2; exit 1; }
+        txt="$*"
+        if [ -z "${txt}" ] && command -v wl-paste >/dev/null 2>&1; then
+            txt="$(wl-paste -n 2>/dev/null | head -c 800 || true)"
+        fi
+        if [ -z "${txt}" ]; then
+            if [ "${voice}" = "ms" ]; then
+                txt="UniCore OS sedia digunakan. Salin sebarang teks untuk dibaca secara luar talian."
+            else
+                txt="UniCore OS accessibility speech is ready. Copy any text to read it aloud offline."
+            fi
+        fi
+        pkill -u "$(id -u)" -x espeak-ng >/dev/null 2>&1 || true
+        espeak-ng -v "${voice}" -s 155 "${txt}" </dev/null >/dev/null 2>&1 &
+        echo "Speaking text (${voice})"
+        ;;
+
+    *)
+        echo "Usage: unicore-a11y <status|osk-toggle|osk-start|osk-stop|speak <en|ms> [text]>" >&2
+        exit 2
+        ;;
+esac

@@ -1,6 +1,7 @@
 //! UniCore OS App & Security Center core logic (headless-testable library).
 
 pub mod backend;
+pub mod capture_a11y;
 pub mod cli;
 pub mod desktop;
 pub mod dev_ai;

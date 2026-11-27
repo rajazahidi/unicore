@@ -1,0 +1,64 @@
+#!/bin/sh
+# UniCore OS Notification & Do Not Disturb (DND) helper for mako
+set -eu
+
+cmd="${1:-status}"
+shift || true
+
+is_mako_running() {
+    pgrep -u "$(id -u)" -x mako >/dev/null 2>&1
+}
+
+is_dnd() {
+    command -v makoctl >/dev/null 2>&1 || return 1
+    makoctl mode 2>/dev/null | grep -qx 'do-not-disturb'
+}
+
+case "${cmd}" in
+    status)
+        running=0
+        dnd=0
+        is_mako_running && running=1 || true
+        is_dnd && dnd=1 || true
+        printf 'mako_running=%s\ndnd=%s\n' "${running}" "${dnd}"
+        ;;
+    set-dnd)
+        state="${1:-toggle}"
+        command -v makoctl >/dev/null 2>&1 || { echo "makoctl unavailable" >&2; exit 1; }
+        case "${state}" in
+            on|1|true)
+                makoctl mode -a do-not-disturb >/dev/null 2>&1 || true
+                echo "Do Not Disturb enabled"
+                ;;
+            off|0|false)
+                makoctl mode -r do-not-disturb >/dev/null 2>&1 || true
+                echo "Do Not Disturb disabled"
+                ;;
+            toggle)
+                if is_dnd; then
+                    makoctl mode -r do-not-disturb >/dev/null 2>&1 || true
+                    echo "Do Not Disturb disabled"
+                else
+                    makoctl mode -a do-not-disturb >/dev/null 2>&1 || true
+                    echo "Do Not Disturb enabled"
+                fi
+                ;;
+            *)
+                echo "Usage: unicore-notify set-dnd <on|off|toggle>" >&2
+                exit 2
+                ;;
+        esac
+        ;;
+    dismiss-all)
+        command -v makoctl >/dev/null 2>&1 && makoctl dismiss --all >/dev/null 2>&1 || true
+        echo "Dismissed all notifications"
+        ;;
+    restore)
+        command -v makoctl >/dev/null 2>&1 && makoctl restore >/dev/null 2>&1 || true
+        echo "Restored last notification"
+        ;;
+    *)
+        echo "Usage: unicore-notify <status|set-dnd <on|off|toggle>|dismiss-all|restore>" >&2
+        exit 2
+        ;;
+esac

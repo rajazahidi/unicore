@@ -69,12 +69,21 @@ pub struct AudioSink {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AudioCardProfile {
+    pub card_name: String,
+    pub profile_name: String,
+    pub label: String,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AudioOverview {
     pub available: bool,
     pub volume_pct: i32,
     pub muted: bool,
     pub mic_muted: bool,
     pub sinks: Vec<AudioSink>,
+    pub card_profiles: Vec<AudioCardProfile>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -724,6 +733,83 @@ pub fn bt_device_action(action: &str, mac: &str) -> Result<(), String> {
     }
 }
 
+/// Parse `pactl list cards` to expose selectable audio card profiles (Bluetooth A2DP/HFP, HDMI, Analog).
+pub fn parse_pactl_card_profiles(raw: &str) -> Vec<AudioCardProfile> {
+    let mut results = Vec::new();
+    let mut current_card = String::new();
+    let mut active_profile = String::new();
+    let mut in_profiles = false;
+    let mut pending: Vec<(String, String)> = Vec::new();
+
+    let flush_card = |card: &str,
+                      active: &str,
+                      profs: &mut Vec<(String, String)>,
+                      out: &mut Vec<AudioCardProfile>| {
+        if card.is_empty() {
+            profs.clear();
+            return;
+        }
+        let short_card = card
+            .trim_start_matches("bluez_card.")
+            .trim_start_matches("alsa_card.");
+        for (pname, desc) in profs.drain(..) {
+            out.push(AudioCardProfile {
+                card_name: card.to_string(),
+                active: pname == active,
+                label: format!("{short_card}: {desc}"),
+                profile_name: pname,
+            });
+        }
+    };
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("Card #") {
+            flush_card(&current_card, &active_profile, &mut pending, &mut results);
+            current_card.clear();
+            active_profile.clear();
+            in_profiles = false;
+            continue;
+        }
+        if let Some(name) = trimmed.strip_prefix("Name:") {
+            current_card = name.trim().to_string();
+            continue;
+        }
+        if trimmed == "Profiles:" {
+            in_profiles = true;
+            continue;
+        }
+        if let Some(act) = trimmed.strip_prefix("Active Profile:") {
+            in_profiles = false;
+            active_profile = act.trim().to_string();
+            continue;
+        }
+        if trimmed.starts_with("Ports:") || trimmed.starts_with("Properties:") {
+            in_profiles = false;
+            continue;
+        }
+        if in_profiles && !trimmed.is_empty() {
+            if let Some((pname, rest)) = trimmed.split_once(": ") {
+                let pname_clean = pname.trim();
+                if pname_clean == "off" || rest.contains("available: no") {
+                    continue;
+                }
+                let desc = rest.split(" (sinks:").next().unwrap_or(rest).trim();
+                pending.push((pname_clean.to_string(), desc.to_string()));
+            }
+        }
+    }
+    flush_card(&current_card, &active_profile, &mut pending, &mut results);
+    results
+}
+
+pub fn set_audio_card_profile(card_name: &str, profile_name: &str) -> Result<(), String> {
+    if card_name.trim().is_empty() || profile_name.trim().is_empty() {
+        return Err("Select a valid audio card profile.".to_string());
+    }
+    run_capture("pactl", &["set-card-profile", card_name.trim(), profile_name.trim()]).map(|_| ())
+}
+
 pub fn read_audio_overview() -> AudioOverview {
     let Ok(vol_raw) = run_capture("pactl", &["get-sink-volume", "@DEFAULT_SINK@"]) else {
         return AudioOverview {
@@ -732,6 +818,7 @@ pub fn read_audio_overview() -> AudioOverview {
             muted: false,
             mic_muted: false,
             sinks: Vec::new(),
+            card_profiles: Vec::new(),
         };
     };
     let volume_pct = parse_pactl_volume(&vol_raw);
@@ -745,6 +832,9 @@ pub fn read_audio_overview() -> AudioOverview {
     let sinks = run_capture("pactl", &["list", "short", "sinks"])
         .map(|s| parse_pactl_sinks(&s, &default_sink))
         .unwrap_or_default();
+    let card_profiles = run_capture("pactl", &["list", "cards"])
+        .map(|s| parse_pactl_card_profiles(&s))
+        .unwrap_or_default();
 
     AudioOverview {
         available: true,
@@ -752,6 +842,7 @@ pub fn read_audio_overview() -> AudioOverview {
         muted,
         mic_muted,
         sinks,
+        card_profiles,
     }
 }
 
@@ -920,6 +1011,8 @@ pub struct PersonalizeConfig {
     pub pointer_speed: f32,
     pub desktop_icons: bool,
     pub taskbar_style: String,
+    pub high_contrast: bool,
+    pub large_text: bool,
 }
 
 impl Default for PersonalizeConfig {
@@ -933,6 +1026,8 @@ impl Default for PersonalizeConfig {
             pointer_speed: 0.0,
             desktop_icons: true,
             taskbar_style: "docked".to_string(),
+            high_contrast: false,
+            large_text: false,
         }
     }
 }
@@ -1039,6 +1134,18 @@ pub fn parse_personalize_conf(raw: &str) -> PersonalizeConfig {
                     cfg.taskbar_style = ts;
                 }
             }
+            "UNICORE_HIGH_CONTRAST" => {
+                cfg.high_contrast = matches!(
+                    val.to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                );
+            }
+            "UNICORE_LARGE_TEXT" => {
+                cfg.large_text = matches!(
+                    val.to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                );
+            }
             _ => {}
         }
     }
@@ -1058,9 +1165,11 @@ pub fn render_personalize_conf(cfg: &PersonalizeConfig) -> String {
     let tap = if cfg.tap_to_click { "yes" } else { "no" };
     let di = if cfg.desktop_icons { "yes" } else { "no" };
     let ts = validate_taskbar_style(&cfg.taskbar_style).unwrap_or_else(|_| "docked".to_string());
+    let hc = if cfg.high_contrast { "yes" } else { "no" };
+    let lt = if cfg.large_text { "yes" } else { "no" };
     let speed = clamp_pointer_speed(cfg.pointer_speed);
     format!(
-        "UNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\nUNICORE_DESKTOP_ICONS={di}\nUNICORE_TASKBAR_STYLE={ts}\n"
+        "UNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\nUNICORE_DESKTOP_ICONS={di}\nUNICORE_TASKBAR_STYLE={ts}\nUNICORE_HIGH_CONTRAST={hc}\nUNICORE_LARGE_TEXT={lt}\n"
     )
 }
 
@@ -1083,6 +1192,8 @@ pub fn save_and_apply_personalize(
         pointer_speed: clamp_pointer_speed(cfg.pointer_speed),
         desktop_icons: cfg.desktop_icons,
         taskbar_style: validate_taskbar_style(&cfg.taskbar_style)?,
+        high_contrast: cfg.high_contrast,
+        large_text: cfg.large_text,
     };
     fs::create_dir_all(cfg_dir)
         .map_err(|e| format!("Failed to create config dir: {e}"))?;
@@ -1093,6 +1204,8 @@ pub fn save_and_apply_personalize(
         let ns = if clean.natural_scroll { "yes" } else { "no" };
         let tap = if clean.tap_to_click { "yes" } else { "no" };
         let di = if clean.desktop_icons { "yes" } else { "no" };
+        let hc = if clean.high_contrast { "yes" } else { "no" };
+        let lt = if clean.large_text { "yes" } else { "no" };
         let speed = format!("{:.1}", clean.pointer_speed);
         run_capture_timeout(
             PERSONALIZE_HELPER_BIN,
@@ -1114,6 +1227,10 @@ pub fn save_and_apply_personalize(
                 di,
                 "--taskbar-style",
                 &clean.taskbar_style,
+                "--high-contrast",
+                hc,
+                "--large-text",
+                lt,
             ],
             Duration::from_secs(8),
         )?;

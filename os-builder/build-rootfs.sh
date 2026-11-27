@@ -99,11 +99,15 @@ DESKTOP_PKGS=(
     brightnessctl
     pulseaudio-utils
     wireplumber
+    pipewire-spa-bluez
+    font-noto-emoji
     epiphany
     gnome-keyring
     linux-firmware
     sof-firmware
     alsa-ucm-conf
+    avahi
+    avahi-openrc
     grub
     grub-efi
     parted
@@ -125,11 +129,24 @@ DESKTOP_PKGS=(
     swaylock-effects
     wl-clipboard
     slurp
+    wf-recorder
     wlrctl
+    wvkbd
+    espeak-ng
     udisks2
     gvfs
     gvfs-fuse
     gvfs-mtp
+    gvfs-smb
+    gvfs-dav
+    gvfs-nfs
+    gvfs-afc
+    gvfs-gphoto2
+    sshfs
+    cifs-utils
+    samba-client
+    rclone
+    libimobiledevice
     polkit
     polkit-openrc
     xdg-user-dirs
@@ -461,6 +478,10 @@ chmod 0755 \
     "${ROOTFS_DIR}/usr/libexec/unicore-ai" \
     "${ROOTFS_DIR}/usr/libexec/unicore-flatpak" \
     "${ROOTFS_DIR}/usr/libexec/unicore-proton" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-notify" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-capture" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-shares" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-a11y" \
     "${ROOTFS_DIR}/etc/local.d/unicore-binfmt.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-android.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-hwprofile.start" \
@@ -586,9 +607,25 @@ done
 for svc in modules sysctl hostname bootmisc; do
     [[ -e "${ROOTFS_DIR}/etc/init.d/${svc}" ]] && ln -sf "/etc/init.d/${svc}" "${ROOTFS_DIR}/etc/runlevels/boot/${svc}"
 done
-for svc in seatd dbus polkit networkmanager local; do
+for svc in seatd dbus polkit networkmanager avahi-daemon local; do
     [[ -e "${ROOTFS_DIR}/etc/init.d/${svc}" ]] && ln -sf "/etc/init.d/${svc}" "${ROOTFS_DIR}/etc/runlevels/default/${svc}"
 done
+
+if [[ -f "${SCRIPT_DIR}/generate-splash.py" ]]; then
+    echo "==> Generating branded UniCore OS framebuffer boot splash (splash.ppm)"
+    mkdir -p "${ROOTFS_DIR}/usr/share/unicore"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 "${SCRIPT_DIR}/generate-splash.py" \
+            "${ROOTFS_DIR}/usr/share/unicore/splash.ppm" \
+            "${ROOTFS_DIR}/usr/share/unicore/splash.ini"
+    elif [[ -x "${ROOTFS_DIR}/usr/bin/python3" ]]; then
+        cp "${SCRIPT_DIR}/generate-splash.py" "${ROOTFS_DIR}/tmp/generate-splash.py"
+        chroot "${ROOTFS_DIR}" /usr/bin/python3 /tmp/generate-splash.py \
+            /usr/share/unicore/splash.ppm \
+            /usr/share/unicore/splash.ini
+        rm -f "${ROOTFS_DIR}/tmp/generate-splash.py"
+    fi
+fi
 
 echo "==> Extracting kernel and building Stage-1 initramfs"
 VMLINUZ_SRC="$(find "${ROOTFS_DIR}/boot" -maxdepth 1 -name 'vmlinuz-*' | head -n1)"
@@ -636,11 +673,16 @@ copy_bin_with_libs kmod
 copy_bin_with_libs cryptsetup
 copy_bin_with_libs dmsetup
 
-for applet in sh ash grep head cat ls echo sleep mount umount mkdir rmdir rm cp ln chmod sync switch_root blkid modprobe losetup poweroff reboot uname basename dirname tr cut sort sed awk find dmesg lsmod printf; do
+for applet in sh ash grep head cat ls echo sleep mount umount mkdir rmdir rm cp ln chmod sync switch_root blkid modprobe losetup poweroff reboot uname basename dirname tr cut sort sed awk find dmesg lsmod printf fbsplash mkfifo kill; do
     if [[ ! -e "${INITRD_DIR}/bin/${applet}" && ! -e "${INITRD_DIR}/sbin/${applet}" ]]; then
         ln -sf /bin/busybox "${INITRD_DIR}/bin/${applet}"
     fi
 done
+if [[ -f "${ROOTFS_DIR}/usr/share/unicore/splash.ppm" ]]; then
+    mkdir -p "${INITRD_DIR}/etc"
+    cp "${ROOTFS_DIR}/usr/share/unicore/splash.ppm" "${INITRD_DIR}/etc/unicore-splash.ppm"
+    [[ -f "${ROOTFS_DIR}/usr/share/unicore/splash.ini" ]] && cp "${ROOTFS_DIR}/usr/share/unicore/splash.ini" "${INITRD_DIR}/etc/unicore-splash.ini"
+fi
 if [[ -e "${INITRD_DIR}/bin/kmod" ]]; then
     ln -sf /bin/kmod "${INITRD_DIR}/sbin/modprobe"
 elif [[ -e "${INITRD_DIR}/usr/bin/kmod" ]]; then
@@ -784,7 +826,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="0.4.0"
+OS_VERSION="0.5.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

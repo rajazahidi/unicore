@@ -1,8 +1,14 @@
-# UniCore OS (`0.4.0`)
+# UniCore OS (`0.5.0`)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern x86_64 & ARM64 PCs**.
 
 ## Key Capabilities
+
+* **Daily-Driver Essentials, Boot Splash & Accessibility (`v0.5.0`)**:
+  * **Branded Framebuffer Boot Splash** (`busybox fbsplash`, 0 MB bloat, auto-clears for LUKS2/Safe Mode), **Waybar System Tray** (Steam/Discord/Telegram/LocalSend), compact 1280px Floating Taskbar, **Noto Color Emoji**, and **Do Not Disturb (DND)** + Alert controls (`makoctl`).
+  * **GUI Screenshot & MP4 Screen Recorder (`--capture`, `Print` / `Win+Shift+R`)**: Timed Full/Region screenshots (`grim` + `slurp`) & MP4 recording (`wf-recorder` + optional PipeWire audio) with a live red `REC` pill on Waybar.
+  * **Network Drives & Phone Sharing**: Rootless Windows SMB (`smb://`), SFTP (`sshfs`), WebDAV/Nextcloud (`davs://`), Android MTP & iPhone AFC mounts, **Avahi mDNS** (`.local`), plus **LocalSend** Wi-Fi AirDrop in the 33-app Universal Store.
+  * **PipeWire Bluetooth Audio (`pipewire-spa-bluez` A2DP/HFP)** with audio card profile switcher, **100% Bilingual EN / Bahasa Melayu**, and a **0-MB-idle Accessibility Pack** (High-Contrast, Large Text, `wvkbd` touch keyboard, offline `espeak-ng` EN/BM speech).
 
 * **Tier-1 Desktop UX, Safe Dual-Boot & GRUB Recovery (`v0.4.0`)**:
   * **Safe Non-Destructive Windows Dual-Boot (`--mode alongside`)**: Installs A/B slots into `>= 10 GiB` unallocated GPT space without shrinking NTFS, reuses the Windows ESP safely, and auto-adds **Windows Boot Manager** + **UniCore Recovery & Advanced Options** (Slot A, Slot B Rollback, Reset OS Settings `unicore_reset_overlay=1` preserving `/data/home`, Safe VESA/Serial) to GRUB.

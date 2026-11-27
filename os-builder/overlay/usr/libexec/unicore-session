@@ -85,7 +85,7 @@ else
     DATA_BASE="/data/users/${LOGIN_USER}"
 fi
 
-mkdir -p "${DATA_BASE}/Documents" "${DATA_BASE}/Downloads" "${DATA_BASE}/Desktop" "${DATA_BASE}/Pictures" "${DATA_BASE}/applications"
+mkdir -p "${DATA_BASE}/Documents" "${DATA_BASE}/Downloads" "${DATA_BASE}/Desktop" "${DATA_BASE}/Pictures" "${DATA_BASE}/Videos" "${DATA_BASE}/Network" "${DATA_BASE}/applications"
 chown -R "${LOGIN_USER}:${LOGIN_USER}" "${DATA_BASE}" 2>/dev/null || true
 
 link_persistent_dir() {
@@ -105,6 +105,8 @@ link_persistent_dir "${USER_HOME}/Documents" "${DATA_BASE}/Documents"
 link_persistent_dir "${USER_HOME}/Downloads" "${DATA_BASE}/Downloads"
 link_persistent_dir "${USER_HOME}/Desktop" "${DATA_BASE}/Desktop"
 link_persistent_dir "${USER_HOME}/Pictures" "${DATA_BASE}/Pictures"
+link_persistent_dir "${USER_HOME}/Videos" "${DATA_BASE}/Videos"
+link_persistent_dir "${USER_HOME}/Network" "${DATA_BASE}/Network"
 link_persistent_dir "${USER_HOME}/.local/share/applications" "${DATA_BASE}/applications"
 
 mkdir -p "${USER_HOME}/.config/gtk-3.0"
@@ -114,6 +116,7 @@ XDG_DESKTOP_DIR="$HOME/Desktop"
 XDG_DOWNLOAD_DIR="$HOME/Downloads"
 XDG_DOCUMENTS_DIR="$HOME/Documents"
 XDG_PICTURES_DIR="$HOME/Pictures"
+XDG_VIDEOS_DIR="$HOME/Videos"
 EOF
 fi
 if [ ! -f "${USER_HOME}/.config/gtk-3.0/bookmarks" ]; then
@@ -122,6 +125,8 @@ file://${USER_HOME}/Desktop Desktop
 file://${USER_HOME}/Documents Documents
 file://${USER_HOME}/Downloads Downloads
 file://${USER_HOME}/Pictures Pictures
+file://${USER_HOME}/Videos Videos
+file://${USER_HOME}/Network Network Drives
 trash:/// Trash
 EOF
 fi

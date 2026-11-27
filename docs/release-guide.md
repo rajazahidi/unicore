@@ -1,4 +1,4 @@
-# UniCore OS (`0.4.0`) — Release, OTA & Hardware QA Guide
+# UniCore OS (`0.5.0`) — Release, OTA & Hardware QA Guide
 
 This guide covers managing the local dev environment, verifying, flashing, signing, serving OTA updates, and testing UniCore OS builds across **Legacy BIOS**, **UEFI**, **2005-era Low-Spec PCs**, and **Ventoy USB 3.0**.
 

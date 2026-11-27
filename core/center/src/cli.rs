@@ -17,6 +17,7 @@ pub enum LaunchMode {
     OobeWizard,
     TaskManager,
     AiAssistant,
+    CaptureTool,
     CheckOnly(Option<PathBuf>),
 }
 
@@ -43,6 +44,8 @@ OPTIONS:
   --login                Open Multi-User Sign-In screen
   --oobe                 Open First-Boot Setup Wizard (OOBE) before entering desktop center
   --taskmgr              Open lightweight Task Manager to inspect or end running apps
+  --ai                   Open Multi-Provider System AI Copilot drawer (Ollama / Gemini / OpenAI)
+  --capture              Open Screen Capture & MP4 Video Recorder tool (grim + slurp + wf-recorder)
   --tab <NAME>           Open initial tab: apps | store[:retro] | dev | ai | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security|power|users]
   --state-dir <DIR>      Override sandbox registry root (default: /data/uniload or .uniload_state)
   --apps-dir <DIR>       Override .desktop applications folder (default: ~/.local/share/applications)
@@ -97,6 +100,9 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
             }
             "--ai" => {
                 mode = LaunchMode::AiAssistant;
+            }
+            "--capture" => {
+                mode = LaunchMode::CaptureTool;
             }
             "--tab" => {
                 let raw = next_value(args, &mut idx, "--tab")?;

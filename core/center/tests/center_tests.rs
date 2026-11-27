@@ -956,6 +956,8 @@ fn phase20d_personalization_theme_wallpaper_and_input_work() {
         pointer_speed: 0.4,
         desktop_icons: false,
         taskbar_style: "floating".to_string(),
+        high_contrast: true,
+        large_text: true,
     };
     let saved = save_and_apply_personalize(&root, &custom).unwrap();
     assert_eq!(saved, custom);
@@ -1179,4 +1181,75 @@ fn v040_dualboot_taskbar_flatpak_proton_and_ai_copilot_work() {
     assert_eq!(ai.active_model, "gemini-2.5-flash");
     assert!(ai.api_key_set);
     assert_eq!(ai.ram_mb, 1024);
+}
+
+#[test]
+fn v050_capture_dnd_shares_audio_profiles_a11y_and_bilingual_work() {
+    use unicore_center::capture_a11y::{
+        parse_a11y_status, parse_capture_status, parse_notify_status, parse_shares_tsv,
+        validate_share_id, validate_share_uri,
+    };
+    use unicore_center::settings::parse_pactl_card_profiles;
+    use unicore_center::store::store_icon_meta;
+
+    // 1. CLI --capture dialog flag
+    let cap_parsed = parse_args(&["--capture".to_string()]).unwrap().unwrap();
+    assert_eq!(cap_parsed.mode, LaunchMode::CaptureTool);
+
+    // 2. Capture & DND status parsers
+    let cap = parse_capture_status(
+        "recording=1\npid=4421\nfile=/data/home/Videos/Recordings/rec.mp4\nshots_dir=/data/home/Pictures/Screenshots\nvideos_dir=/data/home/Videos/Recordings\nwf_recorder=1\n",
+    );
+    assert!(cap.recording && cap.wf_recorder);
+    assert_eq!(cap.pid, "4421");
+    assert!(cap.active_file.ends_with("rec.mp4"));
+
+    let notif = parse_notify_status("mako_running=1\ndnd=1\n");
+    assert!(notif.mako_running && notif.dnd);
+
+    // 3. Network Shares URI validation & TSV parsing
+    assert!(validate_share_uri("smb://192.168.1.20/Public").is_ok());
+    assert!(validate_share_uri("sftp://nas.local/data").is_ok());
+    assert!(validate_share_uri("davs://cloud.example.com/remote.php/dav").is_ok());
+    assert!(validate_share_uri("file:///etc/passwd").is_err());
+    assert!(validate_share_uri("smb://host/share;rm -rf /").is_err());
+    assert!(validate_share_id("home-nas").is_ok());
+    assert!(validate_share_id("../bad").is_err());
+
+    let shares = parse_shares_tsv(
+        "home-nas\tHome NAS\tsmb://192.168.1.20/Media\tali\t1\t/run/user/1000/gvfs/smb\n",
+    );
+    assert_eq!(shares.len(), 1);
+    assert!(shares[0].mounted);
+    assert_eq!(shares[0].label, "Home NAS");
+
+    // 4. PipeWire Bluetooth & ALSA Audio Card profile parser
+    let cards_raw = "\
+Card #42
+\tName: bluez_card.AA_BB_CC_11_22_33
+\tProfiles:
+\t\ta2dp-sink: High Fidelity Playback (A2DP Sink) (sinks: 1, sources: 0, priority: 40, available: yes)
+\t\theadset-head-unit: Headset Head Unit (HSP/HFP) (sinks: 1, sources: 1, priority: 30, available: yes)
+\t\toff: Off (sinks: 0, sources: 0, priority: 0, available: yes)
+\tActive Profile: a2dp-sink
+";
+    let profiles = parse_pactl_card_profiles(cards_raw);
+    assert_eq!(profiles.len(), 2);
+    assert_eq!(profiles[0].profile_name, "a2dp-sink");
+    assert!(profiles[0].active);
+    assert_eq!(profiles[1].profile_name, "headset-head-unit");
+    assert!(!profiles[1].active);
+
+    // 5. Accessibility status parser & LocalSend Store monogram + full BM/EN labels
+    let a11y = parse_a11y_status("osk_available=1\nosk_running=1\ntts_available=1\n");
+    assert!(a11y.osk_available && a11y.osk_running && a11y.tts_available);
+    assert_eq!(store_icon_meta("localsend", "LocalSend", "social").0, "LS");
+
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.title_capture, ms.title_capture);
+    assert_ne!(en.hdr_net_shares, ms.hdr_net_shares);
+    assert_ne!(en.hdr_accessibility, ms.hdr_accessibility);
+    assert_ne!(en.store_cat_gaming, ms.store_cat_gaming);
+    assert_ne!(en.tile_dnd, ms.tile_dnd);
 }

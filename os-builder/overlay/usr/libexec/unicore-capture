@@ -1,0 +1,173 @@
+#!/bin/sh
+# UniCore OS Wayland Screenshot & Screen Recorder helper (grim + slurp + wf-recorder + PipeWire audio)
+set -eu
+
+USER_HOME="${HOME:-/home/unicore}"
+RT_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+REC_PID_FILE="${RT_DIR}/unicore-rec.pid"
+REC_OUT_FILE="${RT_DIR}/unicore-rec.file"
+
+if [ -d /data/home ]; then
+    SHOT_DIR="/data/home/Pictures/Screenshots"
+    VID_DIR="/data/home/Videos/Recordings"
+else
+    SHOT_DIR="${USER_HOME}/Pictures/Screenshots"
+    VID_DIR="${USER_HOME}/Videos/Recordings"
+fi
+
+signal_waybar() {
+    pkill -RTMIN+8 -x waybar >/dev/null 2>&1 || true
+}
+
+rec_is_active() {
+    if [ -r "${REC_PID_FILE}" ]; then
+        rpid="$(cat "${REC_PID_FILE}" 2>/dev/null || true)"
+        if [ -n "${rpid}" ] && kill -0 "${rpid}" 2>/dev/null; then
+            return 0
+        fi
+        rm -f "${REC_PID_FILE}" "${REC_OUT_FILE}" 2>/dev/null || true
+    fi
+    return 1
+}
+
+notify_user() {
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -a "UniCore Capture" "$1" "$2" >/dev/null 2>&1 || true
+    fi
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        rec=0
+        rpid=""
+        rfile=""
+        wf=0
+        command -v wf-recorder >/dev/null 2>&1 && wf=1 || true
+        if rec_is_active; then
+            rec=1
+            rpid="$(cat "${REC_PID_FILE}" 2>/dev/null || true)"
+            rfile="$(cat "${REC_OUT_FILE}" 2>/dev/null || true)"
+        fi
+        printf 'recording=%s\npid=%s\nfile=%s\nshots_dir=%s\nvideos_dir=%s\nwf_recorder=%s\n' \
+            "${rec}" "${rpid}" "${rfile}" "${SHOT_DIR}" "${VID_DIR}" "${wf}"
+        ;;
+
+    waybar-status)
+        if rec_is_active; then
+            printf '{"text":"REC","tooltip":"Screen recording active - click to stop & save MP4","class":"recording"}\n'
+        else
+            printf '{"text":"","tooltip":"","class":"idle"}\n'
+        fi
+        ;;
+
+    shot)
+        mode="${1:-full}"
+        delay="${2:-0}"
+        case "${delay}" in
+            0|1|2|3|5|10) ;;
+            *) delay=0 ;;
+        esac
+        mkdir -p "${SHOT_DIR}"
+        command -v grim >/dev/null 2>&1 || { echo "grim is not installed" >&2; exit 1; }
+        out="${SHOT_DIR}/unicore-$(date +%Y%m%d-%H%M%S).png"
+        if [ "${mode}" = "region" ]; then
+            command -v slurp >/dev/null 2>&1 || { echo "slurp is not installed" >&2; exit 1; }
+            geom="$(slurp 2>/dev/null || true)"
+            [ -n "${geom}" ] || exit 0
+            [ "${delay}" -gt 0 ] && sleep "${delay}"
+            grim -g "${geom}" "${out}"
+        else
+            [ "${delay}" -gt 0 ] && sleep "${delay}"
+            grim "${out}"
+        fi
+        if command -v wl-copy >/dev/null 2>&1; then
+            wl-copy --type image/png < "${out}" 2>/dev/null || true
+        fi
+        notify_user "Screenshot Saved & Copied" "${out}"
+        printf '%s\n' "${out}"
+        ;;
+
+    record-start)
+        mode="${1:-full}"
+        audio="${2:-0}"
+        if rec_is_active; then
+            echo "Screen recording is already running." >&2
+            exit 1
+        fi
+        command -v wf-recorder >/dev/null 2>&1 || { echo "wf-recorder is not installed" >&2; exit 1; }
+        mkdir -p "${VID_DIR}"
+        out="${VID_DIR}/unicore-rec-$(date +%Y%m%d-%H%M%S).mp4"
+        geom=""
+        if [ "${mode}" = "region" ]; then
+            command -v slurp >/dev/null 2>&1 || { echo "slurp is not installed" >&2; exit 1; }
+            geom="$(slurp 2>/dev/null || true)"
+            [ -n "${geom}" ] || exit 0
+        fi
+        set -- -f "${out}"
+        [ -n "${geom}" ] && set -- "$@" -g "${geom}"
+        if [ "${audio}" = "1" ]; then
+            mon=""
+            if command -v pactl >/dev/null 2>&1; then
+                def_sink="$(pactl get-default-sink 2>/dev/null || true)"
+                [ -n "${def_sink}" ] && mon="${def_sink}.monitor"
+            fi
+            if [ -n "${mon}" ]; then
+                set -- "$@" "--audio=${mon}"
+            else
+                set -- "$@" --audio
+            fi
+        fi
+        wf-recorder "$@" >/tmp/unicore-wf-recorder.log 2>&1 </dev/null &
+        rpid=$!
+        sleep 0.4
+        if ! kill -0 "${rpid}" 2>/dev/null; then
+            echo "Failed to start wf-recorder (check /tmp/unicore-wf-recorder.log)" >&2
+            exit 1
+        fi
+        printf '%s\n' "${rpid}" > "${REC_PID_FILE}"
+        printf '%s\n' "${out}" > "${REC_OUT_FILE}"
+        signal_waybar
+        notify_user "Screen Recording Started" "Saving to ${out}"
+        printf '%s\n' "${out}"
+        ;;
+
+    record-stop)
+        if ! rec_is_active; then
+            signal_waybar
+            echo "No active screen recording."
+            exit 0
+        fi
+        rpid="$(cat "${REC_PID_FILE}" 2>/dev/null || true)"
+        rfile="$(cat "${REC_OUT_FILE}" 2>/dev/null || true)"
+        kill -INT "${rpid}" 2>/dev/null || true
+        tries=0
+        while kill -0 "${rpid}" 2>/dev/null && [ "${tries}" -lt 30 ]; do
+            sleep 0.2
+            tries=$((tries + 1))
+        done
+        kill -TERM "${rpid}" 2>/dev/null || true
+        rm -f "${REC_PID_FILE}" "${REC_OUT_FILE}" 2>/dev/null || true
+        signal_waybar
+        notify_user "Screen Recording Saved" "${rfile}"
+        printf '%s\n' "${rfile}"
+        ;;
+
+    open-dir)
+        which_dir="${1:-shots}"
+        target="${SHOT_DIR}"
+        [ "${which_dir}" = "videos" ] && target="${VID_DIR}"
+        mkdir -p "${target}"
+        if command -v pcmanfm >/dev/null 2>&1; then
+            pcmanfm "${target}" </dev/null >/dev/null 2>&1 &
+        fi
+        printf '%s\n' "${target}"
+        ;;
+
+    *)
+        echo "Usage: unicore-capture <status|waybar-status|shot <full|region> [delay]|record-start <full|region> [audio]|record-stop|open-dir <shots|videos>>" >&2
+        exit 2
+        ;;
+esac
