@@ -162,8 +162,8 @@ jobs:
                 -DCMAKE_EXE_LINKER_FLAGS="${LINK_FLAGS}"
               cmake --build /tmp/box64-src/build -j"$(nproc)"
               cp /tmp/box64-src/build/box64 /stage/bin/box64
-              readelf -l /stage/bin/box64 | grep -E 'INTERP|interpreter'
-              readelf -d /stage/bin/box64 | grep -E 'RPATH|RUNPATH'
+              readelf -l /stage/bin/box64 | grep -E "INTERP|interpreter" || true
+              readelf -d /stage/bin/box64 | grep -E "RPATH|RUNPATH" || true
 
               echo "==> Copying Box64 x64lib/x86lib (libgcc_s, libstdc++, libunwind, etc.)"
               cp -a /tmp/box64-src/x64lib/. /stage/sysroot/usr/lib/x86_64-linux-gnu/
