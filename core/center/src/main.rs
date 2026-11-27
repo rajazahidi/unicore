@@ -30,6 +30,12 @@ use unicore_center::ecosystem::{
     phone_set_autostart, read_cloud_overview, read_hw_overview, read_phone_overview,
     run_windows_migration, scan_windows_partitions, WindowsPartition,
 };
+use unicore_center::family::{
+    bedtime_from_index, bedtime_to_index, daily_limit_from_index, daily_limit_to_index,
+    dns_filter_from_index, dns_filter_to_index, install_webapp, launch_webapp,
+    merge_webapp_catalog, read_installed_webapps, read_parental_overview, remove_webapp,
+    reset_parental_usage, save_parental_policy, slugify_webapp_id,
+};
 use unicore_center::gamehub::{
     default_gamehub_conf_dir, discover_unified_games, filter_games, gamepad_open_tester,
     gamepad_start_mapper, gamepad_stop_mapper, gamesave_backup_app, gamesave_set_config,
@@ -349,8 +355,53 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         btn_open_guide: l.btn_open_guide.into(),
         guide_sec_hdr: l.guide_sec_hdr.into(),
         btn_run_sec_audit: l.btn_run_sec_audit.into(),
+        title_family_hub: l.title_family_hub.into(),
+        fam_tab_webapps: l.fam_tab_webapps.into(),
+        fam_tab_parental: l.fam_tab_parental.into(),
+        btn_install_webapp: l.btn_install_webapp.into(),
+        btn_open_webapp: l.btn_open_webapp.into(),
+        btn_add_custom_webapp: l.btn_add_custom_webapp.into(),
+        chk_parental_enable: l.chk_parental_enable.into(),
+        btn_save_parental: l.btn_save_parental.into(),
+        btn_reset_usage: l.btn_reset_usage.into(),
     });
     refresh_guide_chapters(ui, lang, ui.get_guide_chapter_idx());
+    if ui.get_family_dialog_only() {
+        refresh_family_hub(ui, lang);
+    }
+}
+
+fn refresh_family_hub(ui: &MainWindow, lang: UiLang) {
+    let malay = lang == UiLang::Ms;
+    let installed = read_installed_webapps();
+    let merged = merge_webapp_catalog(&installed, malay);
+    let cards: Vec<WebAppCard> = merged
+        .into_iter()
+        .map(|w| WebAppCard {
+            id: SharedString::from(w.id),
+            name: SharedString::from(w.name),
+            url: SharedString::from(w.url),
+            category: SharedString::from(w.category),
+            badge: SharedString::from(w.badge),
+            accent_color: parse_hex_color(&w.accent_hex),
+            summary: SharedString::from(w.summary),
+            installed: w.installed,
+        })
+        .collect();
+    ui.set_fam_webapps(ModelRc::new(VecModel::from(cards)));
+
+    let par = read_parental_overview();
+    ui.set_fam_par_enabled(par.enabled);
+    ui.set_fam_par_dns_idx(dns_filter_to_index(&par.dns_filter));
+    ui.set_fam_par_limit_idx(daily_limit_to_index(par.daily_limit_min));
+    ui.set_fam_par_bedtime_idx(bedtime_to_index(&par.bedtime));
+    ui.set_fam_par_blocked(SharedString::from(par.blocked_apps));
+    let usage_lbl = if par.daily_limit_min > 0 {
+        format!("{} / {} min today", par.today_used_min, par.daily_limit_min)
+    } else {
+        format!("{} min today (unlimited)", par.today_used_min)
+    };
+    ui.set_fam_par_usage_label(SharedString::from(usage_lbl));
 }
 
 fn refresh_guide_chapters(ui: &MainWindow, lang: UiLang, selected_idx: i32) {
@@ -1671,6 +1722,12 @@ fn main() {
                 ui.set_guide_dialog_only(true);
                 refresh_guide_chapters(&ui, lang, *ch_idx);
                 refresh_guide_security(&ui, lang);
+            }
+            LaunchMode::FamilyHub(sub) => {
+                let lang = *current_lang.borrow();
+                ui.set_family_dialog_only(true);
+                ui.set_fam_subtab(*sub);
+                refresh_family_hub(&ui, lang);
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -5272,6 +5329,154 @@ fn main() {
             let lang = *lang_rc.borrow();
             refresh_guide_security(&ui, lang);
             set_status(&ui, ui.get_guide_sec_summary().to_string(), !ui.get_guide_sec_ok());
+        });
+    }
+
+    // === v1.1.0 1-Click Web Apps (PWA) & Family Parental Controls ===
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_fam_refresh(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_family_hub(&ui, *lang_rc.borrow());
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_fam_install_webapp(move |id, name, url, cat, badge, accent| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match install_webapp(
+                id.as_str(),
+                name.as_str(),
+                url.as_str(),
+                cat.as_str(),
+                badge.as_str(),
+                accent.as_str(),
+            ) {
+                Ok(msg) => {
+                    refresh_family_hub(&ui, *lang_rc.borrow());
+                    ui.set_fam_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_fam_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_fam_open_webapp(move |id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match launch_webapp(id.as_str()) {
+                Ok(()) => {
+                    let msg = format!("Launched Web App '{id}'");
+                    ui.set_fam_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_fam_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_fam_remove_webapp(move |id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match remove_webapp(id.as_str()) {
+                Ok(msg) => {
+                    refresh_family_hub(&ui, *lang_rc.borrow());
+                    ui.set_fam_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_fam_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_fam_add_custom_webapp(move |name, url| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let id = slugify_webapp_id(name.as_str());
+            let badge: String = name
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric())
+                .take(2)
+                .collect::<String>()
+                .to_ascii_uppercase();
+            let badge_s = if badge.is_empty() { "WA" } else { badge.as_str() };
+            match install_webapp(&id, name.as_str(), url.as_str(), "internet", badge_s, "#0284c7") {
+                Ok(msg) => {
+                    ui.set_fam_custom_name(SharedString::new());
+                    ui.set_fam_custom_url(SharedString::new());
+                    refresh_family_hub(&ui, *lang_rc.borrow());
+                    ui.set_fam_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_fam_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_fam_save_parental(move |enabled, dns_idx, lim_idx, bt_idx, blocked| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let dns = dns_filter_from_index(dns_idx);
+            let lim = daily_limit_from_index(lim_idx);
+            let bt = bedtime_from_index(bt_idx);
+            match save_parental_policy(enabled, dns, lim, bt, blocked.as_str()) {
+                Ok(_) => {
+                    refresh_family_hub(&ui, *lang_rc.borrow());
+                    let msg = format!(
+                        "Family safety policy saved (enabled={}, dns={}, limit={}m, bedtime={}).",
+                        if enabled { "on" } else { "off" },
+                        dns,
+                        lim,
+                        bt
+                    );
+                    ui.set_fam_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_fam_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_fam_reset_usage(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match reset_parental_usage() {
+                Ok(_) => {
+                    refresh_family_hub(&ui, *lang_rc.borrow());
+                    let msg = "Reset today's screen-time usage counter to 0 min.";
+                    ui.set_fam_status(SharedString::from(msg));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
         });
     }
 

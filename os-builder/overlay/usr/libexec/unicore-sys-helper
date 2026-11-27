@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 5 ]; then
-    echo "Usage: unicore-sys-helper <poweroff|reboot|suspend|bt-start|bt-stop|cups-start|cups-stop|printer-discover|printer-add|printer-remove|printer-default|fw-status|fw-set|backup-targets|backup-create|backup-restore|user-list|user-add|user-delete|user-passwd|auth-user|power-status|power-profile|power-idle|smart-health|set-cpu-governor|install-disk|apply-oobe|set-user-password|update-*|sb-*|browser-*|migrate-scan|migrate-inspect|migrate-import|hw-status|hw-set-gpu|hw-set-wifi-ps|hw-reset-audio-bt|hw-fw-check|hw-fw-update>" >&2
+if [ "$#" -lt 1 ] || [ "$#" -gt 6 ]; then
+    echo "Usage: unicore-sys-helper <poweroff|reboot|suspend|bt-start|bt-stop|cups-start|cups-stop|printer-discover|printer-add|printer-remove|printer-default|fw-status|fw-set|backup-targets|backup-create|backup-restore|user-list|user-add|user-delete|user-passwd|auth-user|power-status|power-profile|power-idle|smart-health|set-cpu-governor|install-disk|apply-oobe|set-user-password|update-*|sb-*|browser-*|migrate-scan|migrate-inspect|migrate-import|hw-status|hw-set-gpu|hw-set-wifi-ps|hw-reset-audio-bt|hw-fw-check|hw-fw-update|parental-status|parental-set|parental-reset-usage>" >&2
     exit 2
 fi
 
@@ -402,6 +402,30 @@ case "$1" in
     hw-fw-update)
         [ "$#" -eq 1 ] || exit 2
         exec /usr/libexec/unicore-hw-mgr fw-update
+        ;;
+    parental-status)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/unicore-parental status
+        ;;
+    parental-set)
+        [ "$#" -ge 5 ] && [ "$#" -le 6 ] || exit 2
+        case "$2" in 0|1) ;; *) echo "Denied invalid parental enabled flag: $2" >&2; exit 2 ;; esac
+        case "$3" in off|malware|family) ;; *) echo "Denied invalid DNS filter: $3" >&2; exit 2 ;; esac
+        printf '%s' "$4" | grep -Eq '^[0-9]{1,4}$' || { echo "Denied invalid daily limit: $4" >&2; exit 2; }
+        case "$5" in
+            off) ;;
+            *) printf '%s' "$5" | grep -Eq '^[0-2][0-9]:[0-5][0-9]-[0-2][0-9]:[0-5][0-9]$' || { echo "Denied invalid bedtime: $5" >&2; exit 2; } ;;
+        esac
+        blk="${6:-}"
+        if [ -n "${blk}" ] && ! printf '%s' "${blk}" | grep -Eq '^[A-Za-z0-9:_,.-]{1,512}$'; then
+            echo "Denied invalid blocked app list: ${blk}" >&2
+            exit 2
+        fi
+        exec /usr/libexec/unicore-parental set "$2" "$3" "$4" "$5" "${blk}"
+        ;;
+    parental-reset-usage)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/unicore-parental reset-usage
         ;;
     set-cpu-governor)
         [ "$#" -eq 2 ] || exit 2

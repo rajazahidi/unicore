@@ -414,6 +414,32 @@ pub fn builtin_guide_apps(lang: UiLang) -> Vec<DesktopAppItem> {
     ]
 }
 
+pub fn builtin_v110_apps(lang: UiLang) -> Vec<DesktopAppItem> {
+    let ms = lang == UiLang::Ms;
+    vec![
+        DesktopAppItem {
+            id: "unicore-webapps".to_string(),
+            name: if ms { "Aplikasi Web (PWA)" } else { "Web Apps (PWA)" }.to_string(),
+            comment: if ms { "Pasang 1-klik WhatsApp, YouTube, Gmail, M365, Canva & URL tersuai" } else { "1-click install WhatsApp, YouTube, Gmail, M365, Canva & custom URLs" }.to_string(),
+            category: "internet".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --webapps".to_string(),
+            badge: "PWA".to_string(),
+            accent_hex: "#0284c7".to_string(),
+            pinned: false,
+        },
+        DesktopAppItem {
+            id: "unicore-parental".to_string(),
+            name: if ms { "Kawalan Ibu Bapa" } else { "Family & Parental" }.to_string(),
+            comment: if ms { "Penapis DNS Keluarga (1.1.1.3), had masa skrin & sekatan aplikasi" } else { "Family Safe DNS (1.1.1.3), daily screen-time limits & app blocking" }.to_string(),
+            category: "system".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --parental".to_string(),
+            badge: "FAM".to_string(),
+            accent_hex: "#059669".to_string(),
+            pinned: false,
+        },
+    ]
+}
+
 pub fn discover_start_menu_apps(
     scan_dirs: &[&Path],
     sandbox_apps: &[AppSandbox],
@@ -423,6 +449,7 @@ pub fn discover_start_menu_apps(
     items.extend(builtin_ecosystem_apps(lang));
     items.extend(builtin_gamehub_apps(lang));
     items.extend(builtin_guide_apps(lang));
+    items.extend(builtin_v110_apps(lang));
     let mut seen_names: HashSet<String> = items
         .iter()
         .map(|i| i.name.to_ascii_lowercase())

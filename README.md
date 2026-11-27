@@ -1,10 +1,15 @@
-# UniCore OS (`1.0.0` — Production Daily Driver)
+# UniCore OS (`1.1.0` — Family, Web Apps & Polish Edition)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.20` + `linux-edge 6.12`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **modern x86_64 & ARM64 PCs**.
 
 > **Official Bilingual Documentation:** Read the complete [Official User Guide (EN / BM)](docs/user-guide.md) — also built directly into the OS offline via **Start Menu → User Guide / Panduan Pengguna** (`unicore-center --help-guide`).
 
 ## Key Capabilities
+
+* **Family Safety, 1-Click Web Apps (PWA) & UI Polish (`v1.1.0`)**:
+  * **1-Click Desktop Web Apps (`--webapps`, `unicore-webapps`)**: Install **WhatsApp Web, YouTube, Gmail, Microsoft 365, Google Docs, Canva, ChatGPT, Spotify**, or any custom `https://` URL directly into your Start Menu as clean standalone app windows with isolated profiles (`0 MB` extra ISO bloat, `0 MB` idle RAM).
+  * **Family Safety & Parental Controls (`--parental`, `unicore-parental`)**: 1-click **Family Safe DNS** (Cloudflare `1.1.1.3` malware + adult filter or `1.1.1.2` malware-only persisted via NetworkManager), **Daily Screen-Time Limits**, **Bedtime Curfew**, and **Per-App Blocklist** enforced across sandboxes & web apps (`0 MB` idle when disabled).
+  * **UI Micro-Polish & Installed A/B Health Verification**: Refined `--help-guide` window (zero duplicate header, zero sidebar title truncation) and live `unicore-boot-health` + `unicore-security-audit` verification inside the installed LUKS2 A/B Slot B QA gate.
 
 * **Production Daily Driver Hardening, Health-Gated A/B Rollback & Offline Guide (`v1.0.0`)**:
   * **Full Zero-Trust Security Audit & `bwrap` Hardening (`unicore-security-audit`, `uniload security-audit`)**: Enforces `mktemp` (`umask 077`) temp-file safety across all root/backup/update/AI scripts, strict username validation, `--unshare-uts` + `--unshare-ipc` + `--cap-drop ALL` + `--new-session` + `--die-with-parent` sandbox isolation, `0600` credential checks, and signed Ed25519 OTA enforcement (`REQUIRE_SIGNATURE=1`).

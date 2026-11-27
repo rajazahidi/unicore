@@ -1,0 +1,200 @@
+#!/bin/sh
+# UniCore OS v1.1.0 Family Safety & Parental Controls Helper (0 MB idle RAM when disabled)
+# Supports Family Safe DNS (Cloudflare 1.1.1.3 / Malware 1.1.1.2), Daily Screen-Time Limit,
+# Bedtime Window, and Per-App Blocklist enforced cleanly by unicore-app-runner & unicore-webapps.
+set -eu
+
+CONF_PATH="${UNICORE_PARENTAL_CONF:-/data/unicore/parental.conf}"
+USAGE_FILE="${UNICORE_PARENTAL_USAGE:-/data/unicore/parental-usage.tsv}"
+NM_DROPIN="/etc/NetworkManager/conf.d/91-unicore-family-dns.conf"
+
+PARENTAL_ENABLED=0
+DNS_FILTER="off"
+DAILY_LIMIT_MIN=0
+BEDTIME="off"
+BLOCKED_APPS=""
+
+is_safe_bedtime() {
+    case "$1" in
+        off) return 0 ;;
+        *) printf '%s' "$1" | grep -Eq '^[0-2][0-9]:[0-5][0-9]-[0-2][0-9]:[0-5][0-9]$' ;;
+    esac
+}
+
+is_safe_blocked_csv() {
+    [ -z "$1" ] && return 0
+    printf '%s' "$1" | grep -Eq '^[A-Za-z0-9:_,.-]{1,512}$'
+}
+
+load_conf() {
+    PARENTAL_ENABLED=0
+    DNS_FILTER="off"
+    DAILY_LIMIT_MIN=0
+    BEDTIME="off"
+    BLOCKED_APPS=""
+    if [ -r "${CONF_PATH}" ]; then
+        while IFS='=' read -r k v; do
+            case "${k}" in
+                PARENTAL_ENABLED)
+                    case "${v}" in 1|yes|true|on) PARENTAL_ENABLED=1 ;; *) PARENTAL_ENABLED=0 ;; esac
+                    ;;
+                DNS_FILTER)
+                    case "${v}" in off|malware|family) DNS_FILTER="${v}" ;; esac
+                    ;;
+                DAILY_LIMIT_MIN)
+                    printf '%s' "${v}" | grep -Eq '^[0-9]{1,4}$' && DAILY_LIMIT_MIN="${v}" || DAILY_LIMIT_MIN=0
+                    ;;
+                BEDTIME)
+                    is_safe_bedtime "${v}" && BEDTIME="${v}" || BEDTIME="off"
+                    ;;
+                BLOCKED_APPS)
+                    is_safe_blocked_csv "${v}" && BLOCKED_APPS="${v}" || BLOCKED_APPS=""
+                    ;;
+            esac
+        done < "${CONF_PATH}"
+    fi
+}
+
+save_conf() {
+    mkdir -p "$(dirname "${CONF_PATH}")"
+    cat <<EOF > "${CONF_PATH}"
+PARENTAL_ENABLED=${PARENTAL_ENABLED}
+DNS_FILTER=${DNS_FILTER}
+DAILY_LIMIT_MIN=${DAILY_LIMIT_MIN}
+BEDTIME=${BEDTIME}
+BLOCKED_APPS=${BLOCKED_APPS}
+EOF
+    chmod 0644 "${CONF_PATH}" 2>/dev/null || true
+}
+
+today_minutes() {
+    today="$(date +%Y-%m-%d 2>/dev/null || echo 1970-01-01)"
+    if [ -r "${USAGE_FILE}" ]; then
+        awk -F'\t' -v d="${today}" '$1 == d { print $2; found=1; exit } END { if (!found) print 0 }' "${USAGE_FILE}" 2>/dev/null || echo 0
+    else
+        echo 0
+    fi
+}
+
+apply_dns_filter() {
+    eff_dns="off"
+    if [ "${PARENTAL_ENABLED}" = "1" ]; then
+        eff_dns="${DNS_FILTER}"
+    fi
+    dns_servers=""
+    case "${eff_dns}" in
+        family)  dns_servers="1.1.1.3 1.0.0.3" ;;
+        malware) dns_servers="1.1.1.2 1.0.0.2" ;;
+        *)       dns_servers="" ;;
+    esac
+
+    if [ -d /etc/NetworkManager/conf.d ] || mkdir -p /etc/NetworkManager/conf.d 2>/dev/null; then
+        if [ -n "${dns_servers}" ]; then
+            cat <<EOF > "${NM_DROPIN}" 2>/dev/null || true
+[global-dns-domain-*]
+servers=${dns_servers% *},${dns_servers#* }
+EOF
+        else
+            rm -f "${NM_DROPIN}" 2>/dev/null || true
+        fi
+    fi
+
+    if command -v nmcli >/dev/null 2>&1; then
+        nmcli general reload dns-full >/dev/null 2>&1 || true
+    fi
+}
+
+is_in_bedtime() {
+    [ "${BEDTIME}" = "off" ] && return 1
+    now_hm="$(date +%H:%M 2>/dev/null || echo 12:00)"
+    start_hm="${BEDTIME%-*}"
+    end_hm="${BEDTIME#*-}"
+    now_m="$(printf '%s' "${now_hm}" | awk -F: '{print ($1+0)*60 + ($2+0)}')"
+    start_m="$(printf '%s' "${start_hm}" | awk -F: '{print ($1+0)*60 + ($2+0)}')"
+    end_m="$(printf '%s' "${end_hm}" | awk -F: '{print ($1+0)*60 + ($2+0)}')"
+    if [ "${start_m}" -lt "${end_m}" ]; then
+        [ "${now_m}" -ge "${start_m}" ] && [ "${now_m}" -lt "${end_m}" ]
+    else
+        [ "${now_m}" -ge "${start_m}" ] || [ "${now_m}" -lt "${end_m}" ]
+    fi
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "${cmd}" in
+    status)
+        load_conf
+        used="$(today_minutes)"
+        printf 'enabled=%s\ndns_filter=%s\ndaily_limit_min=%s\nbedtime=%s\nblocked_apps=%s\ntoday_used_min=%s\n' \
+            "${PARENTAL_ENABLED}" "${DNS_FILTER}" "${DAILY_LIMIT_MIN}" "${BEDTIME}" "${BLOCKED_APPS}" "${used}"
+        ;;
+
+    set)
+        [ "$#" -ge 4 ] && [ "$#" -le 5 ] || {
+            echo "Usage: unicore-parental set <0|1> <off|malware|family> <daily_mins> <off|HH:MM-HH:MM> [blocked_csv]" >&2
+            exit 2
+        }
+        en="$1"
+        dns="$2"
+        lim="$3"
+        bt="$4"
+        blk="${5:-}"
+        case "${en}" in 0|1) ;; *) echo "Invalid enabled flag: ${en}" >&2; exit 2 ;; esac
+        case "${dns}" in off|malware|family) ;; *) echo "Invalid dns filter: ${dns}" >&2; exit 2 ;; esac
+        printf '%s' "${lim}" | grep -Eq '^[0-9]{1,4}$' || { echo "Invalid daily limit minutes: ${lim}" >&2; exit 2; }
+        is_safe_bedtime "${bt}" || { echo "Invalid bedtime schedule: ${bt}" >&2; exit 2; }
+        is_safe_blocked_csv "${blk}" || { echo "Invalid blocked apps list: ${blk}" >&2; exit 2; }
+
+        PARENTAL_ENABLED="${en}"
+        DNS_FILTER="${dns}"
+        DAILY_LIMIT_MIN="${lim}"
+        BEDTIME="${bt}"
+        BLOCKED_APPS="${blk}"
+        save_conf
+        apply_dns_filter
+        echo "parental_saved=1"
+        ;;
+
+    apply-boot)
+        load_conf
+        apply_dns_filter
+        ;;
+
+    reset-usage)
+        mkdir -p "$(dirname "${USAGE_FILE}")"
+        today="$(date +%Y-%m-%d 2>/dev/null || echo 1970-01-01)"
+        printf '%s\t0\n' "${today}" > "${USAGE_FILE}"
+        chmod 0644 "${USAGE_FILE}" 2>/dev/null || true
+        echo "usage_reset=1"
+        ;;
+
+    check-app)
+        app_id="${1:-}"
+        load_conf
+        [ "${PARENTAL_ENABLED}" = "1" ] || exit 0
+        if [ -n "${app_id}" ] && [ -n "${BLOCKED_APPS}" ]; then
+            if printf ',%s,' "${BLOCKED_APPS}" | grep -Fq ",${app_id},"; then
+                echo "blocked=app_list:${app_id}"
+                exit 1
+            fi
+        fi
+        if [ "${DAILY_LIMIT_MIN}" -gt 0 ]; then
+            used="$(today_minutes)"
+            if [ "${used}" -ge "${DAILY_LIMIT_MIN}" ]; then
+                echo "blocked=daily_limit:${used}/${DAILY_LIMIT_MIN}"
+                exit 1
+            fi
+        fi
+        if is_in_bedtime; then
+            echo "blocked=bedtime:${BEDTIME}"
+            exit 1
+        fi
+        exit 0
+        ;;
+
+    *)
+        echo "Usage: unicore-parental <status|set <0|1> <off|malware|family> <mins> <bedtime> [blocked_csv]|apply-boot|reset-usage|check-app <app_id>>" >&2
+        exit 2
+        ;;
+esac

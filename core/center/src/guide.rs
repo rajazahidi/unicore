@@ -72,7 +72,7 @@ pub fn bilingual_guide_chapters(lang: UiLang) -> Vec<GuideChapter> {
             },
             GuideChapter {
                 id: "install-dualboot",
-                title: "2. Installing, Dual-Boot & LUKS2".to_string(),
+                title: "2. Install, Dual-Boot & LUKS2".to_string(),
                 subtitle: "Live USB, Ventoy, Secure Boot MOK & safe disk installation".to_string(),
                 body: "\
 • Boot UniCore OS directly from Ventoy (just copy the .iso file) or a standard USB stick.\n\
@@ -95,7 +95,7 @@ pub fn bilingual_guide_chapters(lang: UiLang) -> Vec<GuideChapter> {
             },
             GuideChapter {
                 id: "ecosystem-migrate",
-                title: "4. Phone, Cloud & Windows Migration".to_string(),
+                title: "4. Phone, Cloud & Migration".to_string(),
                 subtitle: "KDE Connect, scrcpy, rclone Cloud Drives, NTFS RO Migration & Drivers".to_string(),
                 body: "\
 • Phone Link (--phone): Pair your phone with KDE Connect for notifications, SMS, clipboard & file sharing, or mirror/control Android screens via USB/Wi-Fi scrcpy.\n\
@@ -117,7 +117,7 @@ pub fn bilingual_guide_chapters(lang: UiLang) -> Vec<GuideChapter> {
             },
             GuideChapter {
                 id: "ota-recovery",
-                title: "6. A/B Updates & Auto-Rollback".to_string(),
+                title: "6. A/B OTA & Auto-Rollback".to_string(),
                 subtitle: "Signed Ed25519 OTA, health-gated boot confirmation & diagnostics".to_string(),
                 body: "\
 • Official OTA updates are cryptographically verified using Ed25519 signatures (REQUIRE_SIGNATURE=1) and SHA-256 hashes before writing to the standby A/B slot.\n\

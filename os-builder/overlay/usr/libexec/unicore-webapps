@@ -1,0 +1,150 @@
+#!/bin/sh
+# UniCore OS v1.1.0 1-Click Web Apps (PWA) Manager (0 MB extra ISO bloat, 0 MB idle RAM)
+set -eu
+
+USER_HOME="${HOME:-/home/unicore}"
+CONF_DIR="${UNICORE_WEBAPPS_CONF_DIR:-${USER_HOME}/.config/unicore}"
+REGISTRY="${CONF_DIR}/webapps.tsv"
+APPS_DIR="${UNICORE_WEBAPPS_DESKTOP_DIR:-${USER_HOME}/.local/share/applications}"
+PROFILES_DIR="${UNICORE_WEBAPPS_PROFILES_DIR:-${USER_HOME}/.local/share/unicore-webapps}"
+
+is_safe_id() {
+    printf '%s' "$1" | grep -Eq '^[a-z0-9][a-z0-9_-]{0,31}$'
+}
+
+is_safe_https_url() {
+    printf '%s' "$1" | grep -Eq '^https://[^[:space:]"'\''$`\\;<>|&]{3,512}$'
+}
+
+clean_field() {
+    printf '%s' "$1" | tr '\t\r\n' '   ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+ensure_dirs() {
+    mkdir -p "${CONF_DIR}" "${APPS_DIR}" "${PROFILES_DIR}"
+}
+
+cmd="${1:-list}"
+shift || true
+
+case "${cmd}" in
+    list)
+        if [ -r "${REGISTRY}" ]; then
+            cat "${REGISTRY}"
+        fi
+        ;;
+
+    install)
+        [ "$#" -ge 3 ] || { echo "Usage: unicore-webapps install <id> <name> <https_url> [category] [badge] [accent]" >&2; exit 2; }
+        id="$1"
+        name="$(clean_field "$2")"
+        url="$3"
+        category="$(clean_field "${4:-internet}")"
+        badge="$(clean_field "${5:-WA}")"
+        accent="$(clean_field "${6:-#0284c7}")"
+
+        is_safe_id "${id}" || { echo "Invalid web app ID '${id}' (use lowercase a-z, 0-9, -, _)." >&2; exit 2; }
+        [ -n "${name}" ] || { echo "Web app name cannot be empty." >&2; exit 2; }
+        is_safe_https_url "${url}" || { echo "Web app URL must be a valid https:// address." >&2; exit 2; }
+
+        ensure_dirs
+        tmp_reg="$(umask 077 && mktemp "${CONF_DIR}/.webapps.XXXXXX")"
+        trap 'rm -f "${tmp_reg}"' EXIT
+        if [ -r "${REGISTRY}" ]; then
+            awk -F'\t' -v id="${id}" '$1 != id { print }' "${REGISTRY}" > "${tmp_reg}"
+        fi
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${id}" "${name}" "${url}" "${category}" "${badge}" "${accent}" >> "${tmp_reg}"
+        mv -f "${tmp_reg}" "${REGISTRY}"
+        trap - EXIT
+
+        desk_cat="Network;WebBrowser;"
+        case "${category}" in
+            office) desk_cat="Office;Network;" ;;
+            media) desk_cat="AudioVideo;Network;" ;;
+            creative) desk_cat="Graphics;Network;" ;;
+            social) desk_cat="Network;InstantMessaging;" ;;
+        esac
+
+        desk_file="${APPS_DIR}/unicore-webapp-${id}.desktop"
+        cat <<EOF > "${desk_file}"
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=${name}
+Comment=UniCore Web App (${url})
+Exec=/usr/libexec/unicore-webapps launch ${id}
+Icon=web-browser
+Terminal=false
+Categories=${desk_cat}
+StartupNotify=true
+EOF
+        chmod 0644 "${desk_file}" 2>/dev/null || true
+        echo "installed=${id}"
+        ;;
+
+    launch)
+        id="${1:-}"
+        is_safe_id "${id}" || { echo "Invalid web app ID '${id}'." >&2; exit 2; }
+        if [ -x /usr/libexec/unicore-parental ]; then
+            if ! /usr/libexec/unicore-parental check-app "webapp:${id}" >/dev/null 2>&1; then
+                msg="Blocked by UniCore Family Parental Controls (webapp:${id})."
+                command -v notify-send >/dev/null 2>&1 && notify-send -u critical -a "UniCore Family Safety" "App Restricted" "${msg}" >/dev/null 2>&1 || true
+                echo "${msg}" >&2
+                exit 1
+            fi
+        fi
+        [ -r "${REGISTRY}" ] || { echo "Web app '${id}' is not installed." >&2; exit 1; }
+        url="$(awk -F'\t' -v id="${id}" '$1 == id { print $3; exit }' "${REGISTRY}")"
+        is_safe_https_url "${url}" || { echo "Web app '${id}' URL missing or invalid." >&2; exit 1; }
+
+        prof_dir="${PROFILES_DIR}/${id}"
+        mkdir -p "${prof_dir}"
+
+        if command -v chromium >/dev/null 2>&1; then
+            exec chromium --user-data-dir="${prof_dir}" --app="${url}" --class="unicore-webapp-${id}"
+        elif command -v chromium-browser >/dev/null 2>&1; then
+            exec chromium-browser --user-data-dir="${prof_dir}" --app="${url}" --class="unicore-webapp-${id}"
+        elif command -v epiphany >/dev/null 2>&1; then
+            exec epiphany --application-mode --profile="${prof_dir}" "${url}"
+        elif [ -x /usr/bin/unicore-browser ]; then
+            exec /usr/bin/unicore-browser "${url}"
+        else
+            echo "No supported browser found to launch ${url}" >&2
+            exit 1
+        fi
+        ;;
+
+    remove)
+        id="${1:-}"
+        is_safe_id "${id}" || { echo "Invalid web app ID '${id}'." >&2; exit 2; }
+        if [ -r "${REGISTRY}" ]; then
+            tmp_reg="$(umask 077 && mktemp "${CONF_DIR}/.webapps.XXXXXX")"
+            trap 'rm -f "${tmp_reg}"' EXIT
+            awk -F'\t' -v id="${id}" '$1 != id { print }' "${REGISTRY}" > "${tmp_reg}"
+            mv -f "${tmp_reg}" "${REGISTRY}"
+            trap - EXIT
+        fi
+        rm -f "${APPS_DIR}/unicore-webapp-${id}.desktop"
+        rm -rf "${PROFILES_DIR}/${id}"
+        echo "removed=${id}"
+        ;;
+
+    status)
+        count=0
+        if [ -r "${REGISTRY}" ]; then
+            count="$(awk 'NF>=3{c++} END{print c+0}' "${REGISTRY}")"
+        fi
+        engine="unicore-browser"
+        if command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1; then
+            engine="chromium-pwa"
+        elif command -v epiphany >/dev/null 2>&1; then
+            engine="epiphany-webapp"
+        fi
+        printf 'installed_count=%s\nengine=%s\nregistry=%s\n' "${count}" "${engine}" "${REGISTRY}"
+        ;;
+
+    *)
+        echo "Usage: unicore-webapps <status|list|install <id> <name> <url> [cat] [badge] [accent]|launch <id>|remove <id>>" >&2
+        exit 2
+        ;;
+esac

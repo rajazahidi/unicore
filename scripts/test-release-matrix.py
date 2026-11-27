@@ -340,6 +340,18 @@ grep -q '^firewall_ready=1$' /tmp/unicore_sec_audit.txt
 grep -q '^idle_heavy_count=0$' /tmp/unicore_sec_audit.txt
 rm -f /tmp/unicore_sec_audit.txt
 /usr/libexec/unicore-boot-health --dry-run | grep -q '^health_status=HEALTHY$'
+echo "Checking v1.1.0 1-Click Web Apps (PWA) & Family Parental Controls..."
+test -x /usr/libexec/unicore-webapps
+test -x /usr/libexec/unicore-parental
+/usr/libexec/unicore-webapps status | grep -q '^installed_count=0$'
+/usr/libexec/unicore-parental status | grep -q '^enabled=0$'
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore
+    /usr/libexec/unicore-webapps install qatest "QA WebApp" https://example.com internet QA "#0284c7" | grep -q "^installed=qatest$"
+    test -f /home/unicore/.local/share/applications/unicore-webapp-qatest.desktop
+    /usr/libexec/unicore-webapps remove qatest | grep -q "^removed=qatest$"
+    test ! -f /home/unicore/.local/share/applications/unicore-webapp-qatest.desktop
+'
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_dll Library dplayx.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
@@ -437,6 +449,11 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --help-guide >/tmp/center_guide.log 2>&1 &
     sleep 3
     grim /tmp/v100_guide.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --webapps >/tmp/center_webapps.log 2>&1 &
+    sleep 3
+    grim /tmp/v110_webapps.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
@@ -446,6 +463,7 @@ test -s /tmp/v070_retro.png
 test -s /tmp/v080_ecosystem.png
 test -s /tmp/v090_games.png
 test -s /tmp/v100_guide.png
+test -s /tmp/v110_webapps.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -471,6 +489,9 @@ echo "===PNG_GAMES_B64_END==="
 echo "===PNG_GUIDE_B64_START==="
 base64 /tmp/v100_guide.png
 echo "===PNG_GUIDE_B64_END==="
+echo "===PNG_WEBAPPS_B64_START==="
+base64 /tmp/v110_webapps.png
+echo "===PNG_WEBAPPS_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -563,7 +584,13 @@ printf '\n===GATE1_OK===\n'
         guide_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v100_guide.png")
         with open(guide_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", guide_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}")
+        wa_m = re.search(r"===PNG_WEBAPPS_B64_START===\s*(.*?)\s*===PNG_WEBAPPS_B64_END===", out, re.DOTALL)
+        if not wa_m:
+            raise RuntimeError("Missing v1.1.0 Web Apps & Family Safety screenshot payload in Gate 1 output")
+        wa_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v110_webapps.png")
+        with open(wa_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", wa_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}")
     finally:
         h.close()
 

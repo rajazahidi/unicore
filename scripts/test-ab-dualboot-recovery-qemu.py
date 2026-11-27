@@ -282,6 +282,9 @@ set -eu
 [ "${UNICORE_BOOT_SLOT}" = "UNICORE_SYS_B" ] || { echo "Expected UNICORE_SYS_B, got ${UNICORE_BOOT_SLOT}"; exit 1; }
 [ "${UNICORE_DATA_ENCRYPTED}" = "1" ]
 grep -q 'KEEP_THIS_USER_FILE_V040' /data/home/Documents/user-keep.txt
+/usr/libexec/unicore-boot-health --dry-run | grep -q '^health_status=HEALTHY$'
+/usr/libexec/unicore-security-audit check | grep -q '^status=PASS$'
+/usr/libexec/unicore-security-audit check | grep -q '^idle_heavy_count=0$'
 /usr/sbin/unicore-update --confirm-boot --force
 /usr/sbin/unicore-update --status | grep -q '"active_slot": "UNICORE_SYS_B"'
 printf 'CORRUPT_SYSTEM_SETTING_TO_RESET\n' > /etc/unicore-slotb-overlay-marker

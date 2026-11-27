@@ -375,6 +375,15 @@ export struct UiText {
     btn-open-guide: string,
     guide-sec-hdr: string,
     btn-run-sec-audit: string,
+    title-family-hub: string,
+    fam-tab-webapps: string,
+    fam-tab-parental: string,
+    btn-install-webapp: string,
+    btn-open-webapp: string,
+    btn-add-custom-webapp: string,
+    chk-parental-enable: string,
+    btn-save-parental: string,
+    btn-reset-usage: string,
 }
 
 export struct GuideChapterItem {
@@ -382,6 +391,17 @@ export struct GuideChapterItem {
     subtitle: string,
     body: string,
     tip: string,
+}
+
+export struct WebAppCard {
+    id: string,
+    name: string,
+    url: string,
+    category: string,
+    badge: string,
+    accent-color: color,
+    summary: string,
+    installed: bool,
 }
 
 export global UiTheme {
@@ -681,14 +701,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))))));
-    preferred-width: root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))));
-    preferred-height: root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 590px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))))));
+    title: root.family-dialog-only ? root.tr.title-family-hub : (root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center))))))))))))))));
+    preferred-width: root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px)))))))))))))));
+    preferred-height: root.family-dialog-only ? 600px : (root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 590px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px)))))))))))))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -734,6 +754,18 @@ export component MainWindow inherits Window {
     in-out property <string> guide-active-tip: "";
     in-out property <bool> guide-sec-ok: true;
     in-out property <string> guide-sec-summary: "Security Audit: PASS (6/6)  •  0 MB idle";
+    in-out property <bool> family-dialog-only: false;
+    in-out property <int> fam-subtab: 0; // 0: Web Apps (PWA), 1: Parental Controls
+    in-out property <[WebAppCard]> fam-webapps: [];
+    in-out property <string> fam-custom-name: "";
+    in-out property <string> fam-custom-url: "";
+    in-out property <bool> fam-par-enabled: false;
+    in-out property <int> fam-par-dns-idx: 0;
+    in-out property <int> fam-par-limit-idx: 0;
+    in-out property <int> fam-par-bedtime-idx: 0;
+    in-out property <string> fam-par-blocked: "";
+    in-out property <string> fam-par-usage-label: "0 min today";
+    in-out property <string> fam-status: "";
     in-out property <bool> oobe-dialog-only: false;
     in-out property <bool> taskmgr-dialog-only: false;
     in-out property <bool> picker-open: false;
@@ -744,7 +776,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v1.0.0";
+    in-out property <string> login-clock-text: "UniCore OS v1.1.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1229,6 +1261,13 @@ export component MainWindow inherits Window {
     callback gh-sync-cloud();
     callback guide-select-chapter(int);
     callback guide-run-security-audit();
+    callback fam-refresh();
+    callback fam-install-webapp(string, string, string, string, string, string);
+    callback fam-open-webapp(string);
+    callback fam-remove-webapp(string);
+    callback fam-add-custom-webapp(string, string);
+    callback fam-save-parental(bool, int, int, int, string);
+    callback fam-reset-usage();
     callback audio-profile-selected(int);
     callback toggle-dnd(bool);
     callback dismiss-all-notifications();
@@ -1312,7 +1351,7 @@ export component MainWindow inherits Window {
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -3841,7 +3880,7 @@ export component MainWindow inherits Window {
 
                 // Left Chapter Navigation Sidebar
                 Card {
-                    width: 235px;
+                    width: 252px;
                     VerticalLayout {
                         padding: 8px;
                         spacing: 4px;
@@ -3975,6 +4014,306 @@ export component MainWindow inherits Window {
                     text: root.tr.btn-open-center;
                     clicked => {
                         root.guide-dialog-only = false;
+                        root.switch-to-full-center();
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // v1.1.0 1-Click Web Apps (PWA) & Family Parental Controls Hub (--webapps / --parental)
+        if root.family-dialog-only : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 62px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #0284c7 0%, #059669 100%);
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        Text {
+                            text: root.tr.title-family-hub;
+                            color: #ffffff;
+                            font-size: 16px;
+                            font-weight: 800;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: "1-Click Desktop Web Apps (0 MB Idle)  •  Family Safe DNS (1.1.1.3), Screen-Time & App Guard";
+                            color: #e0f2fe;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+                    Button {
+                        text: root.lang-badge;
+                        clicked => { root.toggle-language(); }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                TabPill {
+                    label: root.tr.fam-tab-webapps;
+                    active: root.fam-subtab == 0;
+                    clicked => { root.fam-subtab = 0; root.fam-refresh(); }
+                }
+                TabPill {
+                    label: root.tr.fam-tab-parental;
+                    active: root.fam-subtab == 1;
+                    clicked => { root.fam-subtab = 1; root.fam-refresh(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: root.tr.btn-refresh;
+                    clicked => { root.fam-refresh(); }
+                }
+            }
+
+            // Tab 0: 1-Click Web Apps (PWA)
+            if root.fam-subtab == 0 : VerticalLayout {
+                vertical-stretch: 1;
+                spacing: 8px;
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 7px;
+                        alignment: start;
+
+                        for wa in root.fam-webapps : Card {
+                            height: 54px;
+                            HorizontalLayout {
+                                padding: 8px;
+                                spacing: 10px;
+                                Rectangle {
+                                    width: 38px;
+                                    height: 38px;
+                                    border-radius: 9px;
+                                    background: wa.accent-color;
+                                    Text {
+                                        text: wa.badge;
+                                        color: #ffffff;
+                                        font-size: 13px;
+                                        font-weight: 800;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+                                    spacing: 1px;
+                                    Text {
+                                        text: wa.name;
+                                        color: UiTheme.text-primary;
+                                        font-size: 13px;
+                                        font-weight: 700;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: wa.summary;
+                                        color: UiTheme.text-muted;
+                                        font-size: 11px;
+                                        overflow: elide;
+                                    }
+                                }
+                                if !wa.installed : Button {
+                                    text: root.tr.btn-install-webapp;
+                                    primary: true;
+                                    clicked => { root.fam-install-webapp(wa.id, wa.name, wa.url, wa.category, wa.badge, "#0284c7"); }
+                                }
+                                if wa.installed : Button {
+                                    text: root.tr.btn-open-webapp;
+                                    primary: true;
+                                    clicked => { root.fam-open-webapp(wa.id); }
+                                }
+                                if wa.installed : Button {
+                                    text: "Remove";
+                                    clicked => { root.fam-remove-webapp(wa.id); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Card {
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 6px;
+                        Text {
+                            text: root.tr.btn-add-custom-webapp;
+                            color: UiTheme.text-primary;
+                            font-size: 12px;
+                            font-weight: 700;
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            LineEdit {
+                                text <=> root.fam-custom-name;
+                                placeholder-text: "App Name (e.g. Notion)";
+                                width: 170px;
+                            }
+                            LineEdit {
+                                text <=> root.fam-custom-url;
+                                placeholder-text: "https://www.notion.so";
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: "+ Add";
+                                primary: true;
+                                clicked => { root.fam-add-custom-webapp(root.fam-custom-name, root.fam-custom-url); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Tab 1: Family Safety & Parental Controls
+            if root.fam-subtab == 1 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Card {
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 10px;
+                            Switch {
+                                text: root.tr.chk-parental-enable;
+                                checked <=> root.fam-par-enabled;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: "Safe DNS Filter:";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 12px;
+                                    width: 150px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: [
+                                        "Off (Automatic ISP DNS)",
+                                        "Block Malware Only (Cloudflare 1.1.1.2)",
+                                        "Family Safe: Block Malware + Adult (1.1.1.3)"
+                                    ];
+                                    current-index <=> root.fam-par-dns-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: "Daily Screen Time:";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 12px;
+                                    width: 150px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: [
+                                        "Unlimited",
+                                        "1 Hour / day (60 min)",
+                                        "2 Hours / day (120 min)",
+                                        "3 Hours / day (180 min)",
+                                        "4 Hours / day (240 min)"
+                                    ];
+                                    current-index <=> root.fam-par-limit-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: "Bedtime Curfew:";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 12px;
+                                    width: 150px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: [
+                                        "Off",
+                                        "21:00 - 07:00 (School Night)",
+                                        "22:00 - 07:00 (Standard)",
+                                        "23:00 - 06:30 (Weekend)"
+                                    ];
+                                    current-index <=> root.fam-par-bedtime-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: "Blocked App IDs:";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 12px;
+                                    width: 150px;
+                                    vertical-alignment: center;
+                                }
+                                LineEdit {
+                                    text <=> root.fam-par-blocked;
+                                    placeholder-text: "Optional comma-separated IDs (e.g. webapp:youtube,steam)";
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                            InfoRow {
+                                label: "Usage Today:";
+                                value: root.fam-par-usage-label;
+                                value-color: UiTheme.text-accent;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Button {
+                                    text: root.tr.btn-save-parental;
+                                    primary: true;
+                                    clicked => {
+                                        root.fam-save-parental(
+                                            root.fam-par-enabled,
+                                            root.fam-par-dns-idx,
+                                            root.fam-par-limit-idx,
+                                            root.fam-par-bedtime-idx,
+                                            root.fam-par-blocked
+                                        );
+                                    }
+                                }
+                                Button {
+                                    text: root.tr.btn-reset-usage;
+                                    clicked => { root.fam-reset-usage(); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.fam-status != "" : Text {
+                text: root.fam-status;
+                color: UiTheme.text-accent;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.tr.btn-open-center;
+                    clicked => {
+                        root.family-dialog-only = false;
                         root.switch-to-full-center();
                     }
                 }

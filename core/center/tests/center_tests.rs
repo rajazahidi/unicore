@@ -1773,3 +1773,89 @@ issues=none
     assert_ne!(en.guide_sec_hdr, ms.guide_sec_hdr);
     assert_ne!(en.btn_run_sec_audit, ms.btn_run_sec_audit);
 }
+
+#[test]
+fn v110_webapps_parental_controls_and_bilingual_work() {
+    use unicore_center::family::{
+        bedtime_from_index, bedtime_to_index, daily_limit_from_index, daily_limit_to_index,
+        dns_filter_from_index, dns_filter_to_index, merge_webapp_catalog, parse_parental_status,
+        parse_webapps_tsv, slugify_webapp_id, validate_blocked_apps_csv, validate_webapp_id,
+        validate_webapp_url, CURATED_WEBAPPS,
+    };
+    use unicore_center::start_emoji::builtin_v110_apps;
+
+    // 1. CLI --webapps / --pwa / --parental / --family
+    assert_eq!(
+        parse_args(&["--webapps".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::FamilyHub(0)
+    );
+    assert_eq!(
+        parse_args(&["--pwa".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::FamilyHub(0)
+    );
+    assert_eq!(
+        parse_args(&["--parental".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::FamilyHub(1)
+    );
+    assert_eq!(
+        parse_args(&["--family".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::FamilyHub(1)
+    );
+
+    // 2. Web App ID, slug & HTTPS URL security validators
+    assert_eq!(validate_webapp_id("WhatsApp-1").unwrap(), "whatsapp-1");
+    assert!(validate_webapp_id("../bad").is_err());
+    assert!(validate_webapp_id("bad;rm").is_err());
+    assert_eq!(slugify_webapp_id("My Notion Workspace!"), "my-notion-workspace");
+    assert_eq!(
+        validate_webapp_url("https://web.whatsapp.com").unwrap(),
+        "https://web.whatsapp.com"
+    );
+    assert!(validate_webapp_url("http://insecure.example.com").is_err());
+    assert!(validate_webapp_url("javascript:alert(1)").is_err());
+    assert!(validate_webapp_url("https://bad.test;rm -rf /").is_err());
+
+    // 3. Curated catalog merge + custom installed webapps TSV parsing
+    assert_eq!(CURATED_WEBAPPS.len(), 8);
+    let tsv = "whatsapp\tWhatsApp Web\thttps://web.whatsapp.com\tsocial\tWA\t#16a34a\nnotion\tNotion\thttps://www.notion.so\toffice\tNO\t#0f172a\n";
+    let installed = parse_webapps_tsv(tsv);
+    assert_eq!(installed.len(), 2);
+    let merged = merge_webapp_catalog(&installed, false);
+    assert_eq!(merged.len(), 9);
+    assert!(merged.iter().any(|w| w.id == "whatsapp" && w.installed));
+    assert!(merged.iter().any(|w| w.id == "youtube" && !w.installed));
+    assert!(merged.iter().any(|w| w.id == "notion" && w.installed && w.custom));
+
+    // 4. Parental Controls status parser, index helpers & blocklist validation
+    let par = parse_parental_status(
+        "enabled=1\ndns_filter=family\ndaily_limit_min=120\nbedtime=21:00-07:00\nblocked_apps=webapp:youtube,steam\ntoday_used_min=45\n",
+    );
+    assert!(par.enabled);
+    assert_eq!(par.dns_filter, "family");
+    assert_eq!(par.daily_limit_min, 120);
+    assert_eq!(par.bedtime, "21:00-07:00");
+    assert_eq!(par.blocked_apps, "webapp:youtube,steam");
+    assert_eq!(par.today_used_min, 45);
+    assert_eq!(dns_filter_from_index(dns_filter_to_index("family")), "family");
+    assert_eq!(daily_limit_from_index(daily_limit_to_index(120)), 120);
+    assert_eq!(bedtime_from_index(bedtime_to_index("21:00-07:00")), "21:00-07:00");
+    assert_eq!(
+        validate_blocked_apps_csv("webapp:youtube, steam ").unwrap(),
+        "webapp:youtube,steam"
+    );
+    assert!(validate_blocked_apps_csv("bad;cmd").is_err());
+
+    // 5. Start Menu tiles & bilingual labels
+    let v110_en = builtin_v110_apps(UiLang::En);
+    let v110_ms = builtin_v110_apps(UiLang::Ms);
+    assert_eq!(v110_en.len(), 2);
+    assert_ne!(v110_en[0].name, v110_ms[0].name);
+    assert_ne!(v110_en[1].name, v110_ms[1].name);
+
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.title_family_hub, ms.title_family_hub);
+    assert_ne!(en.fam_tab_webapps, ms.fam_tab_webapps);
+    assert_ne!(en.fam_tab_parental, ms.fam_tab_parental);
+    assert_ne!(en.btn_save_parental, ms.btn_save_parental);
+}

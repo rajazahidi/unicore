@@ -71,6 +71,11 @@ if [ -x /usr/libexec/unicore-firewall ]; then
     /usr/libexec/unicore-firewall apply >/dev/null 2>&1 || true
 fi
 
+# Re-apply persisted Family Safe DNS filter (0-overhead when disabled)
+if [ -r /data/unicore/parental.conf ] && [ -x /usr/libexec/unicore-parental ]; then
+    /usr/libexec/unicore-parental apply-boot >/dev/null 2>&1 || true
+fi
+
 # Re-apply persisted OOBE hostname & timezone on immutable boots
 if [ -r /data/unicore/oobe.conf ]; then
     # shellcheck disable=SC1091

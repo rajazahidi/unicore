@@ -1,6 +1,6 @@
-# UniCore OS v1.0.0 — Official Bilingual User Guide (EN / BM)
+# UniCore OS v1.1.0 — Official Bilingual User Guide (EN / BM)
 
-Welcome to **UniCore OS v1.0.0 ("Production Daily Driver")** — a fast, zero-bloat, immutable desktop operating system designed to feel immediately familiar to Windows and Zorin OS users, while effortlessly running **Linux, Windows (Win98/XP/7/10/11 & MS-DOS), and Android** apps on hardware ranging from **2005 512 MB PCs** to **2026 modern x86_64 & ARM64 laptops**.
+Welcome to **UniCore OS v1.1.0 ("Family, Web Apps & Polish Edition")** — a fast, zero-bloat, immutable desktop operating system designed to feel immediately familiar to Windows and Zorin OS users, while effortlessly running **Linux, Windows (Win98/XP/7/10/11 & MS-DOS), Web Apps (PWA), and Android** apps on hardware ranging from **2005 512 MB PCs** to **2026 modern x86_64 & ARM64 laptops**.
 
 *Selamat datang ke **UniCore OS v1.0.0 ("Production Daily Driver")** — sistem operasi desktop moden yang pantas, bebas kembung (*zero-bloat*), dan mudah digunakan seperti Windows/Zorin, serta menyokong aplikasi **Linux, Windows (Win98/XP/7/10/11 & MS-DOS) dan Android** dari PC lama 2005 (512 MB RAM) hingga komputer riba 2026 (`x86_64` & `ARM64`).*
 
@@ -97,4 +97,14 @@ Open **Settings → Phone & Cloud** or launch directly from Start Menu:
 
 ---
 
-*Built with care for everyday reliability — UniCore OS v1.0.0 Production.*
+## 7. 1-Click Web Apps (PWA) & Family Parental Controls / Aplikasi Web & Kawalan Ibu Bapa (`v1.1.0`)
+
+* **1-Click Web Apps (`unicore-center --webapps`):** Turn everyday websites (**WhatsApp Web, YouTube, Gmail, Microsoft 365, Google Docs, Canva, ChatGPT, Spotify**, or any custom `https://` site) into clean standalone desktop apps in your Start Menu with isolated browser profiles and **`0 MB` idle RAM**.
+* **Family Safety & Parental Controls (`unicore-center --parental`):**
+  * **Family Safe DNS:** Enable Cloudflare for Families (`1.1.1.3` blocks malware + adult content, or `1.1.1.2` malware-only) persisted cleanly at boot via NetworkManager.
+  * **Daily Screen-Time Limit & Bedtime Curfew:** Set daily usage limits (`60–240 min`) and bedtime windows (`21:00–07:00`, `22:00–07:00`, etc.) with 1-click daily timer reset.
+  * **Per-App Blocklist:** Restrict specific sandbox apps or web apps (`webapp:youtube`, `steam`, etc.) cleanly without any heavy background daemon.
+
+---
+
+*Built with care for everyday reliability — UniCore OS v1.1.0.*

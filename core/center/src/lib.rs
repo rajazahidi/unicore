@@ -6,6 +6,7 @@ pub mod cli;
 pub mod desktop;
 pub mod dev_ai;
 pub mod ecosystem;
+pub mod family;
 pub mod gamehub;
 pub mod gaming;
 pub mod guide;
