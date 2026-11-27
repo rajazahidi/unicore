@@ -282,6 +282,7 @@ test -e /usr/libexec/gvfs/gvfsd-smb || test -e /usr/libexec/gvfsd-smb || test -e
 /usr/libexec/unicore-a11y status | grep -q '^tts_available=1$'
 echo "Checking v0.6.0 Windows 11 / Zorin Familiarity (Desktop Menu, OSD, USB Auto-Mount, Thumbnails, Archives, Windows Fonts)..."
 test -f /etc/xdg/labwc/menu.xml
+test -f /etc/xdg/udiskie/config.yml
 test -f /etc/fonts/local.conf
 test -x /usr/libexec/unicore-osd
 test -f /usr/share/file-manager/actions/unicore-archive-extract.desktop

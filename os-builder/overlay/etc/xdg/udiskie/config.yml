@@ -1,0 +1,27 @@
+program_options:
+  tray: auto
+  notify: true
+  automount: true
+  file_manager: pcmanfm
+
+notifications:
+  timeout: 4
+  device_mounted: 4
+  device_unmounted: 3
+  device_added: false
+  device_removed: false
+  job_failed: false
+
+device_config:
+  - is_loop: true
+    ignore: true
+  - id_type: squashfs
+    ignore: true
+  - id_label: UNICORE_OS
+    ignore: true
+  - device_file: /dev/fd*
+    ignore: true
+  - device_file: /dev/zram*
+    ignore: true
+  - is_systeminternal: true
+    ignore: true

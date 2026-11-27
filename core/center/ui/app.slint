@@ -634,7 +634,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v0.6.0";
+    in-out property <string> login-clock-text: "UniCore OS v0.6.1";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -900,7 +900,7 @@ export component MainWindow inherits Window {
     in-out property <string> set-share-user-input: "";
     in-out property <string> set-share-pass-input: "";
 
-    // v0.6.0 Windows 11 & Zorin Familiarity (Start Menu, Emoji Picker, Layouts, Accents, OOBE Packs)
+    // v0.6.1 Windows 11 & Zorin Familiarity (Start Menu, Emoji Picker, Layouts, Accents, OOBE Packs)
     in-out property <int> set-desktop-layout-idx: 0; // 0:win11, 1:win10, 2:macos
     in-out property <int> set-accent-idx: 0;         // 0:blue, 1:purple, 2:green, 3:amber, 4:rose
     in-out property <string> start-search-query: "";
@@ -2051,14 +2051,15 @@ export component MainWindow inherits Window {
 
             // Bottom User & Quick-Folders Bar
             Card {
-                height: 48px;
+                height: 50px;
                 HorizontalLayout {
                     padding-left: 10px;
                     padding-right: 10px;
+                    padding-top: 9px;
+                    padding-bottom: 9px;
                     spacing: 6px;
-                    alignment: center;
                     Rectangle {
-                        width: 28px; height: 28px; y: 10px; border-radius: 14px; background: UiTheme.accent;
+                        width: 28px; height: 28px; y: 2px; border-radius: 14px; background: UiTheme.accent;
                         Text { text: "U"; color: #ffffff; font-size: 12px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; }
                     }
                     Text {
@@ -2069,11 +2070,12 @@ export component MainWindow inherits Window {
                         vertical-alignment: center;
                     }
                     Rectangle { horizontal-stretch: 1; }
-                    Button { text: "Docs"; clicked => { root.start-open-folder("documents"); } }
-                    Button { text: "Downloads"; clicked => { root.start-open-folder("downloads"); } }
-                    Button { text: "Pictures"; clicked => { root.start-open-folder("pictures"); } }
+                    Button { text: "Docs"; height: 32px; clicked => { root.start-open-folder("documents"); } }
+                    Button { text: "Downloads"; height: 32px; clicked => { root.start-open-folder("downloads"); } }
+                    Button { text: "Pictures"; height: 32px; clicked => { root.start-open-folder("pictures"); } }
                     Button {
                         text: "Emoji";
+                        height: 32px;
                         clicked => {
                             root.start-menu-only = false;
                             root.emoji-dialog-only = true;

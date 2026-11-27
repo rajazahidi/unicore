@@ -176,7 +176,7 @@ write_waybar_config() {
     h="42"
     left_mods="[]"
     center_mods='["custom/start", "custom/files", "custom/browser", "custom/center", "wlr/taskbar"]'
-    task_fmt='{icon} {title:.12}'
+    task_fmt='{title:.13}'
 
     case "${UNICORE_LAYOUT}" in
         win10)
@@ -188,7 +188,7 @@ write_waybar_config() {
             fi
             left_mods='["custom/start", "custom/files", "custom/browser", "custom/center", "custom/taskmgr"]'
             center_mods='["wlr/taskbar"]'
-            task_fmt='{icon} {title:.14}'
+            task_fmt='{title:.15}'
             ;;
         macos)
             pos="top"
@@ -196,7 +196,7 @@ write_waybar_config() {
             mb="0"; mt="4"; ml="10"; mr="10"
             left_mods='["custom/start", "custom/files", "custom/browser", "custom/center"]'
             center_mods='["wlr/taskbar"]'
-            task_fmt='{icon} {title:.12}'
+            task_fmt='{title:.13}'
             ;;
         *)
             # win11 default: centered floating pill taskbar
@@ -208,7 +208,7 @@ write_waybar_config() {
             fi
             left_mods='[]'
             center_mods='["custom/start", "custom/files", "custom/browser", "custom/center", "wlr/taskbar"]'
-            task_fmt='{icon} {title:.12}'
+            task_fmt='{title:.13}'
             ;;
     esac
 

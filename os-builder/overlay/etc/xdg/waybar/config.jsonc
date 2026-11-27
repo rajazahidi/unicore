@@ -53,8 +53,7 @@
     "on-click": "/usr/bin/unicore-center --taskmgr &"
   },
   "wlr/taskbar": {
-    "format": "{icon} {title:.12}",
-    "icon-size": 16,
+    "format": "{title:.13}",
     "tooltip-format": "{title}",
     "on-click": "activate",
     "on-click-middle": "close",
