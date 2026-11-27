@@ -250,8 +250,9 @@ test -x /usr/libexec/unicore-secureboot
 test -x /usr/libexec/unicore-browser-mgr
 test -x /usr/bin/unicore-browser
 test -f /usr/share/file-manager/actions/unicore-open-sandbox.desktop
-/usr/libexec/unicore-secureboot status | grep -q '^mok_cert_present=yes$'
-/usr/libexec/unicore-browser-mgr status | grep -q '^default='
+/usr/libexec/unicore-secureboot status | grep -q '^mok_cert=1$'
+/usr/libexec/unicore-secureboot status | grep -q '^shim_bundled=1$'
+/usr/libexec/unicore-browser-mgr status | grep -q '^default_browser=epiphany$'
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
@@ -417,7 +418,8 @@ test -d /sys/firmware/efi
 test -f /mnt/unicore-media/ENROLL_UNICORE_MOK.cer
 test -f /mnt/unicore-media/EFI/BOOT/BOOTX64.EFI
 test -f /mnt/unicore-media/EFI/BOOT/grubx64.efi
-/usr/libexec/unicore-secureboot status | grep -q '^uefi=yes$'
+/usr/libexec/unicore-secureboot status | grep -q '^uefi=1$'
+/usr/libexec/unicore-secureboot status | grep -q '^shim_bundled=1$'
 uname -r
 printf '\n===GATE2_OK===\n'
 """

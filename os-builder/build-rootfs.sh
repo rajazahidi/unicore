@@ -365,19 +365,31 @@ if [[ -n "${MOK_KEY_OVERRIDE:-}" && -f "${MOK_KEY_OVERRIDE}" && -n "${MOK_CERT_O
         GRUB_EFI_FMT="x86_64-efi"
         GRUB_EFI_NAME="grubx64.efi"
     fi
-    cat <<'GRUB_EARLY_EOF' > "${WORK_DIR}/early-grub.cfg"
-search --no-floppy --label --set=root UNICORE_OS
+    cat <<'GRUB_EARLY_EOF' > "${WORK_DIR}/early-grub-efi.cfg"
+insmod test
+insmod part_gpt
+insmod part_msdos
+insmod iso9660
+insmod fat
+insmod ext2
+insmod search
+insmod search_label
+insmod normal
+insmod configfile
+insmod linux
+if [ ! -f ($root)/boot/grub/grub.cfg ]; then
+    search --no-floppy --label --set=root UNICORE_OS
+fi
 if [ ! -f ($root)/boot/grub/grub.cfg ]; then
     search --no-floppy --label --set=root UNICORE_EFI
 fi
-set prefix=($root)/boot/grub
 configfile ($root)/boot/grub/grub.cfg
 GRUB_EARLY_EOF
     if [[ -d "/usr/lib/grub/${GRUB_EFI_FMT}" ]]; then
         echo "==> Building & MOK-signing standalone Secure Boot GRUB (${GRUB_EFI_NAME})"
         grub-mkstandalone -O "${GRUB_EFI_FMT}" \
             -o "${WORK_DIR}/unsigned-${GRUB_EFI_NAME}" \
-            "boot/grub/grub.cfg=${WORK_DIR}/early-grub.cfg"
+            "boot/grub/grub.cfg=${WORK_DIR}/early-grub-efi.cfg"
         sbsign --key "${MOK_KEY_OVERRIDE}" --cert "${MOK_CERT_OVERRIDE}" \
             --output "${SB_STAGE_DIR}/${GRUB_EFI_NAME}" \
             "${WORK_DIR}/unsigned-${GRUB_EFI_NAME}"
@@ -847,8 +859,13 @@ EOF
 
         if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]] && [[ -f /usr/lib/grub/i386-pc/cdboot.img && -f /usr/lib/grub/i386-pc/boot_hybrid.img ]]; then
             echo "==> Building Hybrid Legacy BIOS + UEFI Secure Boot ISO (${ISO_IMG})"
+            cat <<'GRUB_BIOS_EOF' > "${WORK_DIR}/early-grub-bios.cfg"
+search --no-floppy --label --set=root UNICORE_OS
+set prefix=($root)/boot/grub
+normal
+GRUB_BIOS_EOF
             grub-mkimage -O i386-pc-eltorito -p /boot/grub \
-                -c "${WORK_DIR}/early-grub.cfg" \
+                -c "${WORK_DIR}/early-grub-bios.cfg" \
                 -o "${ISO_DIR}/boot/grub/bios.img" \
                 biosdisk iso9660 part_msdos part_gpt fat ext2 exfat ntfs normal configfile linux search search_label echo test serial terminal
             xorriso -as mkisofs \
