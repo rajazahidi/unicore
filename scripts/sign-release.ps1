@@ -17,6 +17,8 @@ function Resolve-OpenSsl {
     $candidates = @(
         "C:\Program Files\Git\usr\bin\openssl.exe",
         "C:\Program Files\Git\mingw64\bin\openssl.exe",
+        "$env:LOCALAPPDATA\Programs\Git\usr\bin\openssl.exe",
+        "$env:LOCALAPPDATA\Programs\Git\mingw64\bin\openssl.exe",
         "C:\Program Files\OpenSSL-Win64\bin\openssl.exe",
         "C:\Program Files\OpenSSL-Win32\bin\openssl.exe"
     )

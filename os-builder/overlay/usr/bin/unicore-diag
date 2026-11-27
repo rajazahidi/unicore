@@ -1,23 +1,33 @@
 #!/bin/sh
-# UniCore OS Hardware & Boot Diagnostics Collector (Phase 15)
+# UniCore OS Hardware & Boot Diagnostics Collector (Phase 15 + Bare-Metal Perfection Pack)
 set -eu
 
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+STAMP="$(date -u '+%Y%m%d-%H%M%S' 2>/dev/null || echo report)"
+HOST="$(hostname 2>/dev/null | tr -cd 'A-Za-z0-9_-' || echo unicore)"
+[ -n "${HOST}" ] || HOST="unicore"
 
 if [ -d /home/unicore/Desktop ]; then
     OUT_FILE="/home/unicore/Desktop/unicore-diag.txt"
 else
     OUT_FILE="/tmp/unicore-diag.txt"
 fi
+SAVE_USB=0
 
-if [ "$#" -gt 0 ]; then
+while [ "$#" -gt 0 ]; do
     case "$1" in
         --output)
             OUT_FILE="${2:-}"
-            [ -n "${OUT_FILE}" ] || { echo "Usage: unicore-diag [--output <PATH>]" >&2; exit 2; }
+            [ -n "${OUT_FILE}" ] || { echo "Usage: unicore-diag [--output <PATH>] [--save-usb]" >&2; exit 2; }
+            shift 2
+            ;;
+        --save-usb)
+            SAVE_USB=1
+            shift
             ;;
         -h|--help)
-            echo "Usage: unicore-diag [--output <PATH>]"
+            echo "Usage: unicore-diag [--output <PATH>] [--save-usb]"
             exit 0
             ;;
         *)
@@ -25,13 +35,14 @@ if [ "$#" -gt 0 ]; then
             exit 2
             ;;
     esac
-fi
+done
 
 mkdir -p "$(dirname "${OUT_FILE}")"
 
 {
     echo "=== UniCore OS Hardware & System Diagnostics ==="
     echo "Generated: $(date -Iseconds 2>/dev/null || date)"
+    echo "Hostname : ${HOST}"
     echo ""
     echo "--- /etc/os-release ---"
     cat /etc/os-release 2>/dev/null || echo "N/A"
@@ -39,30 +50,80 @@ mkdir -p "$(dirname "${OUT_FILE}")"
     echo "--- /mnt/unicore-boot.env ---"
     cat /mnt/unicore-boot.env 2>/dev/null || echo "N/A"
     echo ""
-    echo "--- uname -a ---"
+    echo "--- /run/unicore/hw.env ---"
+    cat /run/unicore/hw.env 2>/dev/null || echo "N/A"
+    echo ""
+    echo "--- uname -a & /proc/cmdline ---"
     uname -a 2>/dev/null || true
+    cat /proc/cmdline 2>/dev/null || true
     echo ""
     echo "--- uniload hw-profile ---"
     /usr/bin/uniload hw-profile 2>/dev/null || echo "N/A"
     echo ""
-    echo "--- free -m ---"
+    echo "--- free -m & /proc/swaps ---"
     free -m 2>/dev/null || true
-    echo ""
-    echo "--- /proc/swaps ---"
     cat /proc/swaps 2>/dev/null || true
     echo ""
-    echo "--- lspci -nn ---"
-    lspci -nn 2>/dev/null || echo "lspci unavailable"
+    echo "--- DRM / Graphics / Wayland ---"
+    for c in /sys/class/drm/card*; do
+        [ -e "${c}" ] || continue
+        case "$(basename "${c}")" in *-*) continue ;; esac
+        v="$(cat "${c}/device/vendor" 2>/dev/null || echo '?')"
+        d="$(cat "${c}/device/device" 2>/dev/null || echo '?')"
+        drv="$(basename "$(readlink -f "${c}/device/driver" 2>/dev/null || echo none)" 2>/dev/null || echo none)"
+        printf '%s: vendor=%s device=%s driver=%s\n' "$(basename "${c}")" "${v}" "${d}" "${drv}"
+    done
+    ls -la /dev/dri 2>/dev/null || true
+    if command -v wlr-randr >/dev/null 2>&1; then
+        WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}" wlr-randr 2>/dev/null || true
+    fi
     echo ""
-    echo "--- Network Interfaces ---"
+    echo "--- lspci -nnk ---"
+    lspci -nnk 2>/dev/null || lspci -nn 2>/dev/null || echo "lspci unavailable"
+    echo ""
+    echo "--- USB Devices ---"
+    lsusb 2>/dev/null || ls /sys/bus/usb/devices 2>/dev/null || true
+    echo ""
+    echo "--- Network & Wi-Fi Interfaces ---"
     ip -br addr 2>/dev/null || true
     nmcli general status 2>/dev/null || true
+    nmcli dev status 2>/dev/null || true
+    rfkill list 2>/dev/null || true
     echo ""
-    echo "--- Audio (pactl info) ---"
-    pactl info 2>/dev/null || echo "PipeWire session inactive in current shell"
+    echo "--- Storage & Mounts ---"
+    lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT 2>/dev/null || true
+    df -h / /data /mnt/unicore-media 2>/dev/null || true
     echo ""
-    echo "--- Recent Kernel Warnings/Errors/Firmware (dmesg) ---"
-    dmesg 2>/dev/null | grep -iE 'error|fail|warn|firmware' | tail -n 40 || true
+    echo "--- Audio (wpctl / pactl / ALSA) ---"
+    wpctl status 2>/dev/null || pactl info 2>/dev/null || cat /proc/asound/cards 2>/dev/null || echo "PipeWire session inactive in current shell"
+    echo ""
+    echo "--- Wayland / App Center Session Logs ---"
+    for lf in /tmp/unicore-labwc.log /tmp/unicore-center.log /tmp/unicore-dbus.log /tmp/unicore-greeter.log; do
+        if [ -f "${lf}" ]; then
+            echo "[${lf}]"
+            tail -n 30 "${lf}" 2>/dev/null || true
+        fi
+    done
+    echo ""
+    echo "--- Recent Kernel Warnings/Errors/Drivers (dmesg) ---"
+    dmesg 2>/dev/null | grep -iE 'error|fail|warn|firmware|drm|nouveau|i915|amdgpu|ath9k|iwlwifi|rtw|forcedeth|sata|ahci|nvme|xhci|ehci|ohci|hda|exfat|ntfs' | tail -n 80 || true
 } > "${OUT_FILE}"
 
-printf '%s\n' "${OUT_FILE}"
+if [ "${SAVE_USB}" = "1" ]; then
+    USB_FNAME="unicore-diag-${HOST}-${STAMP}.txt"
+    COPIED_USB=0
+    for mp in /run/media/*/* /media/* /mnt/usb*; do
+        [ -d "${mp}" ] && [ -w "${mp}" ] || continue
+        if cp "${OUT_FILE}" "${mp}/${USB_FNAME}" 2>/dev/null; then
+            sync
+            printf '%s\n' "${mp}/${USB_FNAME}"
+            COPIED_USB=1
+            break
+        fi
+    done
+    if [ "${COPIED_USB}" = "0" ]; then
+        printf '%s\n' "${OUT_FILE}"
+    fi
+else
+    printf '%s\n' "${OUT_FILE}"
+fi

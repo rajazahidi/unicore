@@ -1,0 +1,57 @@
+#!/bin/sh
+# UniCore OS pre-commit guard: blocks CRLF in Linux overlay scripts, private keys, and broken Python scripts.
+set -eu
+
+staged="$(git diff --cached --name-only --diff-filter=ACM)"
+[ -z "${staged}" ] && exit 0
+
+fail=0
+
+# 1. Block private signing keys or build artifacts from being committed
+for f in ${staged}; do
+    case "${f}" in
+        os-builder/keys/*|*.key|*.pem|os-builder/out/*|*__pycache__/*|*.pyc)
+            echo "[PRE-COMMIT BLOCKED] Forbidden secret/artifact file staged: ${f}" >&2
+            fail=1
+            ;;
+    esac
+done
+
+# 2. Verify LF line endings on all staged os-builder Linux files and compile Python scripts
+PY_BIN="python"
+if command -v python3 >/dev/null 2>&1 && python3 -c "import sys" >/dev/null 2>&1; then
+    PY_BIN="python3"
+fi
+
+"${PY_BIN}" - <<'PY'
+import pathlib, subprocess, sys
+
+out = subprocess.check_output(
+    ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"], text=True
+)
+bad_lf = []
+py_files = []
+for rel in [line.strip() for line in out.splitlines() if line.strip()]:
+    p = pathlib.Path(rel)
+    if not p.is_file():
+        continue
+    if rel.endswith(".py"):
+        py_files.append(rel)
+    if rel.startswith("os-builder/"):
+        if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".ico", ".exe", ".apk", ".ps1", ".rs", ".toml", ".py") or "fixtures/target" in rel:
+            continue
+        if b"\r" in p.read_bytes():
+            bad_lf.append(rel)
+
+if bad_lf:
+    print("[PRE-COMMIT BLOCKED] CRLF detected in Linux scripts/configs:", bad_lf, file=sys.stderr)
+    sys.exit(1)
+
+for pyf in py_files:
+    res = subprocess.run([sys.executable, "-m", "py_compile", pyf])
+    if res.returncode != 0:
+        print(f"[PRE-COMMIT BLOCKED] Python syntax error in {pyf}", file=sys.stderr)
+        sys.exit(1)
+PY
+
+exit "${fail}"

@@ -15,6 +15,9 @@ on:
         required: true
         default: 'slim'
 
+permissions:
+  contents: write
+
 jobs:
   build-os:
     runs-on: ubuntu-latest
@@ -30,16 +33,33 @@ jobs:
         with:
           targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
 
-      - name: Install Alpine musl cross tools & test fixtures
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools mingw-w64 python3
-
-      - name: Build static uniload & unicore-center (${{ matrix.arch }})
+      - name: Build static uniload (${{ matrix.arch }})
         run: |
           TARGET_ARCH="${{ github.event.inputs.arch || matrix.arch }}"
           cargo build --release --target "${TARGET_ARCH}-unknown-linux-musl" -p uniload
-          cargo build --release --target "${TARGET_ARCH}-unknown-linux-musl" -p unicore-center
+
+      - name: Build unicore-center (dynamic musl) inside Alpine 3.20
+        run: |
+          TARGET_ARCH="${{ github.event.inputs.arch || matrix.arch }}"
+          docker run --rm \
+            -v "${PWD}:/work" \
+            -w /work \
+            alpine:3.20 /bin/sh -c "
+              set -eu
+              apk add --no-cache rust cargo build-base pkgconf wayland-dev libxkbcommon-dev fontconfig-dev freetype-dev
+              cargo build --release -p unicore-center
+              mkdir -p /work/os-builder/out/ci-bins
+              cp /work/target/release/unicore-center /work/os-builder/out/ci-bins/unicore-center
+            "
+
+      - name: Fetch offline Win32/Win16 gaming runtimes (DXVK, VKD3D-Proton, cnc-ddraw, OTVDM, winetricks)
+        run: |
+          mkdir -p /tmp/win32-assets
+          curl -fsSL -o /tmp/win32-assets/dxvk-2.4.1.tar.gz https://github.com/doitsujin/dxvk/releases/download/v2.4.1/dxvk-2.4.1.tar.gz
+          curl -fsSL -o /tmp/win32-assets/vkd3d-proton-2.13.tar.zst https://github.com/HansKristian-Work/vkd3d-proton/releases/download/v2.13/vkd3d-proton-2.13.tar.zst
+          curl -fsSL -o /tmp/win32-assets/cnc-ddraw-v7.1.0.0.zip https://github.com/FunkyFr3sh/cnc-ddraw/releases/download/v7.1.0.0/cnc-ddraw.zip
+          curl -fsSL -o /tmp/win32-assets/otvdm-v0.9.0.zip https://github.com/otya128/winevdm/releases/download/v0.9.0/otvdm-v0.9.0.zip
+          curl -fsSL -o /tmp/win32-assets/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks
 
       - name: Build UniCore OS image & signed OTA manifest
         env:
@@ -61,21 +81,42 @@ jobs:
           docker run --rm --privileged \
             -v "${PWD}:/work" \
             -v "/tmp/unicore-keys:/work/keys" \
+            -v "/tmp/win32-assets:/work/win32-assets" \
             -e "TARGET_ARCH=${TARGET_ARCH}" \
             -e "FIRMWARE_PROFILE_OVERRIDE=${{ github.event.inputs.firmware_profile || 'slim' }}" \
             -e "UNILOAD_BIN_OVERRIDE=/work/target/${TARGET_ARCH}-unknown-linux-musl/release/uniload" \
-            -e "UNICORE_CENTER_BIN_OVERRIDE=/work/target/${TARGET_ARCH}-unknown-linux-musl/release/unicore-center" \
+            -e "UNICORE_CENTER_BIN_OVERRIDE=/work/os-builder/out/ci-bins/unicore-center" \
+            -e "DXVK_ARCHIVE_OVERRIDE=/work/win32-assets/dxvk-2.4.1.tar.gz" \
+            -e "VKD3D_ARCHIVE_OVERRIDE=/work/win32-assets/vkd3d-proton-2.13.tar.zst" \
+            -e "CNCDDRAW_ARCHIVE_OVERRIDE=/work/win32-assets/cnc-ddraw-v7.1.0.0.zip" \
+            -e "OTVDM_ARCHIVE_OVERRIDE=/work/win32-assets/otvdm-v0.9.0.zip" \
+            -e "WINETRICKS_SCRIPT_OVERRIDE=/work/win32-assets/winetricks" \
             ${EXTRA_ENV} \
             alpine:3.20 /bin/sh -c "
-              apk add --no-cache bash squashfs-tools grub grub-bios grub-efi xorriso mtools dosfstools e2fsprogs openssl &&
+              set -eu
+              apk add --no-cache bash squashfs-tools tar zstd unzip gzip findutils kmod e2fsprogs util-linux grub grub-bios grub-efi xorriso mtools dosfstools openssl
               bash /work/os-builder/build-rootfs.sh
             "
 
-      - name: Upload Release Artifacts
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: unicore-os-${{ github.event.inputs.arch || matrix.arch }}
           path: |
+            os-builder/out/vmlinuz-*
+            os-builder/out/initramfs-*.img
+            os-builder/out/unicore-rootfs-*.squashfs
+            os-builder/out/unicore-os-*.iso
+            os-builder/out/unicore-os-*.iso.sha256
+            os-builder/out/unicore-manifest.json
+            os-builder/out/unicore-manifest.json.sig
+
+      - name: Publish Signed OTA Release to GitHub Releases (on version tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
             os-builder/out/vmlinuz-*
             os-builder/out/initramfs-*.img
             os-builder/out/unicore-rootfs-*.squashfs

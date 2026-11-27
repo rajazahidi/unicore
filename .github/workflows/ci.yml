@@ -29,6 +29,17 @@ jobs:
           print("All os-builder Linux scripts/configs are clean LF.")
           PY
 
+      - name: Validate shell & Python scripts syntax
+        run: |
+          bash -n os-builder/build-rootfs.sh
+          sh -n os-builder/initramfs-init
+          for f in os-builder/overlay/usr/bin/* os-builder/overlay/usr/sbin/* os-builder/overlay/usr/libexec/* os-builder/overlay/etc/local.d/* os-builder/overlay/etc/xdg/labwc/autostart; do
+            [ -f "$f" ] || continue
+            head -n1 "$f" | grep -q '^#!/bin/sh' && sh -n "$f"
+          done
+          python3 -m py_compile scripts/test-release-matrix.py scripts/test-ab-install-luks.py scripts/ota-local-server.py
+          python3 scripts/ota-local-server.py --dir docs --self-test
+
       - name: Install Rust toolchains & musl targets
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -36,7 +47,7 @@ jobs:
           targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
 
       - name: Run clippy with -D warnings
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Run workspace unit & integration tests
         run: cargo test --workspace

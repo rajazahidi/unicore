@@ -1,10 +1,35 @@
-# UniCore OS (`0.1.0`) — Release & Hardware QA Guide
+# UniCore OS (`0.2.0`) — Release, OTA & Hardware QA Guide
 
-This guide covers verifying, flashing, signing, and testing UniCore OS release builds across **Legacy BIOS**, **UEFI**, and **2005-era Low-Spec PCs**.
+This guide covers managing the local dev environment, verifying, flashing, signing, serving OTA updates, and testing UniCore OS builds across **Legacy BIOS**, **UEFI**, **2005-era Low-Spec PCs**, and **Ventoy USB 3.0**.
 
 ---
 
-## 1. Verify & Flash Hybrid ISO to USB (Windows)
+## 1. Unified Environment Controller (Windows)
+
+```powershell
+# Audit host tools, disk space, Git hooks, QEMU/UEFI, ISO & Ventoy USB:
+.\scripts\unicore-env.ps1 doctor
+
+# Run full local CI checks (LF, clippy -D warnings, cargo test, musl, py_compile):
+.\scripts\unicore-env.ps1 check
+
+# Rebuild ISO incrementally (reuses existing SquashFS) or clean full build:
+.\scripts\unicore-env.ps1 build-fast
+.\scripts\unicore-env.ps1 build
+
+# Deploy latest ISO directly onto connected Ventoy USB with SHA-256 verification:
+.\scripts\unicore-env.ps1 deploy-ventoy
+
+# Serve local LAN + QEMU HTTP OTA updates on port 8090:
+.\scripts\unicore-env.ps1 ota-serve
+
+# Import bare-metal diagnostic reports saved via `unicore-diag --save-usb`:
+.\scripts\unicore-env.ps1 import-diag
+```
+
+---
+
+## 2. Verify & Flash Hybrid ISO to USB (Windows)
 
 ```powershell
 # Verify ISO SHA-256 & list removable USB drives safely (internal drives excluded):
@@ -15,18 +40,18 @@ This guide covers verifying, flashing, signing, and testing UniCore OS release b
 ```
 
 Recommended USB tools:
+- **Ventoy** (copy `os-builder\out\unicore-os-x86_64.iso` onto the Ventoy `exFAT`/`NTFS`/`FAT32` drive — supported natively by Stage-1 ISO loopback)
 - **Rufus** (`DD Image mode` recommended, or `ISO Image mode`)
-- **Ventoy** (copy `os-builder\out\unicore-os-x86_64.iso` to the Ventoy volume)
 - **Linux / macOS:** `sudo dd if=os-builder/out/unicore-os-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync`
 
 ---
 
-## 2. Ed25519 OTA Release Manifest Signing
+## 3. Ed25519 OTA Release Manifest Signing
 
-UniCore OS A/B updates use SHA-256 artifact digests plus optional **Ed25519** signatures verified strictly when `REQUIRE_SIGNATURE=1` in `/etc/unicore/update.conf`:
+UniCore OS A/B updates use SHA-256 artifact digests plus **Ed25519** signatures verified strictly when `REQUIRE_SIGNATURE=1` in `/etc/unicore/update.conf`:
 
 ```powershell
-# Generate Ed25519 keypair (if absent), sign unicore-manifest.json, and verify strictly:
+# Generate Ed25519 keypair (if absent), sign unicore-manifest.json, and verify strictly (requires OpenSSL on Windows):
 .\scripts\sign-release.ps1 -GenerateKey
 ```
 
@@ -46,25 +71,20 @@ Embed `update.pub` into production OS images via:
 
 ---
 
-## 3. Automated Release QA Matrix (BIOS + UEFI + 2005 512 MB PC)
+## 4. Automated Release QA Matrix (5 Gates + A/B LUKS2)
 
 Requires QEMU (`C:\Program Files\qemu\qemu-system-x86_64.exe` + `edk2-x86_64-code.fd`) and Python 3:
 
 ```powershell
-python .\scripts\test-release-matrix.py
+.\scripts\unicore-env.ps1 qa
 ```
 
-The QA matrix tests all 4 release gates against `os-builder\out\unicore-os-x86_64.iso`:
-1. **Gate 1 — Legacy BIOS + Phase 20D + Ed25519 E2E**: Boots GRUB BIOS from Live ISO, verifies `unicore-personalize` Light/Dark themes, wallpapers, Malay keyboard layout (`XKB_DEFAULT_LAYOUT=my`), touchpad config, captures live Light-mode Wayland UI screenshot, and validates Ed25519 signature acceptance + tamper rejection.
-2. **Gate 2 — UEFI Firmware (`edk2-x86_64-code.fd`)**: Boots GRUB EFI from Live ISO and confirms `/sys/firmware/efi`.
-3. **Gate 3 — 2005 Legacy PC (`512 MB RAM`, 1 core, no SSE4.2/AVX)**: Boots Linux 6.12 cleanly, confirms `UNICORE_HW_TIER=legacy_ultra`, `UNICORE_LIGHTWEIGHT_SHELL=1`, active `zram0` swap, and `unicore-center --check`.
-4. **Gate 4 — Host Integrity**: Checks `.iso.sha256`, `uniload update verify-manifest`, and `write-usb-windows.ps1 -VerifyOnly`.
-
-### Bare-Metal A/B Disk Install + LUKS2 + Rollback E2E
-
-To verify GPT disk installation, LUKS2 `/data` encryption, Slot A boot, `unicore-update --rollback`, and Slot B persistence end-to-end inside a temporary 10 GiB QEMU disk:
-
-```powershell
-python .\scripts\test-ab-install-luks.py
-```
-
+This runs:
+1. **`scripts/test-release-matrix.py` (5 Gates):**
+   - **Gate 1 — Legacy BIOS + Phase 20D/23/24/25 + Ed25519 E2E**: Boots GRUB BIOS from Live ISO, verifies `VERSION_ID="0.2.0"`, Phase 23–25 helpers, `ath9k`/`forcedeth`/`nouveau`/`sata_nv`/`snd_hda_intel` kernel drivers, Light/Dark themes, Malay keyboard layout, captures `desktop_phase20d.png` + `desktop_v020.png`, and verifies Ed25519 signing & tamper rejection.
+   - **Gate 2 — UEFI Firmware (`edk2-x86_64-code.fd`)**: Boots GRUB EFI and confirms `/sys/firmware/efi`.
+   - **Gate 3 — 2005 Legacy PC (`512 MB RAM`, 1 core, no SSE4.2/AVX)**: Confirms `legacy_ultra`, `zram0`, and `unicore-center --check`.
+   - **Gate 4 — Host Integrity**: Checks `.iso.sha256`, `uniload update verify-manifest`, and `write-usb-windows.ps1 -VerifyOnly`.
+   - **Gate 5 — Ventoy USB 3.0 xHCI + Internal NVMe Simulation**: Boots `vmlinuz` + `initramfs` directly with an internal NVMe SSD + USB 3.0 xHCI Ventoy partition containing `/ISO/unicore-os-x86_64.iso`, verifying zero `/dev/null` warnings, ISO loopback mount, `/mnt/unicore-media`, and loaded `exfat`/`ntfs3` drivers.
+2. **`scripts/test-ab-install-luks.py` (3 Stages):**
+   - Full bare-metal GPT A/B install + LUKS2 `/data` encryption -> Slot A unlock & Slot B OTA flash -> Slot B reboot with persisted encrypted `/data` + rollback verification.
