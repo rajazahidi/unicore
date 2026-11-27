@@ -86,7 +86,7 @@ jobs:
               -v "${PWD}/os-builder/out/ci-bins:/bins:ro" \
               alpine:3.20 /bin/sh -c "
                 set -eu
-                apk add --no-cache fontconfig freetype libxkbcommon wayland-libs-client
+                apk add --no-cache libgcc fontconfig freetype libxkbcommon wayland-libs-client
                 ldd /bins/unicore-center
                 /bins/unicore-center --check
               "
