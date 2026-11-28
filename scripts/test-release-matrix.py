@@ -566,10 +566,10 @@ echo "===PNG_THEMES_B64_START==="
 base64 /tmp/v130_themes.png
 echo "===PNG_THEMES_B64_END==="
 
-# Restore default dark theme to test bidirectional switch cleanly
+# Restore default dark theme (midnight preset) to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
-    /usr/libexec/unicore-personalize set --theme dark --wallpaper /usr/share/unicore/wallpaper.png --kb-layout us --natural-scroll yes --tap yes --pointer-speed 0.0
+    /usr/libexec/unicore-personalize set --preset midnight --theme dark --wallpaper /usr/share/unicore/wallpaper.png --kb-layout us --natural-scroll yes --tap yes --pointer-speed 0.0
 '
 grep -qE '<name>UniCore-(Midnight|Dark)</name>' /home/unicore/.config/labwc/rc.xml
 
