@@ -501,18 +501,20 @@ su -s /bin/sh unicore -c '
     sleep 3
     grim /tmp/v120_drivers.png
     pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    # Test live 10-Theme Studio switching (Classic 98 -> Nordic Top Bar -> Cyberpunk Synth) & capture Theme Studio screenshot
-    /usr/libexec/unicore-personalize preset classic98 >/dev/null
-    grep -q '<name>UniCore-Classic98</name>' /home/unicore/.config/labwc/rc.xml
-    grep -q '<cornerRadius>0</cornerRadius>' /home/unicore/.config/labwc/rc.xml
-    /usr/libexec/unicore-personalize preset nordic >/dev/null
-    grep -q '<name>UniCore-Nordic</name>' /home/unicore/.config/labwc/rc.xml
-    grep -q '"position": "top"' /home/unicore/.config/waybar/config.jsonc
-    /usr/libexec/unicore-personalize preset cyberpunk >/dev/null
-    grep -q '<name>UniCore-Cyberpunk</name>' /home/unicore/.config/labwc/rc.xml
-    grep -q 'background=090814' /home/unicore/.config/foot/foot.ini
-    grep -q 'border-color=#22d3ee' /home/unicore/.config/mako/config
+'
+# Test live 10-Theme Studio switching (Classic 98 -> Nordic Top Bar -> Cyberpunk Synth) & capture Theme Studio screenshot
+su -s /bin/sh unicore -c 'export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0; /usr/libexec/unicore-personalize preset classic98 >/dev/null'
+grep -q '<name>UniCore-Classic98</name>' /home/unicore/.config/labwc/rc.xml
+grep -q '<cornerRadius>0</cornerRadius>' /home/unicore/.config/labwc/rc.xml
+su -s /bin/sh unicore -c 'export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0; /usr/libexec/unicore-personalize preset nordic >/dev/null'
+grep -q '<name>UniCore-Nordic</name>' /home/unicore/.config/labwc/rc.xml
+grep -q '"position": "top"' /home/unicore/.config/waybar/config.jsonc
+su -s /bin/sh unicore -c 'export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0; /usr/libexec/unicore-personalize preset cyberpunk >/dev/null'
+grep -q '<name>UniCore-Cyberpunk</name>' /home/unicore/.config/labwc/rc.xml
+grep -q 'background=090814' /home/unicore/.config/foot/foot.ini
+grep -q 'border-color=#22d3ee' /home/unicore/.config/mako/config
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
     sleep 1
     /usr/bin/unicore-center --themes >/tmp/center_themes.log 2>&1 &
     sleep 3
