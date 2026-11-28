@@ -510,18 +510,22 @@ echo "Persona Surfing, Download, Music & HTTP Video Streaming PASS"
 
 # 3C. Gaming Persona (Wine, DOSBox-Staging, binary inspector, Gamepad Mapper & Save Backup)
 wine --version | head -n 1
-dosbox-staging --version | head -n 1
+if command -v dosbox >/dev/null 2>&1; then
+    dosbox --version | head -n 1
+else
+    dosbox-staging --version | head -n 1
+fi
 printf 'MZ\220\000\003\000\000\000\004\000\000\000\377\377\000\000' > /tmp/qa_dos_stub.exe
 uniload inspect /tmp/qa_dos_stub.exe | grep -qiE 'dos|win'
 rm -f /tmp/qa_dos_stub.exe
 echo "Persona Gaming (Wine, DOSBox-Staging, Inspector, Gamepad, Saves) PASS"
 
-# 3D. Printing Persona (On-Demand CUPS -> Gutenprint -> Add Queue -> Real Print Job -> Cancel -> Remove -> 0 MB Idle)
+# 3D. Printing Persona (On-Demand CUPS -> Gutenprint -> Scan USB/Wi-Fi via doas -> Add Queue -> Real Print Job -> Cancel -> Remove -> 0 MB Idle)
 if pgrep -x cupsd >/dev/null 2>&1; then
     echo "ERROR: cupsd should be 0 MB idle before user requests printing"
     exit 1
 fi
-/usr/libexec/unicore-sys-helper cups-start
+su -s /bin/sh unicore -c 'doas /usr/libexec/unicore-sys-helper cups-start'
 cups_ready=0
 for i in $(seq 1 20); do
     if lpstat -r 2>/dev/null | grep -qi 'is running'; then
@@ -531,21 +535,21 @@ for i in $(seq 1 20); do
     sleep 0.3
 done
 [ "${cups_ready}" -eq 1 ]
-/usr/sbin/lpinfo -v | head -n 5 | grep -q .
+su -s /bin/sh unicore -c 'doas /usr/libexec/unicore-sys-helper printer-discover' | head -n 5 | grep -q .
 ls /usr/share/cups/drv/* /usr/share/cups/model/* /usr/share/ppd/* >/dev/null 2>&1 || /usr/sbin/lpinfo -m | head -n 1 | grep -q .
-/usr/libexec/unicore-sys-helper printer-add UniCoreQA socket://127.0.0.1:9100 raw
+su -s /bin/sh unicore -c 'doas /usr/libexec/unicore-sys-helper printer-add UniCoreQA socket://127.0.0.1:9100 raw'
 lpstat -p UniCoreQA | grep -q 'UniCoreQA'
-printf 'UniCore OS v1.4.1 Persona Print Test\n' | lp -d UniCoreQA
+su -s /bin/sh unicore -c 'printf "UniCore OS v1.4.2 Persona Print Test\n" | lp -d UniCoreQA'
 lpstat -o UniCoreQA | grep -q 'UniCoreQA'
 cancel -a UniCoreQA || true
-/usr/libexec/unicore-sys-helper printer-remove UniCoreQA
-/usr/libexec/unicore-sys-helper cups-stop
+su -s /bin/sh unicore -c 'doas /usr/libexec/unicore-sys-helper printer-remove UniCoreQA'
+su -s /bin/sh unicore -c 'doas /usr/libexec/unicore-sys-helper cups-stop'
 sleep 0.5
 if pgrep -x cupsd >/dev/null 2>&1; then
     echo "ERROR: cupsd still running after cups-stop"
     exit 1
 fi
-echo "Persona Printing (CUPS on-demand lifecycle + Gutenprint + 0 MB idle) PASS"
+echo "Persona Printing (CUPS on-demand + doas printer-discover/add/remove + Gutenprint + 0 MB idle) PASS"
 
 # 3E. Full Menu, Waybar, Labwc Keybinding & Desktop Entry Executables Audit
 for menu_bin in \

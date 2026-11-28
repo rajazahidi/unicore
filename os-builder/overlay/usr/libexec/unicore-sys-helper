@@ -72,11 +72,19 @@ case "$1" in
         ;;
     cups-start)
         [ "$#" -eq 1 ] || exit 2
-        mkdir -p /data/cups /var/spool/cups /var/cache/cups /run/cups
+        mkdir -p /data/cups /var/spool/cups/tmp /var/cache/cups /run/cups/certs
         chmod 0755 /data/cups
         if [ ! -f /data/cups/cupsd.conf ] && [ -d /usr/share/unicore/cups-defaults ]; then
             cp -a /usr/share/unicore/cups-defaults/. /data/cups/ 2>/dev/null || true
         fi
+        if [ -f /data/cups/cups-files.conf ]; then
+            if grep -q '^SystemGroup ' /data/cups/cups-files.conf; then
+                sed -i 's/^SystemGroup .*/SystemGroup root wheel lpadmin/' /data/cups/cups-files.conf
+            else
+                printf '\nSystemGroup root wheel lpadmin\n' >> /data/cups/cups-files.conf
+            fi
+        fi
+        addgroup root lpadmin >/dev/null 2>&1 || true
         if [ ! -L /etc/cups ]; then
             rm -rf /etc/cups
             ln -s /data/cups /etc/cups

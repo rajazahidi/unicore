@@ -396,6 +396,13 @@ ln -snf /data/network "${ROOTFS_DIR}/etc/NetworkManager/system-connections"
 ln -snf /data/bluetooth "${ROOTFS_DIR}/var/lib/bluetooth"
 if [[ -d "${ROOTFS_DIR}/etc/cups" && ! -L "${ROOTFS_DIR}/etc/cups" ]]; then
     cp -a "${ROOTFS_DIR}/etc/cups/." "${ROOTFS_DIR}/usr/share/unicore/cups-defaults/" 2>/dev/null || true
+    if [[ -f "${ROOTFS_DIR}/usr/share/unicore/cups-defaults/cups-files.conf" ]]; then
+        if grep -q '^SystemGroup ' "${ROOTFS_DIR}/usr/share/unicore/cups-defaults/cups-files.conf"; then
+            sed -i 's/^SystemGroup .*/SystemGroup root wheel lpadmin/' "${ROOTFS_DIR}/usr/share/unicore/cups-defaults/cups-files.conf"
+        else
+            printf '\nSystemGroup root wheel lpadmin\n' >> "${ROOTFS_DIR}/usr/share/unicore/cups-defaults/cups-files.conf"
+        fi
+    fi
     rm -rf "${ROOTFS_DIR}/etc/cups"
 fi
 ln -snf /data/cups "${ROOTFS_DIR}/etc/cups"
@@ -630,6 +637,8 @@ chroot "${ROOTFS_DIR}" /bin/sh -c '
         addgroup "${grp}" 2>/dev/null || true
         addgroup unicore "${grp}" 2>/dev/null || true
     done
+    addgroup root lpadmin 2>/dev/null || true
+    addgroup root lp 2>/dev/null || true
     grep -q '^unicore:' /etc/subuid 2>/dev/null || echo 'unicore:100000:65536' >> /etc/subuid
     grep -q '^unicore:' /etc/subgid 2>/dev/null || echo 'unicore:100000:65536' >> /etc/subgid
     chown -R unicore:unicore /home/unicore
@@ -912,7 +921,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="1.4.1"
+OS_VERSION="1.4.2"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"
