@@ -1,5 +1,5 @@
 #!/bin/sh
-# UniCore OS v1.2.0 Universal Hardware, NVIDIA NVK/GSP, Laptop Sensors & LVFS Firmware Manager
+# UniCore OS v1.2.1 Universal Hardware, NVIDIA NVK/GSP, Laptop Sensors & LVFS Firmware Manager
 set -eu
 
 CONF_PATH="${UNICORE_HW_OVERRIDES_CONF:-/data/unicore/hw-overrides.conf}"

@@ -18,7 +18,7 @@ mount -t devtmpfs devtmpfs /dev
 ARCH="$(uname -m 2>/dev/null || echo x86_64)"
 
 load_modalias() {
-    for bus_dir in /sys/bus/pci/devices /sys/bus/usb/devices /sys/bus/acpi/devices /sys/bus/mmc/devices /sys/bus/hid/devices; do
+    for bus_dir in /sys/bus/pci/devices /sys/bus/usb/devices /sys/bus/acpi/devices /sys/bus/mmc/devices /sys/bus/i2c/devices /sys/bus/hid/devices; do
         [ -d "${bus_dir}" ] || continue
         for dev_dir in "${bus_dir}"/*; do
             [ -r "${dev_dir}/modalias" ] || continue
@@ -30,14 +30,14 @@ load_modalias() {
     done
 }
 
-# Load broad 2005-2026 storage, PCI/VMD, MMC, USB, HID keyboard, filesystem, and crypto modules.
+# Load broad 2005-2026 storage, PCI/VMD, MMC, USB, USB-C, I2C/HID keyboard, filesystem, and crypto modules.
 for mod in \
     virtio_pci virtio_blk virtio_scsi \
     vmd ata_piix ata_generic pata_acpi libahci ahci sd_mod sr_mod \
     nvme_core nvme \
     mmc_core mmc_block sdhci sdhci_pci sdhci_acpi rtsx_pci rtsx_pci_sdmmc rtsx_usb rtsx_usb_sdmmc \
-    usb_common usbcore uhci_hcd ohci_hcd ohci_pci ehci_hcd ehci_pci ehci_platform xhci_hcd xhci_pci xhci_pci_renesas xhci_plat_hcd usb_storage uas \
-    i8042 atkbd hid hid_generic usbhid i2c_hid i2c_hid_acpi \
+    usb_common usbcore uhci_hcd ohci_hcd ohci_pci ehci_hcd ehci_pci ehci_platform xhci_hcd xhci_pci xhci_pci_renesas xhci_plat_hcd usb_storage uas typec \
+    i2c_designware_core i2c_designware_platform i2c_designware_pci i8042 atkbd hid hid_generic usbhid i2c_hid i2c_hid_acpi \
     loop isofs iso9660 fat vfat exfat ntfs3 nls_cp437 nls_utf8 nls_iso8859_1 nls_ascii \
     dm_mod trusted encrypted_keys dm_crypt aesni_intel aes_generic xts cbc sha256_generic algif_skcipher algif_hash \
     squashfs overlay ext4 binfmt_misc; do

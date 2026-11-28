@@ -170,7 +170,10 @@ command -v ddcutil >/dev/null
 command -v v4l2-ctl >/dev/null
 command -v boltctl >/dev/null
 command -v amixer >/dev/null
+command -v hdparm >/dev/null
+test -f /lib/firmware/regulatory.db -o -f /usr/lib/firmware/regulatory.db
 /usr/libexec/unicore-hw-mgr status | grep -q '^ddc_available=1$'
+/usr/libexec/unicore-hw-mgr status | grep -q '^missing_firmware=none$'
 
 echo "[ARM64-QA] 2/4 Verifying Box64 + Wine 11.0 WoW64 binaries..."
 test -x /usr/share/unicore/arm64-win32/run-wine-box64.sh

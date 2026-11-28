@@ -352,17 +352,20 @@ su -s /bin/sh unicore -c '
     /usr/libexec/unicore-webapps remove qatest | grep -q "^removed=qatest$"
     test ! -f /home/unicore/.local/share/applications/unicore-webapp-qatest.desktop
 '
-echo "Checking v1.2.0 Universal Hardware & NVIDIA Edition (Alpine 3.22, Kernel 6.15, NVK Vulkan 1.4, GSP, ucode, qca firmware & laptop tools)..."
+echo "Checking v1.2.1 Universal Hardware & NVIDIA Edition (Alpine 3.22, Kernel 6.15, NVK Vulkan 1.4, GSP, ucode, zero missing firmware, pipewire-alsa & laptop tools)..."
 test -f /etc/modprobe.d/60-unicore-hardware.conf
 grep -q 'NvGspRm=1' /etc/modprobe.d/60-unicore-hardware.conf
 grep -q 'rtw89_core' /etc/modprobe.d/60-unicore-hardware.conf
 test -d /lib/firmware/qca
+test -f /lib/firmware/regulatory.db -o -f /usr/lib/firmware/regulatory.db
 test -f /boot/intel-ucode.img
 test -f /boot/amd-ucode.img
 /usr/libexec/unicore-hw-mgr status | grep -q '^nvk_installed=1$'
 /usr/libexec/unicore-hw-mgr status | grep -q '^nvidia_gsp=on$'
 /usr/libexec/unicore-hw-mgr status | grep -q '^ddc_available=1$'
 /usr/libexec/unicore-hw-mgr status | grep -q '^thunderbolt_available=1$'
+/usr/libexec/unicore-hw-mgr status | grep -q '^missing_firmware=none$'
+ls /etc/alsa/conf.d/*pipewire* /usr/share/alsa/alsa.conf.d/*pipewire* >/dev/null 2>&1
 command -v sensors
 command -v ddcutil
 command -v v4l2-ctl
@@ -373,6 +376,9 @@ command -v ethtool
 command -v amixer
 command -v vainfo
 command -v b43-fwcutter
+command -v btrfs
+command -v mkfs.xfs
+command -v hdparm
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_dll Library dplayx.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'

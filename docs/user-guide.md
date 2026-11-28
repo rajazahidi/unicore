@@ -1,8 +1,8 @@
-# UniCore OS v1.2.0 — Official Bilingual User Guide (EN / BM)
+# UniCore OS v1.2.1 — Official Bilingual User Guide (EN / BM)
 
-Welcome to **UniCore OS v1.2.0 ("Universal Hardware & NVIDIA Edition")** — powered by **Alpine 3.22, Linux Kernel 6.15, Mesa 25.1 (including NVIDIA NVK Vulkan 1.4 & GSP firmware), Wine 10.7, and Early Intel/AMD CPU Microcode** — built to run **Linux, Windows (Win98/XP/7/10/11 & MS-DOS), Web Apps (PWA), and Android** apps across **2005 512 MB PCs** to **2026 Intel/AMD/NVIDIA x86_64 & ARM64 laptops**.
+Welcome to **UniCore OS v1.2.1 ("Universal Hardware & NVIDIA Edition")** — powered by **Alpine 3.22, Linux Kernel 6.15, Mesa 25.1 (including NVIDIA NVK Vulkan 1.4 & GSP firmware), Wine 10.7, `pipewire-alsa`, `wireless-regdb`, and Early Intel/AMD CPU Microcode** — built to run **Linux, Windows (Win98/XP/7/10/11 & MS-DOS), Web Apps (PWA), and Android** apps across **2005 512 MB PCs** to **2026 Intel/AMD/NVIDIA x86_64 & ARM64 laptops**.
 
-*Selamat datang ke **UniCore OS v1.0.0 ("Production Daily Driver")** — sistem operasi desktop moden yang pantas, bebas kembung (*zero-bloat*), dan mudah digunakan seperti Windows/Zorin, serta menyokong aplikasi **Linux, Windows (Win98/XP/7/10/11 & MS-DOS) dan Android** dari PC lama 2005 (512 MB RAM) hingga komputer riba 2026 (`x86_64` & `ARM64`).*
+*Selamat datang ke **UniCore OS v1.2.1 ("Universal Hardware & NVIDIA Edition")** — sistem operasi desktop moden yang pantas, bebas kembung (*zero-bloat*), dan mudah digunakan seperti Windows/Zorin, serta menyokong aplikasi **Linux, Windows (Win98/XP/7/10/11 & MS-DOS), Aplikasi Web (PWA) dan Android** dari PC lama 2005 (512 MB RAM) hingga komputer riba Intel/AMD/NVIDIA & ARM64 2026.*
 
 > **Offline Built-In Reader:** On UniCore OS desktop, open **Start Menu → User Guide / Panduan Pengguna** or run `unicore-center --help-guide` at any time — no internet connection required!
 

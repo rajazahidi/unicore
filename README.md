@@ -1,4 +1,4 @@
-# UniCore OS (`1.2.0` — Universal Hardware & NVIDIA Edition)
+# UniCore OS (`1.2.1` — Universal Hardware & NVIDIA Edition)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.22` + `linux-edge 6.15` + `Mesa 25.1` + `Wine 10.7`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, **Web Apps (PWA)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **2026 modern Intel/AMD/NVIDIA x86_64 & ARM64 PCs and laptops**.
 
@@ -6,11 +6,11 @@
 
 ## Key Capabilities
 
-* **Universal Hardware & NVIDIA Edition (`v1.2.0`)**:
-  * **Alpine `3.22` + Kernel `6.15.0` + Mesa `25.1.9` + Wine `10.7`**: Modern 2024–2026 laptop hardware support (Intel Core Ultra / Xe, AMD Ryzen AI 300 / RDNA 4, Wi-Fi 7, USB4/Thunderbolt 4, SoundWire/SOF Audio).
+* **Universal Hardware & NVIDIA Edition (`v1.2.0` / `v1.2.1`)**:
+  * **Alpine `3.22` + Kernel `6.15.0` + Mesa `25.1.9` + Wine `10.7`**: Modern 2024–2026 laptop hardware support (Intel Core Ultra / Xe, AMD Ryzen AI 300 / RDNA 4, Wi-Fi 7, USB4/Thunderbolt 4, SoundWire/SOF Audio, `pipewire-alsa` seamless legacy/Win32 audio routing, and `wireless-regdb` + `bluez-firmware` for **zero missing kernel firmware**).
   * **Native Open-Source NVIDIA Vulkan 1.4 (`mesa-vulkan-nouveau` NVK) + GSP Firmware + Hybrid Optimus PRIME (`DRI_PRIME=1`)**: Real hardware-accelerated Vulkan 1.4 for **NVIDIA GTX 16xx & RTX 20xx/30xx/40xx** directly inside Alpine musl (powers DXVK, VKD3D-Proton, Steam & Wayland), with a 1-click **NVIDIA Open GSP Firmware** toggle and **Hybrid Discrete GPU (`DRI_PRIME=1`)** selector in `unicore-center --drivers`.
-  * **Early CPU Microcode (`intel-ucode` + `amd-ucode`) & Full Laptop Wi-Fi/BT Firmware**: Prepends early CPU microcode straight into `initramfs-x86_64.img`, preserves Qualcomm Atheros (`qca`) & Cypress laptop Wi-Fi/BT firmware in `slim` builds, and ships `60-unicore-hardware.conf` (disabling Realtek `rtw88`/`rtw89` & Intel `iwlwifi` power-save drops and HDA speaker popping).
-  * **Universal Laptop Hardware Suite (`0 MB` Idle)**: Adds `lm-sensors`, `acpid` (battery-triggered), `upower`, `iio-sensor-proxy`, `ddcutil` (external monitor hardware brightness), `v4l-utils` + `libcamera` (webcams), `bolt` (Thunderbolt/USB4), `nvme-cli`, `dmidecode`, `ethtool`, `b43-fwcutter`, and automatic ALSA unmute inside 1-Click Audio/BT Reset.
+  * **Early CPU Microcode (`intel-ucode` + `amd-ucode`), Stage-1 I2C/USB-C Boot & Full Laptop Wi-Fi/BT Firmware**: Prepends early CPU microcode straight into `initramfs-x86_64.img`, bundles `i2c/busses` + `usb/typec` drivers in Stage-1 initramfs for modern laptop keyboards & USB-C docks at LUKS2 unlock, preserves Qualcomm Atheros (`qca`) & Cypress laptop Wi-Fi/BT firmware in `slim` builds, and ships `60-unicore-hardware.conf` (disabling Realtek `rtw88`/`rtw89` & Intel `iwlwifi` power-save drops and HDA speaker popping).
+  * **Universal Laptop Hardware, Printers & Filesystems Suite (`0 MB` Idle)**: Adds `gutenprint` (offline CUPS drivers for legacy USB printers), `btrfs-progs` + `xfsprogs` + `hdparm`, `lm-sensors`, `acpid` (battery-triggered), `upower`, `iio-sensor-proxy`, `ddcutil` (external monitor hardware brightness), `v4l-utils` + `libcamera` (webcams), `bolt` (Thunderbolt/USB4), `nvme-cli`, `dmidecode`, `ethtool`, `b43-fwcutter`, and automatic ALSA unmute inside 1-Click Audio/BT Reset.
 
 * **Family Safety, 1-Click Web Apps (PWA) & UI Polish (`v1.1.0`)**:
   * **1-Click Desktop Web Apps (`--webapps`, `unicore-webapps`)**: Install **WhatsApp Web, YouTube, Gmail, Microsoft 365, Google Docs, Canva, ChatGPT, Spotify**, or any custom `https://` URL directly into your Start Menu as clean standalone app windows with isolated profiles (`0 MB` extra ISO bloat, `0 MB` idle RAM).
