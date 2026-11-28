@@ -585,6 +585,11 @@ pub fn run_windows_migration(dev: &str, win_user: &str, flags_csv: &str) -> Resu
 pub struct HardwareOverview {
     pub gpu_model: String,
     pub gpu_driver: String,
+    pub gpu_count: u32,
+    pub nvidia_detected: bool,
+    pub hybrid_gpu: bool,
+    pub nvk_installed: bool,
+    pub nvidia_gsp: String,     // "on" | "off"
     pub vulkan_ready: bool,
     pub vulkan_device: String,
     pub wifi_model: String,
@@ -593,9 +598,14 @@ pub struct HardwareOverview {
     pub usb_count: u32,
     pub usb_summary: String,
     pub missing_firmware: String,
-    pub gpu_mode: String,       // "auto" | "hw" | "safe"
+    pub gpu_mode: String,       // "auto" | "hw" | "safe" | "prime-dgpu"
     pub wifi_powersave: String, // "on" | "off"
     pub fwupd_available: bool,
+    pub cpu_temp: String,
+    pub ucode_rev: String,
+    pub webcam_summary: String,
+    pub ddc_available: bool,
+    pub thunderbolt_available: bool,
 }
 
 impl Default for HardwareOverview {
@@ -603,6 +613,11 @@ impl Default for HardwareOverview {
         Self {
             gpu_model: "Not queried".to_string(),
             gpu_driver: "-".to_string(),
+            gpu_count: 1,
+            nvidia_detected: false,
+            hybrid_gpu: false,
+            nvk_installed: false,
+            nvidia_gsp: "on".to_string(),
             vulkan_ready: false,
             vulkan_device: "-".to_string(),
             wifi_model: "-".to_string(),
@@ -614,6 +629,11 @@ impl Default for HardwareOverview {
             gpu_mode: "auto".to_string(),
             wifi_powersave: "on".to_string(),
             fwupd_available: false,
+            cpu_temp: "N/A".to_string(),
+            ucode_rev: "N/A".to_string(),
+            webcam_summary: "None detected".to_string(),
+            ddc_available: false,
+            thunderbolt_available: false,
         }
     }
 }
@@ -622,6 +642,7 @@ pub fn gpu_mode_to_index(mode: &str) -> i32 {
     match mode.trim() {
         "hw" => 1,
         "safe" => 2,
+        "prime-dgpu" => 3,
         _ => 0,
     }
 }
@@ -630,6 +651,7 @@ pub fn gpu_mode_from_index(idx: i32) -> &'static str {
     match idx {
         1 => "hw",
         2 => "safe",
+        3 => "prime-dgpu",
         _ => "auto",
     }
 }
@@ -637,8 +659,30 @@ pub fn gpu_mode_from_index(idx: i32) -> &'static str {
 pub fn validate_gpu_mode(raw: &str) -> Result<String, String> {
     let lower = raw.trim().to_ascii_lowercase();
     match lower.as_str() {
-        "auto" | "hw" | "safe" => Ok(lower),
+        "auto" | "hw" | "safe" | "prime-dgpu" => Ok(lower),
         _ => Err(format!("Unsupported GPU mode: {raw}")),
+    }
+}
+
+pub fn format_nvidia_nvk_summary(hw: &HardwareOverview) -> String {
+    let gsp_tag = if hw.nvidia_gsp == "off" { "GSP Off (Legacy)" } else { "GSP Active" };
+    if hw.nvidia_detected {
+        let mut parts = vec!["NVIDIA GPU Detected".to_string()];
+        if hw.hybrid_gpu {
+            parts.push(format!("Hybrid {} GPUs (PRIME Ready)", hw.gpu_count));
+        }
+        if hw.nvk_installed {
+            parts.push(format!("NVK Vulkan 1.4 ({gsp_tag})"));
+        } else {
+            parts.push(format!("Nouveau ({gsp_tag})"));
+        }
+        parts.join("  •  ")
+    } else if hw.nvk_installed {
+        format!("NVK Vulkan 1.4 Pre-Bundled ({gsp_tag} — ready for GTX 16xx/RTX)")
+    } else if hw.hybrid_gpu {
+        format!("Multi-GPU ({} GPUs) — Hybrid PRIME Ready", hw.gpu_count)
+    } else {
+        "Standard Intel / AMD / ARM64 Graphics Stack".to_string()
     }
 }
 
@@ -652,6 +696,11 @@ pub fn parse_hw_status(raw: &str) -> HardwareOverview {
         match k.trim() {
             "gpu_model" => out.gpu_model = val.to_string(),
             "gpu_driver" => out.gpu_driver = val.to_string(),
+            "gpu_count" => out.gpu_count = val.parse().unwrap_or(1),
+            "nvidia_detected" => out.nvidia_detected = val == "1",
+            "hybrid_gpu" => out.hybrid_gpu = val == "1",
+            "nvk_installed" => out.nvk_installed = val == "1",
+            "nvidia_gsp" => out.nvidia_gsp = val.to_string(),
             "vulkan_ready" => out.vulkan_ready = val == "1",
             "vulkan_device" => out.vulkan_device = val.to_string(),
             "wifi_model" => out.wifi_model = val.to_string(),
@@ -663,6 +712,11 @@ pub fn parse_hw_status(raw: &str) -> HardwareOverview {
             "gpu_mode" => out.gpu_mode = val.to_string(),
             "wifi_powersave" => out.wifi_powersave = val.to_string(),
             "fwupd_available" => out.fwupd_available = val == "1",
+            "cpu_temp" => out.cpu_temp = val.to_string(),
+            "ucode_rev" => out.ucode_rev = val.to_string(),
+            "webcam_summary" => out.webcam_summary = val.to_string(),
+            "ddc_available" => out.ddc_available = val == "1",
+            "thunderbolt_available" => out.thunderbolt_available = val == "1",
             _ => {}
         }
     }
@@ -685,6 +739,10 @@ pub fn hw_set_gpu_mode(mode: &str) -> Result<String, String> {
 
 pub fn hw_set_wifi_powersave(enabled: bool) -> Result<String, String> {
     run_sys_helper(&["hw-set-wifi-ps", if enabled { "on" } else { "off" }])
+}
+
+pub fn hw_set_nvidia_gsp(enabled: bool) -> Result<String, String> {
+    run_sys_helper(&["hw-set-nvidia-gsp", if enabled { "on" } else { "off" }])
 }
 
 pub fn hw_reset_audio_bt() -> Result<String, String> {

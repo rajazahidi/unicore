@@ -1,6 +1,6 @@
-# UniCore OS v1.1.0 — Official Bilingual User Guide (EN / BM)
+# UniCore OS v1.2.0 — Official Bilingual User Guide (EN / BM)
 
-Welcome to **UniCore OS v1.1.0 ("Family, Web Apps & Polish Edition")** — a fast, zero-bloat, immutable desktop operating system designed to feel immediately familiar to Windows and Zorin OS users, while effortlessly running **Linux, Windows (Win98/XP/7/10/11 & MS-DOS), Web Apps (PWA), and Android** apps on hardware ranging from **2005 512 MB PCs** to **2026 modern x86_64 & ARM64 laptops**.
+Welcome to **UniCore OS v1.2.0 ("Universal Hardware & NVIDIA Edition")** — powered by **Alpine 3.22, Linux Kernel 6.15, Mesa 25.1 (including NVIDIA NVK Vulkan 1.4 & GSP firmware), Wine 10.7, and Early Intel/AMD CPU Microcode** — built to run **Linux, Windows (Win98/XP/7/10/11 & MS-DOS), Web Apps (PWA), and Android** apps across **2005 512 MB PCs** to **2026 Intel/AMD/NVIDIA x86_64 & ARM64 laptops**.
 
 *Selamat datang ke **UniCore OS v1.0.0 ("Production Daily Driver")** — sistem operasi desktop moden yang pantas, bebas kembung (*zero-bloat*), dan mudah digunakan seperti Windows/Zorin, serta menyokong aplikasi **Linux, Windows (Win98/XP/7/10/11 & MS-DOS) dan Android** dari PC lama 2005 (512 MB RAM) hingga komputer riba 2026 (`x86_64` & `ARM64`).*
 
@@ -69,9 +69,9 @@ Open **Settings → Phone & Cloud** or launch directly from Start Menu:
 3. **Safe Windows Migration Wizard (`--migrate`):**
    - Mounts Windows NTFS partitions strictly **Read-Only (`ro`)** — zero risk to your Windows installation!
    - Copies **Documents, Pictures, Desktop, Music, Videos, Saved Games, Windows Fonts**, converts **Chrome & Edge Bookmarks** to importable HTML, and scans `Program Files` to recommend matching apps in **UniCore Store**.
-4. **Hardware & Driver Health (`--drivers`):**
-   - Plain-language status for GPU, Vulkan, Wi-Fi, Audio, USB devices, and missing firmware alerts.
-   - 1-click fixes: **Safe GPU Mode (Pixman)** for ancient/quirky GPUs, **Disable Wi-Fi Power-Save** for unstable laptops, **1-Click Reset Audio & Bluetooth**, and on-demand **LVFS Firmware Updates (`fwupdmgr`)**.
+4. **Hardware, NVIDIA NVK & Laptop Drivers (`--drivers`):**
+   - Built-in **NVIDIA NVK Vulkan 1.4** (`mesa-vulkan-nouveau`) + **NVIDIA Open GSP Firmware** (`nouveau.config=NvGspRm=1`) for GTX 16xx & RTX 20xx/30xx/40xx GPUs, plus **Hybrid Discrete GPU (`DRI_PRIME=1`)** offload mode for dual-GPU laptops.
+   - Automatic early **Intel & AMD CPU Microcode**, Qualcomm Atheros (`qca`) + Realtek (`rtw88`/`rtw89`) + Intel (`iwlwifi`) Wi-Fi stability tuning, live **CPU Thermal / Webcam / DDC-CI / Thunderbolt** status, **1-Click ALSA Unmute + Reset Audio & Bluetooth**, and on-demand **LVFS Firmware Updates (`fwupdmgr`)**.
 
 ---
 

@@ -12,7 +12,7 @@ OUT_DIR="${OUT_DIR_OVERRIDE:-${SCRIPT_DIR}/out}"
 WORK_DIR="${WORK_DIR_OVERRIDE:-${OUT_DIR}/work}"
 ROOTFS_DIR="${WORK_DIR}/rootfs"
 INITRD_DIR="${WORK_DIR}/initrd"
-ALPINE_VERSION="${ALPINE_VERSION:-3.20}"
+ALPINE_VERSION="${ALPINE_VERSION:-3.22}"
 ARCH="${TARGET_ARCH:-x86_64}"
 RUST_TARGET="${RUST_TARGET:-${ARCH}-unknown-linux-musl}"
 
@@ -222,16 +222,35 @@ DESKTOP_PKGS=(
     shadow
     git
     python3
-    openssh-client
+    openssh-client-default
     jq
     podman
     crun
     slirp4netns
     fuse-overlayfs
+    mesa-vulkan-layers
+    amd-ucode
+    acpid
+    acpi
+    lm-sensors
+    upower
+    iio-sensor-proxy
+    ddcutil
+    v4l-utils
+    libcamera
+    bolt
+    nvme-cli
+    dmidecode
+    ethtool
+    iw
+    usb-modeswitch
+    alsa-utils
+    b43-fwcutter
+    libva-utils
 )
 
 if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]]; then
-    DESKTOP_PKGS+=(grub-bios mesa-vulkan-intel intel-media-driver libva-intel-driver)
+    DESKTOP_PKGS+=(grub-bios mesa-vulkan-intel mesa-vulkan-nouveau intel-media-driver libva-intel-driver intel-ucode)
 elif [[ "${ARCH}" == "aarch64" || "${ARCH}" == "arm64" ]]; then
     DESKTOP_PKGS+=(mesa-vulkan-panfrost mesa-vulkan-broadcom mesa-vulkan-freedreno)
 fi
@@ -731,6 +750,7 @@ if [[ -d "${ROOTFS_DIR}/lib/modules/${KVER}" ]]; then
             -path "*/kernel/drivers/ata/*" -o \
             -path "*/kernel/drivers/scsi/*" -o \
             -path "*/kernel/drivers/nvme/*" -o \
+            -path "*/kernel/drivers/thunderbolt/*" -o \
             -path "*/kernel/drivers/pci/controller/*" -o \
             -path "*/kernel/drivers/mmc/*" -o \
             -path "*/kernel/drivers/misc/cardreader/*" -o \
@@ -814,12 +834,25 @@ CPIO_BIN="cpio"
 command -v cpio >/dev/null 2>&1 || CPIO_BIN="busybox cpio"
 (
     cd "${INITRD_DIR}"
-    find . -print0 | ${CPIO_BIN} --null -ov --format=newc 2>/dev/null | gzip -9 > "${OUT_DIR}/initramfs-${ARCH}.img"
+    find . -print0 | ${CPIO_BIN} --null -ov --format=newc 2>/dev/null | gzip -9 > "${WORK_DIR}/initramfs-main.img"
 )
+if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]]; then
+    rm -f "${OUT_DIR}/initramfs-${ARCH}.img"
+    for ucode_img in "${ROOTFS_DIR}/boot/intel-ucode.img" "${ROOTFS_DIR}/boot/amd-ucode.img"; do
+        if [[ -f "${ucode_img}" ]]; then
+            echo "==> Prepending early CPU microcode into initramfs: $(basename "${ucode_img}")"
+            cat "${ucode_img}" >> "${OUT_DIR}/initramfs-${ARCH}.img"
+        fi
+    done
+    cat "${WORK_DIR}/initramfs-main.img" >> "${OUT_DIR}/initramfs-${ARCH}.img"
+    rm -f "${WORK_DIR}/initramfs-main.img"
+else
+    mv -f "${WORK_DIR}/initramfs-main.img" "${OUT_DIR}/initramfs-${ARCH}.img"
+fi
 
 FIRMWARE_PROFILE="${FIRMWARE_PROFILE_OVERRIDE:-slim}"
 if [[ "${FIRMWARE_PROFILE}" == "slim" ]]; then
-    echo "==> Applying slim image profile (pruning docs, apk cache & server/mobile-SoC firmware)"
+    echo "==> Applying slim image profile (pruning docs, apk cache & server/mobile-SoC firmware; preserving qca/cypress laptop Wi-Fi/BT)"
     rm -rf "${ROOTFS_DIR}/usr/share/doc"/* "${ROOTFS_DIR}/usr/share/man"/* "${ROOTFS_DIR}/usr/share/info"/* "${ROOTFS_DIR}/var/cache/apk"/* 2>/dev/null || true
     if [[ -d "${ROOTFS_DIR}/lib/firmware" ]]; then
         fw_before="$(du -sh "${ROOTFS_DIR}/lib/firmware" 2>/dev/null | awk '{print $1}')"
@@ -831,7 +864,7 @@ if [[ "${FIRMWARE_PROFILE}" == "slim" ]]; then
                 ti-connectivity ti s5p* vpu* ctefx* ueagle-atm vxge \
                 myri10ge* phanfw* tigon libertas rsi carl9170fw* 2>/dev/null || true
             if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]]; then
-                rm -rf qcom qca rockchip meson imx cypress 2>/dev/null || true
+                rm -rf qcom rockchip meson imx 2>/dev/null || true
             fi
         )
         fw_after="$(du -sh "${ROOTFS_DIR}/lib/firmware" 2>/dev/null | awk '{print $1}')"
@@ -858,7 +891,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="1.1.0"
+OS_VERSION="1.2.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

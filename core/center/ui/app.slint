@@ -776,7 +776,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v1.1.0";
+    in-out property <string> login-clock-text: "UniCore OS v1.2.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1126,12 +1126,17 @@ export component MainWindow inherits Window {
     in-out property <bool> eco-mig-fonts: true;
     // Hardware & Drivers
     in-out property <string> eco-hw-gpu: "-";
+    in-out property <string> eco-hw-nvidia-summary: "NVK Vulkan 1.4 Pre-Bundled";
+    in-out property <bool> eco-hw-nvidia-gsp: true;
     in-out property <string> eco-hw-vulkan: "-";
     in-out property <string> eco-hw-wifi: "-";
     in-out property <string> eco-hw-audio: "-";
     in-out property <string> eco-hw-usb: "-";
+    in-out property <string> eco-hw-thermal-ucode: "-";
+    in-out property <string> eco-hw-webcam: "None detected";
+    in-out property <string> eco-hw-laptop-caps: "-";
     in-out property <string> eco-hw-missing-fw: "none";
-    in-out property <int> eco-hw-gpu-mode-idx: 0; // 0:auto, 1:hw, 2:safe
+    in-out property <int> eco-hw-gpu-mode-idx: 0; // 0:auto, 1:hw, 2:safe, 3:prime-dgpu
     in-out property <bool> eco-hw-wifi-ps: true;
     in-out property <bool> eco-hw-fwupd-ok: false;
     in-out property <string> eco-hw-fw-log: "";
@@ -1247,6 +1252,7 @@ export component MainWindow inherits Window {
     callback eco-migrate-run(int, int, bool, bool, bool, bool, bool, bool, bool, bool);
     callback eco-hw-set-gpu(int);
     callback eco-hw-set-wifi-ps(bool);
+    callback eco-hw-set-nvidia-gsp(bool);
     callback eco-hw-reset-audio-bt();
     callback eco-hw-fw-action(string);
     callback gh-refresh();
@@ -3292,9 +3298,13 @@ export component MainWindow inherits Window {
                                 font-weight: 700;
                             }
                             InfoRow { label: "Graphics (GPU):"; value: root.eco-hw-gpu; }
+                            InfoRow { label: "NVIDIA / NVK:"; value: root.eco-hw-nvidia-summary; value-color: UiTheme.text-ok; }
                             InfoRow { label: "Vulkan 3D:"; value: root.eco-hw-vulkan; value-color: UiTheme.text-accent; }
                             InfoRow { label: "Wi-Fi / LAN:"; value: root.eco-hw-wifi; }
                             InfoRow { label: "Audio Hardware:"; value: root.eco-hw-audio; }
+                            InfoRow { label: "Thermal / ucode:"; value: root.eco-hw-thermal-ucode; }
+                            InfoRow { label: "Webcam:"; value: root.eco-hw-webcam; }
+                            InfoRow { label: "Laptop I/O:"; value: root.eco-hw-laptop-caps; }
                             InfoRow { label: "USB Devices:"; value: root.eco-hw-usb; }
                             InfoRow {
                                 label: "Missing Firmware:";
@@ -3309,7 +3319,7 @@ export component MainWindow inherits Window {
                             padding: 12px;
                             spacing: 8px;
                             Text {
-                                text: "1-Click Stability Fixes & Official LVFS Firmware Updates";
+                                text: "NVIDIA, Hybrid GPU, Laptop Audio/Wi-Fi Fixes & LVFS Firmware";
                                 color: UiTheme.text-primary;
                                 font-size: 13px;
                                 font-weight: 700;
@@ -3323,7 +3333,12 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                                 ComboBox {
-                                    model: ["Auto (Recommended)", "Hardware Accelerated (GLES2)", "Safe Software Mode (Pixman)"];
+                                    model: [
+                                        "Auto (Recommended)",
+                                        "Hardware Accelerated (GLES2)",
+                                        "Safe Software Mode (Pixman)",
+                                        "Hybrid Discrete GPU (DRI_PRIME=1)"
+                                    ];
                                     current-index <=> root.eco-hw-gpu-mode-idx;
                                     horizontal-stretch: 1;
                                 }
@@ -3332,6 +3347,11 @@ export component MainWindow inherits Window {
                                     enabled: !root.eco-busy;
                                     clicked => { root.eco-hw-set-gpu(root.eco-hw-gpu-mode-idx); }
                                 }
+                            }
+                            Switch {
+                                text: "NVIDIA Open GSP Firmware (Enables NVK Vulkan 1.4 on GTX 16xx / RTX)";
+                                checked: root.eco-hw-nvidia-gsp;
+                                toggled => { root.eco-hw-set-nvidia-gsp(self.checked); }
                             }
                             Switch {
                                 text: "Wi-Fi Power-Save (Turn OFF to fix Realtek/Intel Wi-Fi disconnects)";

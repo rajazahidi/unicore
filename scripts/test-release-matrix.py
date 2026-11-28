@@ -352,6 +352,27 @@ su -s /bin/sh unicore -c '
     /usr/libexec/unicore-webapps remove qatest | grep -q "^removed=qatest$"
     test ! -f /home/unicore/.local/share/applications/unicore-webapp-qatest.desktop
 '
+echo "Checking v1.2.0 Universal Hardware & NVIDIA Edition (Alpine 3.22, Kernel 6.15, NVK Vulkan 1.4, GSP, ucode, qca firmware & laptop tools)..."
+test -f /etc/modprobe.d/60-unicore-hardware.conf
+grep -q 'NvGspRm=1' /etc/modprobe.d/60-unicore-hardware.conf
+grep -q 'rtw89_core' /etc/modprobe.d/60-unicore-hardware.conf
+test -d /lib/firmware/qca
+test -f /boot/intel-ucode.img
+test -f /boot/amd-ucode.img
+/usr/libexec/unicore-hw-mgr status | grep -q '^nvk_installed=1$'
+/usr/libexec/unicore-hw-mgr status | grep -q '^nvidia_gsp=on$'
+/usr/libexec/unicore-hw-mgr status | grep -q '^ddc_available=1$'
+/usr/libexec/unicore-hw-mgr status | grep -q '^thunderbolt_available=1$'
+command -v sensors
+command -v ddcutil
+command -v v4l2-ctl
+command -v boltctl
+command -v nvme
+command -v dmidecode
+command -v ethtool
+command -v amixer
+command -v vainfo
+command -v b43-fwcutter
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_dll Library dplayx.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
@@ -454,6 +475,11 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --webapps >/tmp/center_webapps.log 2>&1 &
     sleep 3
     grim /tmp/v110_webapps.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --drivers >/tmp/center_drivers.log 2>&1 &
+    sleep 3
+    grim /tmp/v120_drivers.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
@@ -464,6 +490,7 @@ test -s /tmp/v080_ecosystem.png
 test -s /tmp/v090_games.png
 test -s /tmp/v100_guide.png
 test -s /tmp/v110_webapps.png
+test -s /tmp/v120_drivers.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -492,6 +519,9 @@ echo "===PNG_GUIDE_B64_END==="
 echo "===PNG_WEBAPPS_B64_START==="
 base64 /tmp/v110_webapps.png
 echo "===PNG_WEBAPPS_B64_END==="
+echo "===PNG_DRIVERS_B64_START==="
+base64 /tmp/v120_drivers.png
+echo "===PNG_DRIVERS_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -590,7 +620,13 @@ printf '\n===GATE1_OK===\n'
         wa_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v110_webapps.png")
         with open(wa_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", wa_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}")
+        drv_m = re.search(r"===PNG_DRIVERS_B64_START===\s*(.*?)\s*===PNG_DRIVERS_B64_END===", out, re.DOTALL)
+        if not drv_m:
+            raise RuntimeError("Missing v1.2.0 Universal Hardware & NVIDIA screenshot payload in Gate 1 output")
+        drv_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v120_drivers.png")
+        with open(drv_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", drv_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}, {drv_dest}")
     finally:
         h.close()
 

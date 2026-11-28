@@ -380,7 +380,7 @@ case "$1" in
     hw-set-gpu)
         [ "$#" -eq 2 ] || exit 2
         case "$2" in
-            auto|hw|safe) exec /usr/libexec/unicore-hw-mgr set-gpu "$2" ;;
+            auto|hw|safe|prime-dgpu) exec /usr/libexec/unicore-hw-mgr set-gpu "$2" ;;
             *) echo "Denied invalid GPU mode: $2" >&2; exit 2 ;;
         esac
         ;;
@@ -389,6 +389,13 @@ case "$1" in
         case "$2" in
             on|off) exec /usr/libexec/unicore-hw-mgr set-wifi-ps "$2" ;;
             *) echo "Denied invalid Wi-Fi power-save flag: $2" >&2; exit 2 ;;
+        esac
+        ;;
+    hw-set-nvidia-gsp)
+        [ "$#" -eq 2 ] || exit 2
+        case "$2" in
+            on|off) exec /usr/libexec/unicore-hw-mgr set-nvidia-gsp "$2" ;;
+            *) echo "Denied invalid NVIDIA GSP flag: $2" >&2; exit 2 ;;
         esac
         ;;
     hw-reset-audio-bt)

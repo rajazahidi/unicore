@@ -1,22 +1,27 @@
 #!/bin/sh
-# UniCore OS Hardware & Driver Health Manager + On-Demand LVFS Firmware (fwupd)
+# UniCore OS v1.2.0 Universal Hardware, NVIDIA NVK/GSP, Laptop Sensors & LVFS Firmware Manager
 set -eu
 
 CONF_PATH="${UNICORE_HW_OVERRIDES_CONF:-/data/unicore/hw-overrides.conf}"
 GPU_MODE="auto"
 WIFI_PS="on"
+NVIDIA_GSP="on"
 
 load_conf() {
     GPU_MODE="auto"
     WIFI_PS="on"
+    NVIDIA_GSP="on"
     if [ -r "${CONF_PATH}" ]; then
         while IFS='=' read -r k v; do
             case "${k}" in
                 UNICORE_GPU_MODE)
-                    case "${v}" in auto|hw|safe) GPU_MODE="${v}" ;; esac
+                    case "${v}" in auto|hw|safe|prime-dgpu) GPU_MODE="${v}" ;; esac
                     ;;
                 UNICORE_WIFI_POWERSAVE)
                     case "${v}" in on|off) WIFI_PS="${v}" ;; esac
+                    ;;
+                UNICORE_NVIDIA_GSP)
+                    case "${v}" in on|off) NVIDIA_GSP="${v}" ;; esac
                     ;;
             esac
         done < "${CONF_PATH}"
@@ -25,7 +30,8 @@ load_conf() {
 
 save_conf() {
     mkdir -p "$(dirname "${CONF_PATH}")"
-    printf 'UNICORE_GPU_MODE=%s\nUNICORE_WIFI_POWERSAVE=%s\n' "${GPU_MODE}" "${WIFI_PS}" > "${CONF_PATH}"
+    printf 'UNICORE_GPU_MODE=%s\nUNICORE_WIFI_POWERSAVE=%s\nUNICORE_NVIDIA_GSP=%s\n' \
+        "${GPU_MODE}" "${WIFI_PS}" "${NVIDIA_GSP}" > "${CONF_PATH}"
 }
 
 apply_wifi_powersave() {
@@ -44,6 +50,18 @@ apply_wifi_powersave() {
             [ -e "${wdev}" ] || continue
             iw dev "$(basename "${wdev}")" set power_save "${iw_val}" >/dev/null 2>&1 || true
         done
+    fi
+}
+
+apply_nvidia_gsp() {
+    mode="$1"
+    ov="/etc/modprobe.d/65-unicore-nvidia-override.conf"
+    if [ -d /etc/modprobe.d ] || mkdir -p /etc/modprobe.d 2>/dev/null; then
+        if [ "${mode}" = "off" ]; then
+            printf 'options nouveau config=NvGspRm=0\n' > "${ov}" 2>/dev/null || true
+        else
+            rm -f "${ov}" 2>/dev/null || true
+        fi
     fi
 }
 
@@ -71,6 +89,46 @@ detect_pci_class() {
     fi
 }
 
+detect_cpu_temp() {
+    best_mc=0
+    for tz in /sys/class/thermal/thermal_zone*/temp; do
+        [ -r "${tz}" ] || continue
+        val="$(cat "${tz}" 2>/dev/null || echo 0)"
+        case "${val}" in
+            *[!0-9]*|"") continue ;;
+        esac
+        if [ "${val}" -gt "${best_mc}" ] && [ "${val}" -lt 130000 ]; then
+            best_mc="${val}"
+        fi
+    done
+    if [ "${best_mc}" -ge 1000 ]; then
+        printf '%s C\n' "$((best_mc / 1000))"
+        return 0
+    fi
+    if command -v sensors >/dev/null 2>&1; then
+        t="$(sensors 2>/dev/null | awk '/Package id|Tctl|Core 0|temp1:/{for(i=1;i<=NF;i++) if($i ~ /^\+[0-9]/){gsub(/\+/,"",$i); print $i; exit}}' || true)"
+        if [ -n "${t}" ]; then
+            printf '%s\n' "${t}"
+            return 0
+        fi
+    fi
+    echo "N/A (VM)"
+}
+
+detect_webcams() {
+    cams=""
+    for vdir in /sys/class/video4linux/video*; do
+        [ -r "${vdir}/name" ] || continue
+        cname="$(tr '\n\r\t;' '    ' < "${vdir}/name" 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+        [ -n "${cname}" ] || continue
+        case ";${cams};" in
+            *";${cname};"*) continue ;;
+        esac
+        cams="${cams:+${cams}; }${cname}"
+    done
+    printf '%s\n' "${cams:-None detected}"
+}
+
 cmd="${1:-status}"
 shift || true
 
@@ -82,6 +140,25 @@ case "${cmd}" in
         gpu_driver="${gpu_info#*|}"
         [ -n "${gpu_model}" ] || gpu_model="Generic Framebuffer / Virtual Display"
         [ -n "${gpu_driver}" ] || gpu_driver="simpledrm/vesa"
+
+        gpu_count=0
+        nvidia_det=0
+        if command -v lspci >/dev/null 2>&1; then
+            gpu_count="$(lspci 2>/dev/null | grep -cE 'VGA compatible controller|3D controller|Display controller' || true)"
+            if lspci 2>/dev/null | grep -E 'VGA compatible controller|3D controller|Display controller' | grep -qi 'NVIDIA'; then
+                nvidia_det=1
+            fi
+        fi
+        hybrid_gpu=0
+        [ "${gpu_count}" -ge 2 ] && hybrid_gpu=1
+
+        nvk_ok=0
+        for icd in /usr/share/vulkan/icd.d/nouveau_icd*.json; do
+            if [ -f "${icd}" ]; then
+                nvk_ok=1
+                break
+            fi
+        done
 
         wifi_info="$(detect_pci_class 'Network controller|Ethernet controller')"
         wifi_model="${wifi_info%%|*}"
@@ -116,15 +193,26 @@ case "${cmd}" in
 
         fwupd_ok=0
         command -v fwupdmgr >/dev/null 2>&1 && fwupd_ok=1
+        ddc_ok=0
+        command -v ddcutil >/dev/null 2>&1 && ddc_ok=1
+        tb_ok=0
+        command -v boltctl >/dev/null 2>&1 && tb_ok=1
 
-        printf 'gpu_model=%s\ngpu_driver=%s\nvulkan_ready=%s\nvulkan_device=%s\nwifi_model=%s\nwifi_driver=%s\naudio_model=%s\nusb_count=%s\nusb_summary=%s\nmissing_firmware=%s\ngpu_mode=%s\nwifi_powersave=%s\nfwupd_available=%s\n' \
-            "${gpu_model}" "${gpu_driver}" "${vk_ready}" "${vk_dev}" "${wifi_model}" "${wifi_driver}" \
-            "${audio_model}" "${usb_count}" "${usb_summary}" "${miss_fw}" "${GPU_MODE}" "${WIFI_PS}" "${fwupd_ok}"
+        cpu_temp="$(detect_cpu_temp)"
+        ucode_rev="$(awk -F: '/^microcode/{gsub(/^[[:space:]]+/,"",$2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)"
+        [ -n "${ucode_rev}" ] || ucode_rev="N/A"
+        webcam_sum="$(detect_webcams)"
+
+        printf 'gpu_model=%s\ngpu_driver=%s\ngpu_count=%s\nnvidia_detected=%s\nhybrid_gpu=%s\nnvk_installed=%s\nnvidia_gsp=%s\nvulkan_ready=%s\nvulkan_device=%s\nwifi_model=%s\nwifi_driver=%s\naudio_model=%s\nusb_count=%s\nusb_summary=%s\nmissing_firmware=%s\ngpu_mode=%s\nwifi_powersave=%s\nfwupd_available=%s\ncpu_temp=%s\nucode_rev=%s\nwebcam_summary=%s\nddc_available=%s\nthunderbolt_available=%s\n' \
+            "${gpu_model}" "${gpu_driver}" "${gpu_count}" "${nvidia_det}" "${hybrid_gpu}" "${nvk_ok}" "${NVIDIA_GSP}" \
+            "${vk_ready}" "${vk_dev}" "${wifi_model}" "${wifi_driver}" \
+            "${audio_model}" "${usb_count}" "${usb_summary}" "${miss_fw}" "${GPU_MODE}" "${WIFI_PS}" "${fwupd_ok}" \
+            "${cpu_temp}" "${ucode_rev}" "${webcam_sum}" "${ddc_ok}" "${tb_ok}"
         ;;
     set-gpu)
         mode="${1:-auto}"
         case "${mode}" in
-            auto|hw|safe) ;;
+            auto|hw|safe|prime-dgpu) ;;
             *) echo "Invalid GPU mode: ${mode}" >&2; exit 2 ;;
         esac
         load_conf
@@ -144,11 +232,30 @@ case "${cmd}" in
         apply_wifi_powersave "${WIFI_PS}"
         echo "wifi_powersave=${WIFI_PS}"
         ;;
+    set-nvidia-gsp)
+        mode="${1:-on}"
+        case "${mode}" in
+            on|off) ;;
+            *) echo "Invalid NVIDIA GSP mode: ${mode}" >&2; exit 2 ;;
+        esac
+        load_conf
+        NVIDIA_GSP="${mode}"
+        save_conf
+        apply_nvidia_gsp "${NVIDIA_GSP}"
+        echo "nvidia_gsp=${NVIDIA_GSP}"
+        ;;
     apply-boot)
         load_conf
         apply_wifi_powersave "${WIFI_PS}"
+        apply_nvidia_gsp "${NVIDIA_GSP}"
         ;;
     reset-audio-bt)
+        # Unmute hardware ALSA controls first (fixes silent speakers on many laptops)
+        if command -v amixer >/dev/null 2>&1; then
+            for ctrl in Master Speaker Headphone PCM; do
+                amixer -q sset "${ctrl}" unmute >/dev/null 2>&1 || true
+            done
+        fi
         pkill -u unicore -x pipewire-pulse 2>/dev/null || true
         pkill -u unicore -x wireplumber 2>/dev/null || true
         pkill -u unicore -x pipewire 2>/dev/null || true
@@ -163,7 +270,7 @@ case "${cmd}" in
         if [ -x /etc/init.d/bluetooth ] && ls /sys/class/bluetooth/hci* >/dev/null 2>&1; then
             /etc/init.d/bluetooth restart >/dev/null 2>&1 || true
         fi
-        echo "Audio (PipeWire) and Bluetooth services reset cleanly."
+        echo "ALSA mixers unmuted; Audio (PipeWire) and Bluetooth services reset cleanly."
         ;;
     fw-check)
         command -v fwupdmgr >/dev/null 2>&1 || { echo "fwupd is not installed" >&2; exit 1; }
@@ -175,7 +282,7 @@ case "${cmd}" in
         fwupdmgr update -y --no-reboot-check 2>&1 || true
         ;;
     *)
-        echo "Usage: unicore-hw-mgr <status|set-gpu <auto|hw|safe>|set-wifi-ps <on|off>|apply-boot|reset-audio-bt|fw-check|fw-update>" >&2
+        echo "Usage: unicore-hw-mgr <status|set-gpu <auto|hw|safe|prime-dgpu>|set-wifi-ps <on|off>|set-nvidia-gsp <on|off>|apply-boot|reset-audio-bt|fw-check|fw-update>" >&2
         exit 2
         ;;
 esac

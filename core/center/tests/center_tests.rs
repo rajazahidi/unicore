@@ -1859,3 +1859,67 @@ fn v110_webapps_parental_controls_and_bilingual_work() {
     assert_ne!(en.fam_tab_parental, ms.fam_tab_parental);
     assert_ne!(en.btn_save_parental, ms.btn_save_parental);
 }
+
+#[test]
+fn v120_universal_hardware_nvidia_nvk_gsp_and_prime_work() {
+    use unicore_center::ecosystem::{
+        format_nvidia_nvk_summary, gpu_mode_from_index, gpu_mode_to_index, parse_hw_status,
+        validate_gpu_mode,
+    };
+
+    // 1. Extended GPU modes including Hybrid Discrete GPU (DRI_PRIME=1)
+    assert_eq!(gpu_mode_from_index(3), "prime-dgpu");
+    assert_eq!(gpu_mode_to_index("prime-dgpu"), 3);
+    assert_eq!(validate_gpu_mode("PRIME-DGPU").unwrap(), "prime-dgpu");
+    assert!(validate_gpu_mode("invalid_gpu").is_err());
+
+    // 2. Full v1.2.0 NVIDIA Hybrid + NVK Vulkan 1.4 + Laptop Sensors parser
+    let sample = "\
+gpu_model=NVIDIA GeForce RTX 3060 Laptop GPU
+gpu_driver=nouveau
+gpu_count=2
+nvidia_detected=1
+hybrid_gpu=1
+nvk_installed=1
+nvidia_gsp=on
+vulkan_ready=1
+vulkan_device=NVK GA106
+wifi_model=Intel Wi-Fi 6E AX211
+wifi_driver=iwlwifi
+audio_model=Intel Raptor Lake-P/U/H cAVS
+usb_count=4
+usb_summary=Logitech Receiver; Integrated Webcam
+missing_firmware=none
+gpu_mode=prime-dgpu
+wifi_powersave=off
+fwupd_available=1
+cpu_temp=48 C
+ucode_rev=0x4122
+webcam_summary=Integrated HD Webcam
+ddc_available=1
+thunderbolt_available=1
+";
+    let hw = parse_hw_status(sample);
+    assert_eq!(hw.gpu_count, 2);
+    assert!(hw.nvidia_detected && hw.hybrid_gpu && hw.nvk_installed);
+    assert_eq!(hw.nvidia_gsp, "on");
+    assert_eq!(hw.gpu_mode, "prime-dgpu");
+    assert_eq!(hw.cpu_temp, "48 C");
+    assert_eq!(hw.ucode_rev, "0x4122");
+    assert_eq!(hw.webcam_summary, "Integrated HD Webcam");
+    assert!(hw.ddc_available && hw.thunderbolt_available);
+
+    let summary = format_nvidia_nvk_summary(&hw);
+    assert!(summary.contains("NVIDIA GPU Detected"));
+    assert!(summary.contains("Hybrid 2 GPUs"));
+    assert!(summary.contains("NVK Vulkan 1.4"));
+    assert!(summary.contains("GSP Active"));
+
+    // 3. Non-NVIDIA system with NVK pre-bundled still shows helpful ready message
+    let mut intel_only = hw.clone();
+    intel_only.nvidia_detected = false;
+    intel_only.hybrid_gpu = false;
+    intel_only.gpu_count = 1;
+    let intel_sum = format_nvidia_nvk_summary(&intel_only);
+    assert!(intel_sum.contains("NVK Vulkan 1.4 Pre-Bundled"));
+}

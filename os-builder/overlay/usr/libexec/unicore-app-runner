@@ -32,6 +32,13 @@ if [ -r /data/unicore/gaming.conf ]; then
     # shellcheck disable=SC1091
     . /data/unicore/gaming.conf
 fi
+if [ -r /data/unicore/hw-overrides.conf ]; then
+    # shellcheck disable=SC1091
+    . /data/unicore/hw-overrides.conf 2>/dev/null || true
+    if [ "${UNICORE_GPU_MODE:-auto}" = "prime-dgpu" ]; then
+        export DRI_PRIME=1
+    fi
+fi
 export UNICORE_GAME_MODE="${UNICORE_GAME_MODE:-0}"
 export UNICORE_SHOW_FPS="${UNICORE_SHOW_FPS:-0}"
 if [ "${UNICORE_SHOW_FPS}" = "1" ]; then

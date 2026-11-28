@@ -74,6 +74,15 @@ mkdir -p "$(dirname "${OUT_FILE}")"
         printf '%s: vendor=%s device=%s driver=%s\n' "$(basename "${c}")" "${v}" "${d}" "${drv}"
     done
     ls -la /dev/dri 2>/dev/null || true
+    ls -la /usr/share/vulkan/icd.d 2>/dev/null || true
+    if [ -x /usr/libexec/unicore-hw-mgr ]; then
+        echo "--- unicore-hw-mgr status ---"
+        /usr/libexec/unicore-hw-mgr status 2>/dev/null || true
+    fi
+    if command -v sensors >/dev/null 2>&1; then
+        echo "--- Thermal Sensors ---"
+        sensors 2>/dev/null || true
+    fi
     if command -v wlr-randr >/dev/null 2>&1; then
         WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}" wlr-randr 2>/dev/null || true
     fi

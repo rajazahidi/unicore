@@ -164,6 +164,13 @@ test -x /usr/libexec/unicore-webapps
 test -x /usr/libexec/unicore-parental
 /usr/libexec/unicore-webapps status | grep -q '^installed_count=0$'
 /usr/libexec/unicore-parental status | grep -q '^enabled=0$'
+test -f /etc/modprobe.d/60-unicore-hardware.conf
+command -v sensors >/dev/null
+command -v ddcutil >/dev/null
+command -v v4l2-ctl >/dev/null
+command -v boltctl >/dev/null
+command -v amixer >/dev/null
+/usr/libexec/unicore-hw-mgr status | grep -q '^ddc_available=1$'
 
 echo "[ARM64-QA] 2/4 Verifying Box64 + Wine 11.0 WoW64 binaries..."
 test -x /usr/share/unicore/arm64-win32/run-wine-box64.sh

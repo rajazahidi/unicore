@@ -86,12 +86,12 @@ jobs:
           echo "==> Building static Rust uniload (${TARGET_ARCH}-unknown-linux-musl)"
           cargo build --release --target "${TARGET_ARCH}-unknown-linux-musl" -p uniload
 
-          echo "==> Extracting Alpine 3.20 musl dynamic sysroot (${TARGET_ARCH})"
+          echo "==> Extracting Alpine 3.22 musl dynamic sysroot (${TARGET_ARCH})"
           MUSL_SYSROOT="/tmp/alpine-musl-sysroot-${TARGET_ARCH}"
           mkdir -p "${MUSL_SYSROOT}"
           docker run --rm \
             -v "${MUSL_SYSROOT}:/out" \
-            alpine:3.20 /bin/sh -c "
+            alpine:3.22 /bin/sh -c "
               set -eu
               apk add --no-cache musl-dev libgcc
               cp -L /lib/ld-musl-${TARGET_ARCH}.so.1 /out/ld-musl-${TARGET_ARCH}.so.1
@@ -101,7 +101,7 @@ jobs:
               cp -L /usr/lib/libgcc_s.so.1 /out/libgcc_s.so
             "
 
-          echo "==> Building unicore-center (dynamic musl for Alpine 3.20 ${TARGET_ARCH})"
+          echo "==> Building unicore-center (dynamic musl for Alpine 3.22 ${TARGET_ARCH})"
           cargo rustc -p unicore-center --bin unicore-center --release \
             --target "${TARGET_ARCH}-unknown-linux-musl" -- \
             -C target-feature=-crt-static \
@@ -111,10 +111,10 @@ jobs:
           mkdir -p os-builder/out/ci-bins
           cp "target/${TARGET_ARCH}-unknown-linux-musl/release/unicore-center" os-builder/out/ci-bins/unicore-center
 
-          echo "==> Smoke-testing unicore-center dynamic linking inside native Alpine 3.20 (${TARGET_ARCH})"
+          echo "==> Smoke-testing unicore-center dynamic linking inside native Alpine 3.22 (${TARGET_ARCH})"
           docker run --rm \
             -v "${PWD}/os-builder/out/ci-bins:/bins:ro" \
-            alpine:3.20 /bin/sh -c "
+            alpine:3.22 /bin/sh -c "
               set -eu
               apk add --no-cache libgcc fontconfig freetype libxkbcommon wayland-libs-client
               ldd /bins/unicore-center
@@ -216,10 +216,10 @@ jobs:
             '
           sudo rm -rf /tmp/arm64-stage
 
-          echo "==> Smoke-testing isolated Box64 + Wine WoW64 inside Alpine 3.20 musl (aarch64)"
+          echo "==> Smoke-testing isolated Box64 + Wine WoW64 inside Alpine 3.22 musl (aarch64)"
           docker run --rm \
             -v "/tmp/arm64-rt:/rt:ro" \
-            alpine:3.20 /bin/sh -c '
+            alpine:3.22 /bin/sh -c '
               set -eu
               apk add --no-cache tar zstd
               mkdir -p /usr/share/unicore/arm64-win32
@@ -290,7 +290,7 @@ jobs:
             -e "WINETRICKS_SCRIPT_OVERRIDE=/work/win32-assets/winetricks" \
             -e "SHIM_DIR_OVERRIDE=/work/shim" \
             ${EXTRA_ENV} \
-            alpine:3.20 /bin/sh -c "
+            alpine:3.22 /bin/sh -c "
               set -eu
               apk add --no-cache bash squashfs-tools tar zstd unzip gzip findutils kmod e2fsprogs util-linux ${GRUB_PKGS} xorriso mtools dosfstools openssl sbsigntool
               bash /work/os-builder/build-rootfs.sh

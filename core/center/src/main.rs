@@ -24,11 +24,12 @@ use unicore_center::dev_ai::{
 };
 use unicore_center::ecosystem::{
     build_migrate_flags_csv, cloud_connect, cloud_provider_from_index, cloud_remote_action,
-    cloud_set_autostart, gpu_mode_from_index, gpu_mode_to_index, hw_fw_check, hw_fw_update,
-    hw_reset_audio_bt, hw_set_gpu_mode, hw_set_wifi_powersave, inspect_windows_partition,
-    phone_connect_adb_wifi, phone_device_action, phone_mirror_android, phone_service_action,
-    phone_set_autostart, read_cloud_overview, read_hw_overview, read_phone_overview,
-    run_windows_migration, scan_windows_partitions, WindowsPartition,
+    cloud_set_autostart, format_nvidia_nvk_summary, gpu_mode_from_index, gpu_mode_to_index,
+    hw_fw_check, hw_fw_update, hw_reset_audio_bt, hw_set_gpu_mode, hw_set_nvidia_gsp,
+    hw_set_wifi_powersave, inspect_windows_partition, phone_connect_adb_wifi, phone_device_action,
+    phone_mirror_android, phone_service_action, phone_set_autostart, read_cloud_overview,
+    read_hw_overview, read_phone_overview, run_windows_migration, scan_windows_partitions,
+    WindowsPartition,
 };
 use unicore_center::family::{
     bedtime_from_index, bedtime_to_index, daily_limit_from_index, daily_limit_to_index,
@@ -1010,6 +1011,8 @@ fn refresh_ecosystem(ui: &MainWindow) {
 
     let hw = read_hw_overview();
     ui.set_eco_hw_gpu(SharedString::from(format!("{} (driver: {})", hw.gpu_model, hw.gpu_driver)));
+    ui.set_eco_hw_nvidia_summary(SharedString::from(format_nvidia_nvk_summary(&hw)));
+    ui.set_eco_hw_nvidia_gsp(hw.nvidia_gsp != "off");
     ui.set_eco_hw_vulkan(SharedString::from(if hw.vulkan_ready {
         format!("Ready — {}", hw.vulkan_device)
     } else {
@@ -1017,6 +1020,17 @@ fn refresh_ecosystem(ui: &MainWindow) {
     }));
     ui.set_eco_hw_wifi(SharedString::from(format!("{} (driver: {})", hw.wifi_model, hw.wifi_driver)));
     ui.set_eco_hw_audio(SharedString::from(hw.audio_model.as_str()));
+    ui.set_eco_hw_thermal_ucode(SharedString::from(format!(
+        "Temp: {}  •  Microcode: {}",
+        hw.cpu_temp, hw.ucode_rev
+    )));
+    ui.set_eco_hw_webcam(SharedString::from(hw.webcam_summary.as_str()));
+    ui.set_eco_hw_laptop_caps(SharedString::from(format!(
+        "DDC/CI Monitor: {}  •  Thunderbolt/USB4: {}  •  LVFS: {}",
+        if hw.ddc_available { "Ready" } else { "-" },
+        if hw.thunderbolt_available { "Ready" } else { "-" },
+        if hw.fwupd_available { "Ready" } else { "-" }
+    )));
     ui.set_eco_hw_usb(SharedString::from(format!("{} device(s): {}", hw.usb_count, hw.usb_summary)));
     ui.set_eco_hw_missing_fw(SharedString::from(hw.missing_firmware.as_str()));
     ui.set_eco_hw_gpu_mode_idx(gpu_mode_to_index(&hw.gpu_mode));
@@ -5052,6 +5066,26 @@ fn main() {
                         "Wi-Fi power-save enabled."
                     } else {
                         "Wi-Fi power-save disabled (better stability on Realtek/Intel cards)."
+                    };
+                    ui.set_eco_status(SharedString::from(note));
+                    set_status(&ui, note, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_eco_hw_set_nvidia_gsp(move |enabled| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match hw_set_nvidia_gsp(enabled) {
+                Ok(_) => {
+                    ui.set_eco_hw_nvidia_gsp(enabled);
+                    let note = if enabled {
+                        "NVIDIA Open GSP Firmware enabled (NVK Vulkan 1.4 ready; reboot to apply)."
+                    } else {
+                        "NVIDIA Open GSP Firmware disabled (legacy pre-Turing compatibility; reboot to apply)."
                     };
                     ui.set_eco_status(SharedString::from(note));
                     set_status(&ui, note, false);
