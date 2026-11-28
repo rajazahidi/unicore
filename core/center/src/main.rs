@@ -66,20 +66,21 @@ use unicore_center::retro::{
 };
 use unicore_center::settings::{
     accent_color_from_index, accent_color_to_index, add_printer, apply_and_save_display,
-    apply_firewall_settings, bt_device_action, clamp_pointer_speed, connect_wifi,
-    delete_vpn_connection, desktop_layout_from_index, desktop_layout_to_index, disconnect_wifi,
-    discover_printers, enroll_secureboot_mok, forget_wifi, import_vpn_profile,
-    launch_document_scanner, list_backup_targets, list_vpn_connections, load_nightlight_config,
-    load_personalize_config, persistent_display_config_dir, print_test_page, read_audio_overview,
-    read_bluetooth_overview, read_display_overview, read_firewall_overview, read_network_overview,
-    read_printers_overview, read_secureboot_overview, remove_printer, run_backup_create,
-    run_backup_restore, run_power_action, save_and_apply_nightlight, save_and_apply_personalize,
-    scan_bluetooth_brief, set_audio_card_profile, set_audio_mute, set_audio_volume,
-    set_bluetooth_enabled, set_brightness, set_cups_enabled, set_default_printer, set_default_sink,
-    set_mic_mute, set_wifi_radio, toggle_vpn_connection, validate_backup_passphrase,
+    apply_firewall_settings, apply_theme_preset_to_config, bt_device_action, clamp_pointer_speed,
+    connect_wifi, delete_vpn_connection, desktop_layout_from_index, desktop_layout_to_index,
+    disconnect_wifi, discover_printers, enroll_secureboot_mok, find_theme_preset, forget_wifi,
+    import_vpn_profile, launch_document_scanner, list_backup_targets, list_vpn_connections,
+    load_nightlight_config, load_personalize_config, persistent_display_config_dir,
+    print_test_page, read_audio_overview, read_bluetooth_overview, read_display_overview,
+    read_firewall_overview, read_network_overview, read_printers_overview,
+    read_secureboot_overview, remove_printer, run_backup_create, run_backup_restore,
+    run_power_action, save_and_apply_nightlight, save_and_apply_personalize, scan_bluetooth_brief,
+    set_audio_card_profile, set_audio_mute, set_audio_volume, set_bluetooth_enabled,
+    set_brightness, set_cups_enabled, set_default_printer, set_default_sink, set_mic_mute,
+    set_wifi_radio, theme_preset_to_index, toggle_vpn_connection, validate_backup_passphrase,
     validate_backup_path, AudioCardProfile, AudioSink, BackupTarget, BluetoothDevice,
     DiscoveredPrinter, DisplayOutput, PersonalizeConfig, PrinterInfo, VpnConnection, WifiNetwork,
-    KB_LAYOUTS, WALLPAPER_PRESETS,
+    KB_LAYOUTS, THEME_PRESETS, WALLPAPER_PRESETS,
 };
 use unicore_center::start_emoji::{
     discover_start_menu_apps, filter_emojis, filter_start_menu_apps, friendly_hw_summary,
@@ -365,10 +366,55 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         chk_parental_enable: l.chk_parental_enable.into(),
         btn_save_parental: l.btn_save_parental.into(),
         btn_reset_usage: l.btn_reset_usage.into(),
+        title_theme_studio: l.title_theme_studio.into(),
+        hdr_theme_studio: l.hdr_theme_studio.into(),
+        sub_theme_studio: l.sub_theme_studio.into(),
+        btn_open_themes: l.btn_open_themes.into(),
     });
     refresh_guide_chapters(ui, lang, ui.get_guide_chapter_idx());
+    let cur_pers = load_personalize_config(&persistent_display_config_dir());
+    sync_theme_studio_cards(ui, &cur_pers.theme_preset, lang);
     if ui.get_family_dialog_only() {
         refresh_family_hub(ui, lang);
+    }
+}
+
+fn ui_lang_from_badge(ui: &MainWindow) -> UiLang {
+    if ui.get_lang_badge().as_str() == "BM" {
+        UiLang::Ms
+    } else {
+        UiLang::En
+    }
+}
+
+fn sync_theme_studio_cards(ui: &MainWindow, active_preset: &str, lang: UiLang) {
+    let malay = lang == UiLang::Ms;
+    let cards: Vec<ThemePresetCard> = THEME_PRESETS
+        .iter()
+        .map(|p| ThemePresetCard {
+            id: SharedString::from(p.id),
+            name: SharedString::from(if malay { p.name_ms } else { p.name_en }),
+            subtitle: SharedString::from(if malay { p.subtitle_ms } else { p.subtitle_en }),
+            is_top_bar: p.layout == "macos",
+            is_classic: p.id == "classic98",
+            wall_color: parse_hex_color(p.preview_wall_hex),
+            win_color: parse_hex_color(p.preview_win_hex),
+            title_color: parse_hex_color(p.preview_title_hex),
+            bar_color: parse_hex_color(p.preview_bar_hex),
+            accent_color: parse_hex_color(p.preview_accent_hex),
+            active: p.id == active_preset,
+        })
+        .collect();
+    let row1: Vec<ThemePresetCard> = cards.iter().take(5).cloned().collect();
+    let row2: Vec<ThemePresetCard> = cards.iter().skip(5).take(5).cloned().collect();
+    ui.set_theme_row_1(ModelRc::new(VecModel::from(row1)));
+    ui.set_theme_row_2(ModelRc::new(VecModel::from(row2)));
+    if let Some(info) = find_theme_preset(active_preset) {
+        ui.set_active_theme_preset_label(SharedString::from(if malay {
+            info.name_ms
+        } else {
+            info.name_en
+        }));
     }
 }
 
@@ -809,7 +855,9 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
 
     let pers = load_personalize_config(&persistent_display_config_dir());
     ui.invoke_set_theme(pers.theme == "light");
+    ui.invoke_set_theme_preset(theme_preset_to_index(&pers.theme_preset));
     ui.set_set_theme_idx(if pers.theme == "light" { 1 } else { 0 });
+    sync_theme_studio_cards(ui, &pers.theme_preset, ui_lang_from_badge(ui));
     let wp_idx = WALLPAPER_PRESETS
         .iter()
         .position(|(_, path)| *path == pers.wallpaper)
@@ -1608,12 +1656,14 @@ fn main() {
 
     let pers_cfg = load_personalize_config(&persistent_display_config_dir());
     ui.invoke_set_theme(pers_cfg.theme == "light");
+    ui.invoke_set_theme_preset(theme_preset_to_index(&pers_cfg.theme_preset));
     ui.invoke_set_high_contrast_theme(pers_cfg.high_contrast);
     ui.set_set_theme_idx(if pers_cfg.theme == "light" { 1 } else { 0 });
     ui.set_set_desktop_layout_idx(desktop_layout_to_index(&pers_cfg.desktop_layout));
     let init_acc = accent_color_to_index(&pers_cfg.accent_color);
     ui.set_set_accent_idx(init_acc);
     ui.invoke_set_accent_color(init_acc);
+    sync_theme_studio_cards(&ui, &pers_cfg.theme_preset, initial_lang);
 
     let start_apps_cache: Rc<RefCell<Vec<DesktopAppItem>>> = Rc::new(RefCell::new(Vec::new()));
     let win_parts_cache: Rc<RefCell<Vec<WindowsPartition>>> = Rc::new(RefCell::new(Vec::new()));
@@ -1742,6 +1792,14 @@ fn main() {
                 ui.set_family_dialog_only(true);
                 ui.set_fam_subtab(*sub);
                 refresh_family_hub(&ui, lang);
+            }
+            LaunchMode::ThemeStudio => {
+                let lang = *current_lang.borrow();
+                ui.set_themes_dialog_only(true);
+                let cur = load_personalize_config(&persistent_display_config_dir());
+                ui.invoke_set_theme(cur.theme == "light");
+                ui.invoke_set_theme_preset(theme_preset_to_index(&cur.theme_preset));
+                sync_theme_studio_cards(&ui, &cur.theme_preset, lang);
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -2310,6 +2368,7 @@ fn main() {
             let layout = desktop_layout_from_index(ui.get_set_desktop_layout_idx());
             let accent = accent_color_from_index(ui.get_set_accent_idx());
             pers.theme = if ui.get_set_theme_idx() == 1 { "light" } else { "dark" }.to_string();
+            pers.theme_preset = if pers.theme == "light" { "daylight" } else { "midnight" }.to_string();
             pers.desktop_layout = layout.to_string();
             pers.taskbar_style = if layout == "win10" { "docked" } else { "floating" }.to_string();
             pers.accent_color = accent.to_string();
@@ -2317,6 +2376,7 @@ fn main() {
                 pers.wallpaper = "/usr/share/unicore/wallpaper-light.png".to_string();
             }
             let _ = save_and_apply_personalize(&cfg_dir, &pers);
+            ui.invoke_set_theme_preset(theme_preset_to_index(&pers.theme_preset));
 
             let bundle_ids = oobe_bundle_catalog_ids(
                 ui.get_oobe_pack_office(),
@@ -2719,7 +2779,25 @@ fn main() {
                 let desktop_layout = desktop_layout_from_index(layout_idx).to_string();
                 let accent_color = accent_color_from_index(accent_idx).to_string();
                 let taskbar_style = if taskbar_style_idx == 1 { "floating" } else { "docked" }.to_string();
+                let cfg_dir = persistent_display_config_dir();
+                let existing = load_personalize_config(&cfg_dir);
+                let matched_wp_preset = THEME_PRESETS
+                    .iter()
+                    .find(|p| p.wallpaper == wallpaper && p.base_theme == theme)
+                    .map(|p| p.id.to_string());
+                let theme_preset = matched_wp_preset.unwrap_or_else(|| {
+                    if find_theme_preset(&existing.theme_preset)
+                        .is_some_and(|p| p.base_theme == theme)
+                    {
+                        existing.theme_preset
+                    } else if theme == "light" {
+                        "daylight".to_string()
+                    } else {
+                        "midnight".to_string()
+                    }
+                });
                 let req = PersonalizeConfig {
+                    theme_preset,
                     theme,
                     wallpaper,
                     kb_layout,
@@ -2733,10 +2811,10 @@ fn main() {
                     high_contrast,
                     large_text,
                 };
-                let cfg_dir = persistent_display_config_dir();
                 match save_and_apply_personalize(&cfg_dir, &req) {
                     Ok(saved) => {
                         ui.invoke_set_theme(saved.theme == "light");
+                        ui.invoke_set_theme_preset(theme_preset_to_index(&saved.theme_preset));
                         ui.invoke_set_high_contrast_theme(saved.high_contrast);
                         let acc_i = accent_color_to_index(&saved.accent_color);
                         ui.set_set_accent_idx(acc_i);
@@ -2747,8 +2825,10 @@ fn main() {
                         ui.set_set_taskbar_style_idx(if saved.taskbar_style == "floating" { 1 } else { 0 });
                         ui.set_set_high_contrast(saved.high_contrast);
                         ui.set_set_large_text(saved.large_text);
+                        sync_theme_studio_cards(&ui, &saved.theme_preset, ui_lang_from_badge(&ui));
                         let msg = format!(
-                            "Applied theme={} | layout={} | accent={} | kb={}",
+                            "Applied preset={} | theme={} | layout={} | accent={} | kb={}",
+                            saved.theme_preset,
                             saved.theme,
                             saved.desktop_layout,
                             saved.accent_color,
@@ -3870,8 +3950,13 @@ fn main() {
             let cfg_dir = persistent_display_config_dir();
             let mut cur = load_personalize_config(&cfg_dir);
             cur.theme = if light { "light" } else { "dark" }.to_string();
+            cur.theme_preset = if light { "daylight" } else { "midnight" }.to_string();
             match save_and_apply_personalize(&cfg_dir, &cur) {
-                Ok(saved) => ui.invoke_set_theme(saved.theme == "light"),
+                Ok(saved) => {
+                    ui.invoke_set_theme(saved.theme == "light");
+                    ui.invoke_set_theme_preset(theme_preset_to_index(&saved.theme_preset));
+                    sync_theme_studio_cards(&ui, &saved.theme_preset, ui_lang_from_badge(&ui));
+                }
                 Err(err) => set_status(&ui, err, true),
             }
         });
@@ -5510,6 +5595,65 @@ fn main() {
                     set_status(&ui, msg, false);
                 }
                 Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_apply_theme_preset(move |preset_id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let cfg_dir = persistent_display_config_dir();
+            let cur = load_personalize_config(&cfg_dir);
+            let updated = match apply_theme_preset_to_config(cur, preset_id.as_str()) {
+                Ok(c) => c,
+                Err(err) => {
+                    ui.set_theme_studio_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                    return;
+                }
+            };
+            match save_and_apply_personalize(&cfg_dir, &updated) {
+                Ok(saved) => {
+                    let lang = *lang_rc.borrow();
+                    ui.invoke_set_theme(saved.theme == "light");
+                    ui.invoke_set_theme_preset(theme_preset_to_index(&saved.theme_preset));
+                    let acc_i = accent_color_to_index(&saved.accent_color);
+                    ui.set_set_accent_idx(acc_i);
+                    ui.invoke_set_accent_color(acc_i);
+                    ui.set_set_theme_idx(if saved.theme == "light" { 1 } else { 0 });
+                    ui.set_set_desktop_layout_idx(desktop_layout_to_index(&saved.desktop_layout));
+                    ui.set_set_taskbar_style_idx(if saved.taskbar_style == "floating" { 1 } else { 0 });
+                    let wp_idx = WALLPAPER_PRESETS
+                        .iter()
+                        .position(|(_, path)| *path == saved.wallpaper)
+                        .unwrap_or(WALLPAPER_PRESETS.len()) as i32;
+                    ui.set_set_wallpaper_idx(wp_idx);
+                    ui.set_set_wallpaper_custom(SharedString::from(saved.wallpaper.as_str()));
+                    sync_theme_studio_cards(&ui, &saved.theme_preset, lang);
+                    let display_name = find_theme_preset(&saved.theme_preset)
+                        .map(|p| if lang == UiLang::Ms { p.name_ms } else { p.name_en })
+                        .unwrap_or(saved.theme_preset.as_str());
+                    let msg = if lang == UiLang::Ms {
+                        format!(
+                            "Tema '{}' diaktifkan (susun atur: {}, bar tugas: {})",
+                            display_name, saved.desktop_layout, saved.taskbar_style
+                        )
+                    } else {
+                        format!(
+                            "Applied '{}' theme environment (layout: {}, taskbar: {})",
+                            display_name, saved.desktop_layout, saved.taskbar_style
+                        )
+                    };
+                    ui.set_theme_studio_status(SharedString::from(msg.as_str()));
+                    ui.set_set_personalize_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_theme_studio_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
             }
         });
     }

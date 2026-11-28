@@ -948,6 +948,7 @@ fn phase20d_personalization_theme_wallpaper_and_input_work() {
     assert_eq!(load_personalize_config(&root), PersonalizeConfig::default());
 
     let custom = PersonalizeConfig {
+        theme_preset: "daylight".to_string(),
         theme: "light".to_string(),
         wallpaper: "/usr/share/unicore/wallpaper-light.png".to_string(),
         kb_layout: "my".to_string(),
@@ -1922,4 +1923,72 @@ thunderbolt_available=1
     intel_only.gpu_count = 1;
     let intel_sum = format_nvidia_nvk_summary(&intel_only);
     assert!(intel_sum.contains("NVK Vulkan 1.4 Pre-Bundled"));
+}
+
+#[test]
+fn v130_ten_desktop_theme_environments_work() {
+    use unicore_center::settings::{
+        apply_theme_preset_to_config, find_theme_preset, parse_personalize_conf,
+        render_personalize_conf, save_and_apply_personalize, theme_preset_from_index,
+        theme_preset_to_index, validate_theme_preset, PersonalizeConfig, THEME_PRESETS,
+        WALLPAPER_PRESETS,
+    };
+
+    // 1. CLI --themes / --theme-studio opens dedicated 10-Theme Desktop Studio
+    for flag in ["--themes", "--theme-studio"] {
+        let parsed = parse_args(&[flag.to_string()]).unwrap().unwrap();
+        assert_eq!(parsed.mode, LaunchMode::ThemeStudio);
+    }
+
+    // 2. Exactly 10 curated theme presets & 10 matching wallpapers
+    assert_eq!(THEME_PRESETS.len(), 10);
+    assert_eq!(WALLPAPER_PRESETS.len(), 10);
+    for (idx, preset) in THEME_PRESETS.iter().enumerate() {
+        assert_eq!(validate_theme_preset(preset.id).unwrap(), preset.id);
+        assert_eq!(theme_preset_to_index(preset.id), idx as i32);
+        assert_eq!(theme_preset_from_index(idx as i32), preset.id);
+        assert!(find_theme_preset(preset.id).is_some());
+        assert!(preset.wallpaper.starts_with("/usr/share/unicore/wallpaper"));
+        assert!(!preset.name_en.is_empty() && !preset.name_ms.is_empty());
+    }
+    assert!(validate_theme_preset("unknown_theme").is_err());
+
+    // 3. Applying preset updates mode, layout, taskbar style, accent & wallpaper coherently
+    let root = make_temp_dir("themes_v130");
+    for (id, exp_mode, exp_layout, exp_bar) in [
+        ("cyberpunk", "dark", "win10", "floating"),
+        ("classic98", "light", "win10", "docked"),
+        ("nordic", "dark", "macos", "floating"),
+        ("sakura", "light", "macos", "floating"),
+    ] {
+        let applied = apply_theme_preset_to_config(PersonalizeConfig::default(), id).unwrap();
+        assert_eq!(applied.theme_preset, id);
+        assert_eq!(applied.theme, exp_mode);
+        assert_eq!(applied.desktop_layout, exp_layout);
+        assert_eq!(applied.taskbar_style, exp_bar);
+        let saved = save_and_apply_personalize(&root, &applied).unwrap();
+        assert_eq!(saved, applied);
+        let rendered = render_personalize_conf(&saved);
+        assert!(rendered.contains(&format!("UNICORE_THEME_PRESET={id}")));
+        assert_eq!(parse_personalize_conf(&rendered), saved);
+    }
+
+    // 4. Backward compatibility: legacy personalize.conf without UNICORE_THEME_PRESET infers daylight/midnight
+    let legacy_light = parse_personalize_conf("UNICORE_THEME=light\nUNICORE_LAYOUT=win11\n");
+    assert_eq!(legacy_light.theme_preset, "daylight");
+    let legacy_dark = parse_personalize_conf("UNICORE_THEME=dark\nUNICORE_LAYOUT=win11\n");
+    assert_eq!(legacy_dark.theme_preset, "midnight");
+    let _ = fs::remove_dir_all(&root);
+
+    // 5. Bilingual EN / BM labels & Start Menu discovery
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.title_theme_studio, ms.title_theme_studio);
+    assert_ne!(en.hdr_theme_studio, ms.hdr_theme_studio);
+    assert_ne!(en.btn_open_themes, ms.btn_open_themes);
+    let en_apps = unicore_center::start_emoji::builtin_v130_apps(UiLang::En);
+    let ms_apps = unicore_center::start_emoji::builtin_v130_apps(UiLang::Ms);
+    assert_eq!(en_apps.len(), 1);
+    assert_eq!(en_apps[0].exec_cmd, "/usr/bin/unicore-center --themes");
+    assert_ne!(en_apps[0].name, ms_apps[0].name);
 }

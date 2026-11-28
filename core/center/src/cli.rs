@@ -27,6 +27,7 @@ pub enum LaunchMode {
     GameHub(i32),
     HelpGuide(i32),
     FamilyHub(i32),
+    ThemeStudio,
     CheckOnly(Option<PathBuf>),
 }
 
@@ -70,6 +71,7 @@ OPTIONS:
   --help-guide           Open Built-In Offline Bilingual User Guide (EN/BM) & Live Security Audit
   --webapps              Open 1-Click Web Apps (PWA) Manager (WhatsApp, YouTube, M365, Canva & Custom URLs)
   --parental             Open Family Safety & Parental Controls (Safe DNS 1.1.1.3, Screen Time & App Block)
+  --themes               Open 10-Theme Desktop Studio (Midnight, Daylight, Aurora, Nordic, Dracula, Emerald, Sunset, Sakura, Cyberpunk, Classic 98)
   --tab <NAME>           Open initial tab: apps | store[:retro] | dev | ai | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security|power|users|ecosystem]
   --state-dir <DIR>      Override sandbox registry root (default: /data/uniload or .uniload_state)
   --apps-dir <DIR>       Override .desktop applications folder (default: ~/.local/share/applications)
@@ -180,6 +182,9 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
             }
             "--parental" | "--family" => {
                 mode = LaunchMode::FamilyHub(1);
+            }
+            "--themes" | "--theme-studio" => {
+                mode = LaunchMode::ThemeStudio;
             }
             "--tab" => {
                 let raw = next_value(args, &mut idx, "--tab")?;

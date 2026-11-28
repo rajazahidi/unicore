@@ -685,6 +685,17 @@ if [[ -f "${SCRIPT_DIR}/generate-splash.py" ]]; then
     fi
 fi
 
+if [[ -f "${SCRIPT_DIR}/generate-theme-assets.py" ]]; then
+    echo "==> Generating UniCore OS 10-Theme Desktop Environment assets (wallpapers, Labwc, Waybar, Fuzzel, Foot, Mako)"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 "${SCRIPT_DIR}/generate-theme-assets.py" "${ROOTFS_DIR}"
+    elif [[ -x "${ROOTFS_DIR}/usr/bin/python3" ]]; then
+        cp "${SCRIPT_DIR}/generate-theme-assets.py" "${ROOTFS_DIR}/tmp/generate-theme-assets.py"
+        chroot "${ROOTFS_DIR}" /usr/bin/python3 /tmp/generate-theme-assets.py /
+        rm -f "${ROOTFS_DIR}/tmp/generate-theme-assets.py"
+    fi
+fi
+
 echo "==> Extracting kernel and building Stage-1 initramfs"
 VMLINUZ_SRC="$(find "${ROOTFS_DIR}/boot" -maxdepth 1 -name 'vmlinuz-*' | head -n1)"
 if [[ -z "${VMLINUZ_SRC}" ]]; then
@@ -900,7 +911,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="1.2.1"
+OS_VERSION="1.3.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

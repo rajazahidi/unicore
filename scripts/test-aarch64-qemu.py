@@ -174,6 +174,9 @@ command -v hdparm >/dev/null
 test -f /lib/firmware/regulatory.db -o -f /usr/lib/firmware/regulatory.db
 /usr/libexec/unicore-hw-mgr status | grep -q '^ddc_available=1$'
 /usr/libexec/unicore-hw-mgr status | grep -q '^missing_firmware=none$'
+test "$(/usr/libexec/unicore-personalize list-presets | wc -l)" -eq 10
+test -s /usr/share/unicore/wallpaper-cyberpunk.png
+test -f /usr/share/themes/UniCore-Classic98/openbox-3/themerc
 
 echo "[ARM64-QA] 2/4 Verifying Box64 + Wine 11.0 WoW64 binaries..."
 test -x /usr/share/unicore/arm64-win32/run-wine-box64.sh

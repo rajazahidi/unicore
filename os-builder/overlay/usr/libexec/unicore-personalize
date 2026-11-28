@@ -1,4 +1,5 @@
 #!/bin/sh
+# UniCore OS v1.3.0 — 10-Theme Desktop Environment & Personalization Manager
 set -eu
 
 default_conf_path() {
@@ -12,6 +13,7 @@ default_conf_path() {
 }
 
 CONF_PATH="$(default_conf_path)"
+UNICORE_THEME_PRESET="midnight"
 UNICORE_THEME="dark"
 UNICORE_WALLPAPER="/usr/share/unicore/wallpaper.png"
 UNICORE_KB_LAYOUT="us"
@@ -24,6 +26,15 @@ UNICORE_LAYOUT="win11"
 UNICORE_ACCENT_COLOR="blue"
 UNICORE_HIGH_CONTRAST="no"
 UNICORE_LARGE_TEXT="no"
+
+validate_preset() {
+    case "$1" in
+        midnight|daylight|aurora|nordic|dracula|emerald|sunset|sakura|cyberpunk|classic98)
+            printf '%s\n' "$1"
+            ;;
+        *) return 1 ;;
+    esac
+}
 
 validate_theme() {
     case "$1" in
@@ -90,7 +101,103 @@ clamp_pointer_speed() {
     }'
 }
 
+preset_default_accent() {
+    case "$1" in
+        aurora|dracula) echo "purple" ;;
+        emerald) echo "green" ;;
+        sunset) echo "amber" ;;
+        sakura|cyberpunk) echo "rose" ;;
+        *) echo "blue" ;;
+    esac
+}
+
+preset_base_mode() {
+    case "$1" in
+        daylight|sakura|classic98) echo "light" ;;
+        *) echo "dark" ;;
+    esac
+}
+
+apply_preset_defaults() {
+    p="$1"
+    UNICORE_THEME_PRESET="${p}"
+    case "${p}" in
+        daylight)
+            UNICORE_THEME="light"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper-light.png"
+            UNICORE_LAYOUT="win11"
+            UNICORE_TASKBAR_STYLE="floating"
+            UNICORE_ACCENT_COLOR="blue"
+            ;;
+        aurora)
+            UNICORE_THEME="dark"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper-aurora.png"
+            UNICORE_LAYOUT="win11"
+            UNICORE_TASKBAR_STYLE="floating"
+            UNICORE_ACCENT_COLOR="purple"
+            ;;
+        nordic)
+            UNICORE_THEME="dark"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper-nordic.png"
+            UNICORE_LAYOUT="macos"
+            UNICORE_TASKBAR_STYLE="floating"
+            UNICORE_ACCENT_COLOR="blue"
+            ;;
+        dracula)
+            UNICORE_THEME="dark"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper-dracula.png"
+            UNICORE_LAYOUT="win11"
+            UNICORE_TASKBAR_STYLE="floating"
+            UNICORE_ACCENT_COLOR="purple"
+            ;;
+        emerald)
+            UNICORE_THEME="dark"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper-emerald.png"
+            UNICORE_LAYOUT="win11"
+            UNICORE_TASKBAR_STYLE="floating"
+            UNICORE_ACCENT_COLOR="green"
+            ;;
+        sunset)
+            UNICORE_THEME="dark"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper-sunset.png"
+            UNICORE_LAYOUT="win10"
+            UNICORE_TASKBAR_STYLE="docked"
+            UNICORE_ACCENT_COLOR="amber"
+            ;;
+        sakura)
+            UNICORE_THEME="light"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper-sakura.png"
+            UNICORE_LAYOUT="macos"
+            UNICORE_TASKBAR_STYLE="floating"
+            UNICORE_ACCENT_COLOR="rose"
+            ;;
+        cyberpunk)
+            UNICORE_THEME="dark"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper-cyberpunk.png"
+            UNICORE_LAYOUT="win10"
+            UNICORE_TASKBAR_STYLE="floating"
+            UNICORE_ACCENT_COLOR="rose"
+            ;;
+        classic98)
+            UNICORE_THEME="light"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper-classic98.png"
+            UNICORE_LAYOUT="win10"
+            UNICORE_TASKBAR_STYLE="docked"
+            UNICORE_ACCENT_COLOR="blue"
+            ;;
+        *)
+            UNICORE_THEME_PRESET="midnight"
+            UNICORE_THEME="dark"
+            UNICORE_WALLPAPER="/usr/share/unicore/wallpaper.png"
+            UNICORE_LAYOUT="win11"
+            UNICORE_TASKBAR_STYLE="floating"
+            UNICORE_ACCENT_COLOR="blue"
+            ;;
+    esac
+}
+
 load_conf() {
+    UNICORE_THEME_PRESET="midnight"
     UNICORE_THEME="dark"
     UNICORE_WALLPAPER="/usr/share/unicore/wallpaper.png"
     UNICORE_KB_LAYOUT="us"
@@ -103,9 +210,16 @@ load_conf() {
     UNICORE_ACCENT_COLOR="blue"
     UNICORE_HIGH_CONTRAST="no"
     UNICORE_LARGE_TEXT="no"
+    seen_preset=0
     if [ -r "${CONF_PATH}" ]; then
         while IFS='=' read -r k v; do
             case "${k}" in
+                UNICORE_THEME_PRESET)
+                    if pr="$(validate_preset "${v}" 2>/dev/null)"; then
+                        UNICORE_THEME_PRESET="${pr}"
+                        seen_preset=1
+                    fi
+                    ;;
                 UNICORE_THEME)
                     if t="$(validate_theme "${v}" 2>/dev/null)"; then UNICORE_THEME="${t}"; fi
                     ;;
@@ -145,11 +259,19 @@ load_conf() {
             esac
         done < "${CONF_PATH}"
     fi
+    if [ "${seen_preset}" -eq 0 ]; then
+        if [ "${UNICORE_THEME}" = "light" ]; then
+            UNICORE_THEME_PRESET="daylight"
+        else
+            UNICORE_THEME_PRESET="midnight"
+        fi
+    fi
 }
 
 write_conf() {
     mkdir -p "$(dirname "${CONF_PATH}")"
     cat <<EOF > "${CONF_PATH}"
+UNICORE_THEME_PRESET=${UNICORE_THEME_PRESET}
 UNICORE_THEME=${UNICORE_THEME}
 UNICORE_WALLPAPER=${UNICORE_WALLPAPER}
 UNICORE_KB_LAYOUT=${UNICORE_KB_LAYOUT}
@@ -199,7 +321,6 @@ write_waybar_config() {
             task_fmt='{title:.13}'
             ;;
         *)
-            # win11 default: centered floating pill taskbar
             pos="bottom"
             h="42"
             mb="5"; mt="0"; ml="10"; mr="10"
@@ -318,7 +439,7 @@ write_waybar_config() {
   },
   "custom/quick": {
     "format": "\\uf1de",
-    "tooltip-format": "Quick Settings (Wi-Fi, Sound, Brightness, Theme, DND)",
+    "tooltip-format": "Quick Settings (Wi-Fi, Sound, Brightness, Themes, DND)",
     "on-click": "pkill -f 'unicore-center --quick-settings' || /usr/bin/unicore-center --quick-settings &"
   },
   "clock": {
@@ -345,20 +466,38 @@ apply_configs() {
     USER_HOME="${HOME:-/home/unicore}"
     CFG_ROOT="${XDG_CONFIG_HOME:-${USER_HOME}/.config}"
     export XDG_CONFIG_HOME="${CFG_ROOT}"
-    mkdir -p "${CFG_ROOT}/gtk-3.0" "${CFG_ROOT}/waybar" "${CFG_ROOT}/fuzzel" "${CFG_ROOT}/labwc" "${CFG_ROOT}/libfm"
+    mkdir -p "${CFG_ROOT}/gtk-3.0" "${CFG_ROOT}/waybar" "${CFG_ROOT}/fuzzel" "${CFG_ROOT}/labwc" "${CFG_ROOT}/libfm" "${CFG_ROOT}/foot" "${CFG_ROOT}/mako"
 
     if [ "${UNICORE_THEME}" = "light" ]; then
         GTK_THEME="Adwaita"
         GTK_PREFER_DARK="0"
-        OPENBOX_THEME="UniCore-Light"
+        OPENBOX_FALLBACK="UniCore-Light"
         ICON_THEME="Papirus-Light"
         [ -d /usr/share/icons/Papirus-Light ] || ICON_THEME="Adwaita"
     else
         GTK_THEME="Adwaita-dark"
         GTK_PREFER_DARK="1"
-        OPENBOX_THEME="UniCore-Dark"
+        OPENBOX_FALLBACK="UniCore-Dark"
         ICON_THEME="Papirus-Dark"
         [ -d /usr/share/icons/Papirus-Dark ] || ICON_THEME="Adwaita"
+    fi
+
+    WIN_CORNER_RADIUS=10
+    case "${UNICORE_THEME_PRESET}" in
+        midnight)  OPENBOX_THEME="UniCore-Midnight";  WIN_CORNER_RADIUS=10 ;;
+        daylight)  OPENBOX_THEME="UniCore-Daylight";  WIN_CORNER_RADIUS=10 ;;
+        aurora)    OPENBOX_THEME="UniCore-Aurora";    WIN_CORNER_RADIUS=10 ;;
+        nordic)    OPENBOX_THEME="UniCore-Nordic";    WIN_CORNER_RADIUS=12 ;;
+        dracula)   OPENBOX_THEME="UniCore-Dracula";   WIN_CORNER_RADIUS=10 ;;
+        emerald)   OPENBOX_THEME="UniCore-Emerald";   WIN_CORNER_RADIUS=10 ;;
+        sunset)    OPENBOX_THEME="UniCore-Sunset";    WIN_CORNER_RADIUS=8  ;;
+        sakura)    OPENBOX_THEME="UniCore-Sakura";    WIN_CORNER_RADIUS=12 ;;
+        cyberpunk) OPENBOX_THEME="UniCore-Cyberpunk"; WIN_CORNER_RADIUS=6  ;;
+        classic98) OPENBOX_THEME="UniCore-Classic98"; WIN_CORNER_RADIUS=0  ;;
+        *)         OPENBOX_THEME="${OPENBOX_FALLBACK}"; WIN_CORNER_RADIUS=10 ;;
+    esac
+    if [ ! -d "/usr/share/themes/${OPENBOX_THEME}" ]; then
+        OPENBOX_THEME="${OPENBOX_FALLBACK}"
     fi
 
     case "${UNICORE_ACCENT_COLOR}" in
@@ -407,8 +546,10 @@ icon_theme=${ICON_THEME}
 show_thumbnail=1
 EOF
 
-    if [ -f "/usr/share/unicore/themes/waybar-${UNICORE_THEME}.css" ]; then
-        cp "/usr/share/unicore/themes/waybar-${UNICORE_THEME}.css" "${CFG_ROOT}/waybar/style.css"
+    WAYBAR_SRC="/usr/share/unicore/themes/waybar-${UNICORE_THEME_PRESET}.css"
+    [ -f "${WAYBAR_SRC}" ] || WAYBAR_SRC="/usr/share/unicore/themes/waybar-${UNICORE_THEME}.css"
+    if [ -f "${WAYBAR_SRC}" ]; then
+        cp "${WAYBAR_SRC}" "${CFG_ROOT}/waybar/style.css"
         if [ "${UNICORE_THEME}" = "light" ]; then
             ACC_SOFT="${ACC_SOFT_LIGHT}"
             FLOAT_BORDER="rgba(148, 163, 184, 0.55)"
@@ -416,9 +557,12 @@ EOF
             ACC_SOFT="${ACC_SOFT_DARK}"
             FLOAT_BORDER="${ACC_BRIGHT}"
         fi
-        cat <<EOF >> "${CFG_ROOT}/waybar/style.css"
+        # Preserve bespoke preset colors when using the preset's native accent; apply override when user customizes accent
+        NATIVE_ACC="$(preset_default_accent "${UNICORE_THEME_PRESET}")"
+        if [ "${UNICORE_ACCENT_COLOR}" != "${NATIVE_ACC}" ] || [ "${UNICORE_THEME_PRESET}" = "midnight" ] || [ "${UNICORE_THEME_PRESET}" = "daylight" ]; then
+            cat <<EOF >> "${CFG_ROOT}/waybar/style.css"
 
-/* Zorin-Style Accent Color Override (${UNICORE_ACCENT_COLOR}) */
+/* Accent Color Override (${UNICORE_ACCENT_COLOR}) */
 #custom-start,
 #custom-update.update-available {
     background-color: ${ACC_PRIMARY};
@@ -435,6 +579,7 @@ EOF
     background-color: ${ACC_BRIGHT};
 }
 EOF
+        fi
         if [ "${UNICORE_TASKBAR_STYLE}" = "floating" ] || [ "${UNICORE_LAYOUT}" = "win11" ] || [ "${UNICORE_LAYOUT}" = "macos" ]; then
             if [ "${UNICORE_LAYOUT}" = "win10" ] && [ "${UNICORE_TASKBAR_STYLE}" = "docked" ]; then
                 cat <<'EOF' >> "${CFG_ROOT}/waybar/style.css"
@@ -444,12 +589,16 @@ window#waybar {
 }
 EOF
             else
+                BAR_RAD=14
+                [ "${UNICORE_THEME_PRESET}" = "classic98" ] && BAR_RAD=0
+                [ "${UNICORE_THEME_PRESET}" = "cyberpunk" ] && BAR_RAD=8
+                [ "${UNICORE_THEME_PRESET}" = "sakura" ] && BAR_RAD=16
                 cat <<EOF >> "${CFG_ROOT}/waybar/style.css"
 
-/* Floating Pill Taskbar Override (${UNICORE_LAYOUT}) */
+/* Floating Pill Taskbar Override (${UNICORE_LAYOUT} / ${UNICORE_THEME_PRESET}) */
 window#waybar {
     margin: 4px 8px;
-    border-radius: 14px;
+    border-radius: ${BAR_RAD}px;
     border: 1px solid ${FLOAT_BORDER};
 }
 EOF
@@ -485,8 +634,10 @@ EOF
 
     write_waybar_config "${CFG_ROOT}/waybar/config.jsonc" "${ICON_THEME}"
 
-    if [ -f "/usr/share/unicore/themes/fuzzel-${UNICORE_THEME}.ini" ]; then
-        cp "/usr/share/unicore/themes/fuzzel-${UNICORE_THEME}.ini" "${CFG_ROOT}/fuzzel/fuzzel.ini"
+    FUZZEL_SRC="/usr/share/unicore/themes/fuzzel-${UNICORE_THEME_PRESET}.ini"
+    [ -f "${FUZZEL_SRC}" ] || FUZZEL_SRC="/usr/share/unicore/themes/fuzzel-${UNICORE_THEME}.ini"
+    if [ -f "${FUZZEL_SRC}" ]; then
+        cp "${FUZZEL_SRC}" "${CFG_ROOT}/fuzzel/fuzzel.ini"
         if [ -d "/usr/share/icons/${ICON_THEME}" ]; then
             if grep -q '^icon-theme=' "${CFG_ROOT}/fuzzel/fuzzel.ini" 2>/dev/null; then
                 sed -i "s|^icon-theme=.*|icon-theme=${ICON_THEME}|" "${CFG_ROOT}/fuzzel/fuzzel.ini"
@@ -500,15 +651,29 @@ EOF
         fi
     fi
 
+    FOOT_SRC="/usr/share/unicore/themes/foot-${UNICORE_THEME_PRESET}.ini"
+    if [ -f "${FOOT_SRC}" ]; then
+        cp "${FOOT_SRC}" "${CFG_ROOT}/foot/foot.ini"
+    fi
+
+    MAKO_SRC="/usr/share/unicore/themes/mako-${UNICORE_THEME_PRESET}.conf"
+    if [ -f "${MAKO_SRC}" ]; then
+        cp "${MAKO_SRC}" "${CFG_ROOT}/mako/config"
+    fi
+
     if [ -r /etc/xdg/labwc/rc.xml ]; then
         awk \
             -v theme="${OPENBOX_THEME}" \
+            -v crad="${WIN_CORNER_RADIUS}" \
             -v ns="${UNICORE_NATURAL_SCROLL}" \
             -v tap="${UNICORE_TAP_TO_CLICK}" \
             -v speed="${UNICORE_POINTER_SPEED}" \
             '{
-                if ($0 ~ /<name>UniCore-(Dark|Light)<\/name>/) {
-                    sub(/<name>UniCore-(Dark|Light)<\/name>/, "<name>" theme "</name>");
+                if ($0 ~ /<name>UniCore-[A-Za-z0-9]+<\/name>/) {
+                    sub(/<name>UniCore-[A-Za-z0-9]+<\/name>/, "<name>" theme "</name>");
+                }
+                if ($0 ~ /<cornerRadius>[0-9]+<\/cornerRadius>/) {
+                    sub(/<cornerRadius>[0-9]+<\/cornerRadius>/, "<cornerRadius>" crad "</cornerRadius>");
                 }
                 if ($0 ~ /<naturalScroll>/) {
                     sub(/<naturalScroll>.*<\/naturalScroll>/, "<naturalScroll>" ns "</naturalScroll>");
@@ -540,6 +705,7 @@ EOF
             labwc --reconfigure >/dev/null 2>&1 || true
             sleep 0.3
         fi
+        command -v makoctl >/dev/null 2>&1 && makoctl reload >/dev/null 2>&1 || true
         if [ "${UNICORE_LIGHTWEIGHT_SHELL:-0}" != "1" ]; then
             if [ -f "${UNICORE_WALLPAPER}" ] && command -v swaybg >/dev/null 2>&1; then
                 pkill -x swaybg >/dev/null 2>&1 || true
@@ -567,10 +733,33 @@ cmd="${1:-status}"
 shift || true
 
 case "${cmd}" in
+    list-presets)
+        cat <<'EOF'
+midnight|UniCore Midnight|dark|win11|floating|blue|/usr/share/unicore/wallpaper.png
+daylight|UniCore Daylight|light|win11|floating|blue|/usr/share/unicore/wallpaper-light.png
+aurora|Aurora Violet|dark|win11|floating|purple|/usr/share/unicore/wallpaper-aurora.png
+nordic|Nordic Frost|dark|macos|floating|blue|/usr/share/unicore/wallpaper-nordic.png
+dracula|Dracula Neon|dark|win11|floating|purple|/usr/share/unicore/wallpaper-dracula.png
+emerald|Emerald Forest|dark|win11|floating|green|/usr/share/unicore/wallpaper-emerald.png
+sunset|Amber Sunset|dark|win10|docked|amber|/usr/share/unicore/wallpaper-sunset.png
+sakura|Sakura Blossom|light|macos|floating|rose|/usr/share/unicore/wallpaper-sakura.png
+cyberpunk|Cyberpunk Synth|dark|win10|floating|rose|/usr/share/unicore/wallpaper-cyberpunk.png
+classic98|Retro Classic 98|light|win10|docked|blue|/usr/share/unicore/wallpaper-classic98.png
+EOF
+        ;;
+    preset)
+        p_raw="${1:-}"
+        p_id="$(validate_preset "${p_raw}")" || { echo "Invalid theme preset: ${p_raw}" >&2; exit 2; }
+        load_conf
+        apply_preset_defaults "${p_id}"
+        write_conf
+        apply_configs 0
+        echo "theme_preset=${UNICORE_THEME_PRESET}"
+        ;;
     status)
         load_conf
-        printf 'theme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\ntaskbar_style=%s\nlayout=%s\naccent_color=%s\nhigh_contrast=%s\nlarge_text=%s\n' \
-            "${UNICORE_THEME}" "${UNICORE_WALLPAPER}" "${UNICORE_KB_LAYOUT}" \
+        printf 'theme_preset=%s\ntheme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\ntaskbar_style=%s\nlayout=%s\naccent_color=%s\nhigh_contrast=%s\nlarge_text=%s\n' \
+            "${UNICORE_THEME_PRESET}" "${UNICORE_THEME}" "${UNICORE_WALLPAPER}" "${UNICORE_KB_LAYOUT}" \
             "${UNICORE_NATURAL_SCROLL}" "${UNICORE_TAP_TO_CLICK}" "${UNICORE_POINTER_SPEED}" \
             "${UNICORE_DESKTOP_ICONS}" "${UNICORE_TASKBAR_STYLE}" \
             "${UNICORE_LAYOUT}" "${UNICORE_ACCENT_COLOR}" \
@@ -585,11 +774,25 @@ case "${cmd}" in
         ;;
     set)
         load_conf
+        explicit_preset=0
         while [ "$#" -gt 0 ]; do
             case "$1" in
+                --preset)
+                    shift || { echo "Missing value for --preset" >&2; exit 2; }
+                    p_id="$(validate_preset "$1")" || { echo "Invalid preset: $1" >&2; exit 2; }
+                    apply_preset_defaults "${p_id}"
+                    explicit_preset=1
+                    ;;
                 --theme)
                     shift || { echo "Missing value for --theme" >&2; exit 2; }
                     UNICORE_THEME="$(validate_theme "$1")" || { echo "Invalid theme: $1" >&2; exit 2; }
+                    if [ "${explicit_preset}" -eq 0 ] && [ "$(preset_base_mode "${UNICORE_THEME_PRESET}")" != "${UNICORE_THEME}" ]; then
+                        if [ "${UNICORE_THEME}" = "light" ]; then
+                            UNICORE_THEME_PRESET="daylight"
+                        else
+                            UNICORE_THEME_PRESET="midnight"
+                        fi
+                    fi
                     ;;
                 --wallpaper)
                     shift || { echo "Missing value for --wallpaper" >&2; exit 2; }
@@ -651,7 +854,7 @@ case "${cmd}" in
         apply_configs 0
         ;;
     *)
-        echo "Usage: unicore-personalize <status|apply [--no-reload]|set [--theme dark|light] [--layout win11|win10|macos] [--accent blue|purple|green|amber|rose] [--wallpaper PATH] [--kb-layout us|my|gb|de|fr|jp] [--natural-scroll yes|no] [--tap yes|no] [--pointer-speed -0.8..0.8] [--desktop-icons yes|no] [--taskbar-style docked|floating] [--high-contrast yes|no] [--large-text yes|no]>" >&2
+        echo "Usage: unicore-personalize <status|list-presets|preset <id>|apply [--no-reload]|set [--preset midnight..classic98] [--theme dark|light] [--layout win11|win10|macos] [--accent blue|purple|green|amber|rose] [--wallpaper PATH] [--kb-layout us|my|gb|de|fr|jp] [--natural-scroll yes|no] [--tap yes|no] [--pointer-speed -0.8..0.8] [--desktop-icons yes|no] [--taskbar-style docked|floating] [--high-contrast yes|no] [--large-text yes|no]>" >&2
         exit 2
         ;;
 esac

@@ -384,6 +384,24 @@ export struct UiText {
     chk-parental-enable: string,
     btn-save-parental: string,
     btn-reset-usage: string,
+    title-theme-studio: string,
+    hdr-theme-studio: string,
+    sub-theme-studio: string,
+    btn-open-themes: string,
+}
+
+export struct ThemePresetCard {
+    id: string,
+    name: string,
+    subtitle: string,
+    is-top-bar: bool,
+    is-classic: bool,
+    wall-color: color,
+    win-color: color,
+    title-color: color,
+    bar-color: color,
+    accent-color: color,
+    active: bool,
 }
 
 export struct GuideChapterItem {
@@ -408,19 +426,168 @@ export global UiTheme {
     in-out property <bool> light: false;
     in-out property <bool> high-contrast: false;
     in-out property <int> accent-idx: 0; // 0:blue, 1:purple, 2:green, 3:amber, 4:rose
-    out property <color> accent: accent-idx == 1 ? #6366f1 : (accent-idx == 2 ? #059669 : (accent-idx == 3 ? #d97706 : (accent-idx == 4 ? #e11d48 : #0284c7)));
-    out property <color> accent-dark: accent-idx == 1 ? #4f46e5 : (accent-idx == 2 ? #047857 : (accent-idx == 3 ? #b45309 : (accent-idx == 4 ? #be123c : #0369a1)));
-    out property <color> accent-bright: accent-idx == 1 ? #a5b4fc : (accent-idx == 2 ? #34d399 : (accent-idx == 3 ? #fbbf24 : (accent-idx == 4 ? #fb7185 : #38bdf8)));
-    out property <color> bg: high-contrast ? (light ? #ffffff : #000000) : (light ? #f1f5f9 : #0f172a);
-    out property <color> card-bg: high-contrast ? (light ? #ffffff : #090d16) : (light ? #ffffff : #1e293b);
-    out property <color> card-border: high-contrast ? (light ? #0f172a : #facc15) : (light ? #cbd5e1 : #334155);
-    out property <color> text-primary: high-contrast ? (light ? #000000 : #ffffff) : (light ? #0f172a : #f8fafc);
-    out property <color> text-secondary: high-contrast ? (light ? #0f172a : #f8fafc) : (light ? #334155 : #e2e8f0);
-    out property <color> text-muted: high-contrast ? (light ? #1e293b : #e2e8f0) : (light ? #475569 : #94a3b8);
+    in-out property <int> preset-idx: 0; // 0:midnight, 1:daylight, 2:aurora, 3:nordic, 4:dracula, 5:emerald, 6:sunset, 7:sakura, 8:cyberpunk, 9:classic98
+    out property <color> accent: preset-idx == 9 ? #000080 : (preset-idx == 3 ? #5e81ac : (preset-idx == 4 ? #9580ff : (preset-idx == 8 ? #ec4899 : (accent-idx == 1 ? #6366f1 : (accent-idx == 2 ? #059669 : (accent-idx == 3 ? #d97706 : (accent-idx == 4 ? #e11d48 : #0284c7)))))));
+    out property <color> accent-dark: preset-idx == 9 ? #00005c : (preset-idx == 3 ? #4c6a8f : (preset-idx == 4 ? #7c65e0 : (preset-idx == 8 ? #db2777 : (accent-idx == 1 ? #4f46e5 : (accent-idx == 2 ? #047857 : (accent-idx == 3 ? #b45309 : (accent-idx == 4 ? #be123c : #0369a1)))))));
+    out property <color> accent-bright: preset-idx == 9 ? #1084d0 : (preset-idx == 3 ? #88c0d0 : (preset-idx == 4 ? #ff79c6 : (preset-idx == 8 ? #22d3ee : (accent-idx == 1 ? #a5b4fc : (accent-idx == 2 ? #34d399 : (accent-idx == 3 ? #fbbf24 : (accent-idx == 4 ? #fb7185 : #38bdf8)))))));
+    out property <color> bg: high-contrast ? (light ? #ffffff : #000000) : (preset-idx == 9 ? #c0c0c0 : (preset-idx == 7 ? #fff5f7 : (preset-idx == 2 ? #131126 : (preset-idx == 3 ? #2e3440 : (preset-idx == 4 ? #282a36 : (preset-idx == 5 ? #0b1f1a : (preset-idx == 6 ? #1c1410 : (preset-idx == 8 ? #090814 : (light ? #f1f5f9 : #0f172a)))))))));
+    out property <color> card-bg: high-contrast ? (light ? #ffffff : #090d16) : (preset-idx == 9 ? #dfdfdf : (preset-idx == 7 ? #ffffff : (preset-idx == 2 ? #231f42 : (preset-idx == 3 ? #3b4252 : (preset-idx == 4 ? #343746 : (preset-idx == 5 ? #132e26 : (preset-idx == 6 ? #2c1f18 : (preset-idx == 8 ? #16122b : (light ? #ffffff : #1e293b)))))))));
+    out property <color> card-border: high-contrast ? (light ? #0f172a : #facc15) : (preset-idx == 9 ? #808080 : (preset-idx == 7 ? #fecdd3 : (preset-idx == 2 ? #3b3570 : (preset-idx == 3 ? #4c566a : (preset-idx == 4 ? #44475a : (preset-idx == 5 ? #1f4f42 : (preset-idx == 6 ? #523a2d : (preset-idx == 8 ? #3b2c6b : (light ? #cbd5e1 : #334155)))))))));
+    out property <color> text-primary: high-contrast ? (light ? #000000 : #ffffff) : (preset-idx == 9 ? #000000 : (preset-idx == 7 ? #3f1722 : (light ? #0f172a : #f8fafc)));
+    out property <color> text-secondary: high-contrast ? (light ? #0f172a : #f8fafc) : (preset-idx == 9 ? #1f2937 : (preset-idx == 7 ? #881337 : (light ? #334155 : #e2e8f0)));
+    out property <color> text-muted: high-contrast ? (light ? #1e293b : #e2e8f0) : (preset-idx == 9 ? #374151 : (preset-idx == 7 ? #9f1239 : (light ? #475569 : #94a3b8)));
     out property <color> text-accent: high-contrast ? (light ? #0c4a6e : #fde047) : (light ? accent-dark : accent-bright);
     out property <color> text-ok: light ? #15803d : #4ade80;
-    out property <color> surface-subtle: light ? #e2e8f0 : #263449;
-    out property <color> surface-hover: light ? #cbd5e1 : #334155;
+    out property <color> surface-subtle: preset-idx == 9 ? #d4d0c8 : (preset-idx == 7 ? #ffe4e6 : (preset-idx == 2 ? #2e2954 : (preset-idx == 3 ? #434c5e : (preset-idx == 4 ? #44475a : (preset-idx == 5 ? #1b4338 : (preset-idx == 6 ? #3f2c22 : (preset-idx == 8 ? #251e47 : (light ? #e2e8f0 : #263449))))))));
+    out property <color> surface-hover: preset-idx == 9 ? #b8b4ac : (preset-idx == 7 ? #fecdd3 : (preset-idx == 2 ? #3b3570 : (preset-idx == 3 ? #4c566a : (preset-idx == 4 ? #53576e : (preset-idx == 5 ? #25594b : (preset-idx == 6 ? #523a2d : (preset-idx == 8 ? #352963 : (light ? #cbd5e1 : #334155))))))));
+}
+
+component ThemeStudioTile inherits Rectangle {
+    in property <ThemePresetCard> item;
+    callback clicked(string);
+
+    height: 146px;
+    border-radius: item.is-classic ? 2px : 10px;
+    background: tile-ta.has-hover ? UiTheme.surface-hover : UiTheme.card-bg;
+    border-width: item.active ? 2px : 1px;
+    border-color: item.active ? UiTheme.accent-bright : (tile-ta.has-hover ? UiTheme.text-accent : UiTheme.card-border);
+
+    tile-ta := TouchArea {
+        clicked => { root.clicked(root.item.id); }
+    }
+
+    VerticalLayout {
+        padding: 8px;
+        spacing: 6px;
+
+        // Live Mini-Desktop Preview Thumbnail
+        Rectangle {
+            height: 82px;
+            border-radius: item.is-classic ? 0px : 6px;
+            background: item.wall-color;
+            border-width: 1px;
+            border-color: item.active ? item.accent-color : UiTheme.card-border;
+            clip: true;
+
+            // Decorative subtle wallpaper highlight band
+            Rectangle {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: 24px;
+                background: item.accent-color;
+                opacity: 0.22;
+            }
+
+            // Optional macOS Top Bar
+            if item.is-top-bar : Rectangle {
+                x: 6px;
+                y: 4px;
+                width: parent.width - 12px;
+                height: 11px;
+                border-radius: 4px;
+                background: item.bar-color;
+                Rectangle {
+                    x: 4px;
+                    y: 2px;
+                    width: 14px;
+                    height: 7px;
+                    border-radius: 3px;
+                    background: item.accent-color;
+                }
+            }
+
+            // Miniature Desktop Window
+            Rectangle {
+                x: 16px;
+                y: item.is-top-bar ? 20px : 12px;
+                width: parent.width - 32px;
+                height: 46px;
+                border-radius: item.is-classic ? 0px : 4px;
+                background: item.win-color;
+                border-width: 1px;
+                border-color: item.accent-color;
+                clip: true;
+
+                // Mini Window Titlebar
+                Rectangle {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: 12px;
+                    background: item.title-color;
+                    Rectangle { x: 4px; y: 4px; width: 22px; height: 4px; border-radius: 2px; background: item.accent-color; }
+                    Rectangle { x: parent.width - 10px; y: 4px; width: 5px; height: 4px; border-radius: 2px; background: #ef4444; }
+                }
+
+                // Mini Window Body Accents
+                Rectangle { x: 6px; y: 18px; width: parent.width - 24px; height: 5px; border-radius: 2px; background: item.accent-color; opacity: 0.75; }
+                Rectangle { x: 6px; y: 28px; width: parent.width - 38px; height: 4px; border-radius: 2px; background: item.title-color; opacity: 0.45; }
+                Rectangle { x: 6px; y: 36px; width: 24px; height: 6px; border-radius: item.is-classic ? 0px : 2px; background: item.accent-color; }
+            }
+
+            // Bottom Taskbar (Win11 floating pill or Win10 docked)
+            if !item.is-top-bar : Rectangle {
+                x: item.is-classic ? 0px : 6px;
+                y: parent.height - (item.is-classic ? 12px : 14px);
+                width: item.is-classic ? parent.width : (parent.width - 12px);
+                height: 12px;
+                border-radius: item.is-classic ? 0px : 5px;
+                background: item.bar-color;
+                Rectangle {
+                    x: item.is-classic ? 3px : (parent.width / 2 - 18px);
+                    y: 2px;
+                    width: 14px;
+                    height: 8px;
+                    border-radius: item.is-classic ? 0px : 3px;
+                    background: item.accent-color;
+                }
+                Rectangle {
+                    x: item.is-classic ? 21px : (parent.width / 2);
+                    y: 3px;
+                    width: 18px;
+                    height: 6px;
+                    border-radius: item.is-classic ? 0px : 2px;
+                    background: item.win-color;
+                    opacity: 0.7;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 4px;
+            Text {
+                text: item.name;
+                color: UiTheme.text-primary;
+                font-size: 11.5px;
+                font-weight: 700;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            if item.active : Rectangle {
+                width: 16px;
+                height: 16px;
+                border-radius: 8px;
+                background: UiTheme.text-ok;
+                Text {
+                    text: "✓";
+                    color: #ffffff;
+                    font-size: 10px;
+                    font-weight: 800;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        Text {
+            text: item.subtitle;
+            color: UiTheme.text-muted;
+            font-size: 10px;
+            overflow: elide;
+        }
+    }
 }
 
 component Card inherits Rectangle {
@@ -701,14 +868,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.family-dialog-only ? root.tr.title-family-hub : (root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center))))))))))))))));
-    preferred-width: root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px)))))))))))))));
-    preferred-height: root.family-dialog-only ? 600px : (root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 660px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px)))))))))))))));
+    title: root.themes-dialog-only ? root.tr.title-theme-studio : (root.family-dialog-only ? root.tr.title-family-hub : (root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))))))));
+    preferred-width: root.themes-dialog-only ? 860px : (root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))))));
+    preferred-height: root.themes-dialog-only ? 540px : (root.family-dialog-only ? 600px : (root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 660px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))))))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -721,6 +888,10 @@ export component MainWindow inherits Window {
 
     public function set-accent-color(idx: int) {
         UiTheme.accent-idx = idx;
+    }
+
+    public function set-theme-preset(idx: int) {
+        UiTheme.preset-idx = idx;
     }
 
     init => {
@@ -756,6 +927,11 @@ export component MainWindow inherits Window {
     in-out property <string> guide-sec-summary: "Security Audit: PASS (6/6)  •  0 MB idle";
     in-out property <bool> family-dialog-only: false;
     in-out property <int> fam-subtab: 0; // 0: Web Apps (PWA), 1: Parental Controls
+    in-out property <bool> themes-dialog-only: false;
+    in-out property <[ThemePresetCard]> theme-row-1: [];
+    in-out property <[ThemePresetCard]> theme-row-2: [];
+    in-out property <string> active-theme-preset-label: "UniCore Midnight";
+    in-out property <string> theme-studio-status: "";
     in-out property <[WebAppCard]> fam-webapps: [];
     in-out property <string> fam-custom-name: "";
     in-out property <string> fam-custom-url: "";
@@ -776,7 +952,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v1.2.1";
+    in-out property <string> login-clock-text: "UniCore OS v1.3.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1226,6 +1402,7 @@ export component MainWindow inherits Window {
     callback brightness-changed(int);
     callback nightlight-changed(bool, int);
     callback apply-personalize(int, int, string, int, bool, bool, int, bool, int, int, int, bool, bool);
+    callback apply-theme-preset(string);
     callback preview-look-oobe(int, int, int);
     callback start-filter-changed(string, string);
     callback start-launch-app(string);
@@ -1357,7 +1534,7 @@ export component MainWindow inherits Window {
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -1461,6 +1638,13 @@ export component MainWindow inherits Window {
                             font-weight: 800;
                             horizontal-stretch: 1;
                             vertical-alignment: center;
+                        }
+                        Button {
+                            text: root.tr.btn-open-themes;
+                            clicked => {
+                                root.quick-settings-only = false;
+                                root.themes-dialog-only = true;
+                            }
                         }
                         Button {
                             text: "AI (Win+A)";
@@ -4345,6 +4529,106 @@ export component MainWindow inherits Window {
             }
         }
 
+        // v1.3.0 10-Theme Desktop Studio (--themes)
+        if root.themes-dialog-only && !root.picker-open : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 62px;
+                border-radius: 10px;
+                background: UiTheme.accent;
+                HorizontalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        alignment: center;
+                        Text {
+                            text: root.tr.hdr-theme-studio;
+                            color: #ffffff;
+                            font-size: 16px;
+                            font-weight: 800;
+                        }
+                        Text {
+                            text: root.tr.sub-theme-studio;
+                            color: #e0f2fe;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+                    Button {
+                        text: root.lang-badge;
+                        clicked => { root.toggle-language(); }
+                    }
+                }
+            }
+
+            // 2 x 5 Visual Live-Preview Theme Grid (all 10 themes visible at once)
+            VerticalLayout {
+                vertical-stretch: 1;
+                spacing: 8px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    for card in root.theme-row-1 : ThemeStudioTile {
+                        horizontal-stretch: 1;
+                        item: card;
+                        clicked(id) => { root.apply-theme-preset(id); }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    for card in root.theme-row-2 : ThemeStudioTile {
+                        horizontal-stretch: 1;
+                        item: card;
+                        clicked(id) => { root.apply-theme-preset(id); }
+                    }
+                }
+            }
+
+            if root.theme-studio-status != "" : Text {
+                text: root.theme-studio-status;
+                color: UiTheme.text-accent;
+                font-size: 11.5px;
+                font-weight: 600;
+                overflow: elide;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.tr.hdr-personalize;
+                    primary: true;
+                    clicked => {
+                        root.themes-dialog-only = false;
+                        root.active-tab = 3;
+                        root.settings-subtab = 3;
+                        root.refresh-settings();
+                    }
+                }
+                Button {
+                    text: root.tr.btn-open-center;
+                    clicked => {
+                        root.themes-dialog-only = false;
+                        root.switch-to-full-center();
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Text {
+                    text: "Active: " + root.active-theme-preset-label;
+                    color: UiTheme.text-ok;
+                    font-size: 12px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Button {
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
         // Built-in Graphical File Picker Overlay
         if root.picker-open : Card {
             vertical-stretch: 1;
@@ -6402,11 +6686,23 @@ export component MainWindow inherits Window {
                             spacing: 10px;
                             alignment: start;
 
-                            Text {
-                                text: root.tr.hdr-personalize;
-                                color: UiTheme.text-primary;
-                                font-size: 15px;
-                                font-weight: 700;
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: root.tr.hdr-personalize;
+                                    color: UiTheme.text-primary;
+                                    font-size: 15px;
+                                    font-weight: 700;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+                                Button {
+                                    text: root.tr.btn-open-themes + " (" + root.active-theme-preset-label + ")";
+                                    primary: true;
+                                    clicked => {
+                                        root.themes-dialog-only = true;
+                                    }
+                                }
                             }
 
                             HorizontalLayout {
@@ -6435,13 +6731,25 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                                 ComboBox {
-                                    model: ["Midnight Blue (Default)", "Aurora Violet", "Daylight Slate", "Custom Image Path"];
+                                    model: [
+                                        "Midnight Blue (Default)",
+                                        "Daylight Slate",
+                                        "Aurora Violet",
+                                        "Nordic Frost",
+                                        "Dracula Neon",
+                                        "Emerald Forest",
+                                        "Amber Sunset",
+                                        "Sakura Blossom",
+                                        "Cyberpunk Synth",
+                                        "Retro Classic 98",
+                                        "Custom Image Path"
+                                    ];
                                     current-index <=> root.set-wallpaper-idx;
                                     horizontal-stretch: 1;
                                 }
                             }
 
-                            if root.set-wallpaper-idx == 3 : HorizontalLayout {
+                            if root.set-wallpaper-idx == 10 : HorizontalLayout {
                                 spacing: 8px;
                                 Rectangle { width: 160px; }
                                 LineEdit {

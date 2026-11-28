@@ -14,6 +14,9 @@
       <action name="Execute" command="/usr/bin/unicore-center --tab store" />
     </item>
     <separator />
+    <item label="10 Desktop Themes Studio">
+      <action name="Execute" command="/usr/bin/unicore-center --themes" />
+    </item>
     <item label="Change Theme, Layout &amp; Wallpaper">
       <action name="Execute" command="/usr/bin/unicore-center --tab settings:appearance" />
     </item>

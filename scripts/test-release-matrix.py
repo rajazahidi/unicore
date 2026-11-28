@@ -379,6 +379,20 @@ command -v b43-fwcutter
 command -v btrfs
 command -v mkfs.xfs
 command -v hdparm
+echo "Checking v1.3.0 10-Theme Desktop Environment Studio (10 wallpapers, 10 Labwc/Openbox themes, Waybar, Fuzzel, Foot & Mako)..."
+test "$(/usr/libexec/unicore-personalize list-presets | wc -l)" -eq 10
+for tid in midnight daylight aurora nordic dracula emerald sunset sakura cyberpunk classic98; do
+    test -f "/usr/share/unicore/themes/waybar-${tid}.css"
+    test -f "/usr/share/unicore/themes/fuzzel-${tid}.ini"
+    test -f "/usr/share/unicore/themes/foot-${tid}.ini"
+    test -f "/usr/share/unicore/themes/mako-${tid}.conf"
+done
+for wp in wallpaper.png wallpaper-light.png wallpaper-aurora.png wallpaper-nordic.png wallpaper-dracula.png wallpaper-emerald.png wallpaper-sunset.png wallpaper-sakura.png wallpaper-cyberpunk.png wallpaper-classic98.png; do
+    test -s "/usr/share/unicore/${wp}"
+done
+for ob in UniCore-Midnight UniCore-Daylight UniCore-Aurora UniCore-Nordic UniCore-Dracula UniCore-Emerald UniCore-Sunset UniCore-Sakura UniCore-Cyberpunk UniCore-Classic98; do
+    test -f "/usr/share/themes/${ob}/openbox-3/themerc"
+done
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_dll Library dplayx.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
@@ -420,7 +434,7 @@ grep -q '^UNICORE_KB_LAYOUT=my$' /data/home/.config/unicore/personalize.conf
 grep -q '^UNICORE_NATURAL_SCROLL=no$' /data/home/.config/unicore/personalize.conf
 grep -q 'gtk-application-prefer-dark-theme=0' /home/unicore/.config/gtk-3.0/settings.ini
 grep -q 'gtk-icon-theme-name=Papirus-Light' /home/unicore/.config/gtk-3.0/settings.ini
-grep -q '<name>UniCore-Light</name>' /home/unicore/.config/labwc/rc.xml
+grep -qE '<name>UniCore-(Daylight|Light)</name>' /home/unicore/.config/labwc/rc.xml
 grep -q '<naturalScroll>no</naturalScroll>' /home/unicore/.config/labwc/rc.xml
 grep -q '<pointerSpeed>0.3</pointerSpeed>' /home/unicore/.config/labwc/rc.xml
 grep -q '^XKB_DEFAULT_LAYOUT=my$' /home/unicore/.config/labwc/environment
@@ -486,6 +500,23 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --drivers >/tmp/center_drivers.log 2>&1 &
     sleep 3
     grim /tmp/v120_drivers.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    # Test live 10-Theme Studio switching (Classic 98 -> Nordic Top Bar -> Cyberpunk Synth) & capture Theme Studio screenshot
+    /usr/libexec/unicore-personalize preset classic98 >/dev/null
+    grep -q '<name>UniCore-Classic98</name>' /home/unicore/.config/labwc/rc.xml
+    grep -q '<cornerRadius>0</cornerRadius>' /home/unicore/.config/labwc/rc.xml
+    /usr/libexec/unicore-personalize preset nordic >/dev/null
+    grep -q '<name>UniCore-Nordic</name>' /home/unicore/.config/labwc/rc.xml
+    grep -q '"position": "top"' /home/unicore/.config/waybar/config.jsonc
+    /usr/libexec/unicore-personalize preset cyberpunk >/dev/null
+    grep -q '<name>UniCore-Cyberpunk</name>' /home/unicore/.config/labwc/rc.xml
+    grep -q 'background=090814' /home/unicore/.config/foot/foot.ini
+    grep -q 'border-color=#22d3ee' /home/unicore/.config/mako/config
+    sleep 1
+    /usr/bin/unicore-center --themes >/tmp/center_themes.log 2>&1 &
+    sleep 3
+    grim /tmp/v130_themes.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
@@ -497,6 +528,7 @@ test -s /tmp/v090_games.png
 test -s /tmp/v100_guide.png
 test -s /tmp/v110_webapps.png
 test -s /tmp/v120_drivers.png
+test -s /tmp/v130_themes.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -528,13 +560,16 @@ echo "===PNG_WEBAPPS_B64_END==="
 echo "===PNG_DRIVERS_B64_START==="
 base64 /tmp/v120_drivers.png
 echo "===PNG_DRIVERS_B64_END==="
+echo "===PNG_THEMES_B64_START==="
+base64 /tmp/v130_themes.png
+echo "===PNG_THEMES_B64_END==="
 
 # Restore default dark theme to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
     /usr/libexec/unicore-personalize set --theme dark --wallpaper /usr/share/unicore/wallpaper.png --kb-layout us --natural-scroll yes --tap yes --pointer-speed 0.0
 '
-grep -q '<name>UniCore-Dark</name>' /home/unicore/.config/labwc/rc.xml
+grep -qE '<name>UniCore-(Midnight|Dark)</name>' /home/unicore/.config/labwc/rc.xml
 
 echo "[5/5] Testing Ed25519 Release Manifest Signing & Tamper Rejection..."
 mkdir -p /tmp/ed25519_qa
@@ -632,7 +667,13 @@ printf '\n===GATE1_OK===\n'
         drv_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v120_drivers.png")
         with open(drv_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", drv_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}, {drv_dest}")
+        th_m = re.search(r"===PNG_THEMES_B64_START===\s*(.*?)\s*===PNG_THEMES_B64_END===", out, re.DOTALL)
+        if not th_m:
+            raise RuntimeError("Missing v1.3.0 10-Theme Desktop Studio screenshot payload in Gate 1 output")
+        th_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v130_themes.png")
+        with open(th_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", th_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}, {drv_dest}, {th_dest}")
     finally:
         h.close()
 

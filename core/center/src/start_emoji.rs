@@ -440,6 +440,25 @@ pub fn builtin_v110_apps(lang: UiLang) -> Vec<DesktopAppItem> {
     ]
 }
 
+pub fn builtin_v130_apps(lang: UiLang) -> Vec<DesktopAppItem> {
+    let ms = lang == UiLang::Ms;
+    vec![DesktopAppItem {
+        id: "unicore-themes".to_string(),
+        name: if ms { "10 Tema Desktop" } else { "10 Desktop Themes" }.to_string(),
+        comment: if ms {
+            "Studio 10 tema lengkap: Midnight, Daylight, Aurora, Nordic, Dracula, Emerald, Sunset, Sakura, Cyberpunk & Classic 98"
+        } else {
+            "10 complete desktop environments: Midnight, Daylight, Aurora, Nordic, Dracula, Emerald, Sunset, Sakura, Cyberpunk & Classic 98"
+        }
+        .to_string(),
+        category: "system".to_string(),
+        exec_cmd: "/usr/bin/unicore-center --themes".to_string(),
+        badge: "TH".to_string(),
+        accent_hex: "#ec4899".to_string(),
+        pinned: false,
+    }]
+}
+
 pub fn discover_start_menu_apps(
     scan_dirs: &[&Path],
     sandbox_apps: &[AppSandbox],
@@ -450,6 +469,7 @@ pub fn discover_start_menu_apps(
     items.extend(builtin_gamehub_apps(lang));
     items.extend(builtin_guide_apps(lang));
     items.extend(builtin_v110_apps(lang));
+    items.extend(builtin_v130_apps(lang));
     let mut seen_names: HashSet<String> = items
         .iter()
         .map(|i| i.name.to_ascii_lowercase())

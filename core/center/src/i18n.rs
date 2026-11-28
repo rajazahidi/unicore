@@ -306,6 +306,11 @@ pub struct UiLabels {
     pub chk_parental_enable: &'static str,
     pub btn_save_parental: &'static str,
     pub btn_reset_usage: &'static str,
+    // v1.3.0 10-Theme Desktop Studio
+    pub title_theme_studio: &'static str,
+    pub hdr_theme_studio: &'static str,
+    pub sub_theme_studio: &'static str,
+    pub btn_open_themes: &'static str,
 }
 
 impl UiLabels {
@@ -531,7 +536,7 @@ impl UiLabels {
                 btn_backup_now: "Backup Selected Save",
                 btn_sync_cloud: "Sync Saves to Cloud",
                 chk_auto_backup: "Auto-Backup Game Saves on Exit",
-                title_guide: "UniCore OS v1.2.1 — Official User Guide & Security",
+                title_guide: "UniCore OS v1.3.0 — Official User Guide & Security",
                 btn_open_guide: "Guide",
                 guide_sec_hdr: "Live Zero-Trust Security & 0-MB-Idle Health",
                 btn_run_sec_audit: "Run Security Audit",
@@ -544,6 +549,10 @@ impl UiLabels {
                 chk_parental_enable: "Enable Family Safety & Parental Controls",
                 btn_save_parental: "Save Family Policy",
                 btn_reset_usage: "Reset Today's Timer",
+                title_theme_studio: "UniCore OS — 10 Desktop Themes Studio",
+                hdr_theme_studio: "10 Complete Desktop Theme Environments",
+                sub_theme_studio: "1-Click Live Wallpaper, Taskbar, Window Borders, Terminal, Launcher & UI Palette",
+                btn_open_themes: "10 Themes",
             },
             UiLang::Ms => Self {
                 title_center: "Pusat Aplikasi UniCore",
@@ -765,7 +774,7 @@ impl UiLabels {
                 btn_backup_now: "Sandar Save Sekarang",
                 btn_sync_cloud: "Segerak Save ke Awan",
                 chk_auto_backup: "Auto-Sandar Save Apabila Tutup Game",
-                title_guide: "UniCore OS v1.2.1 — Panduan Pengguna Rasmi & Keselamatan",
+                title_guide: "UniCore OS v1.3.0 — Panduan Pengguna Rasmi & Keselamatan",
                 btn_open_guide: "Panduan",
                 guide_sec_hdr: "Audit Keselamatan Zero-Trust & Status 0-MB-Idle",
                 btn_run_sec_audit: "Jalankan Audit Keselamatan",
@@ -778,6 +787,10 @@ impl UiLabels {
                 chk_parental_enable: "Aktifkan Keselamatan Keluarga & Kawalan Ibu Bapa",
                 btn_save_parental: "Simpan Polisi Keluarga",
                 btn_reset_usage: "Reset Masa Hari Ini",
+                title_theme_studio: "UniCore OS — Studio 10 Tema Desktop",
+                hdr_theme_studio: "10 Persekitaran Tema Desktop Lengkap",
+                sub_theme_studio: "Tukar 1-Klik Kertas Dinding, Bar Tugas, Bingkai Tetingkap, Terminal, Pelancar & Palet UI",
+                btn_open_themes: "10 Tema",
             },
         }
     }

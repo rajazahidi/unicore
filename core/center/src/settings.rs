@@ -13,10 +13,209 @@ pub(crate) const SYS_HELPER_BIN: &str = "/usr/libexec/unicore-sys-helper";
 pub const NIGHTLIGHT_HELPER_BIN: &str = "/usr/libexec/unicore-nightlight";
 pub const PERSONALIZE_HELPER_BIN: &str = "/usr/libexec/unicore-personalize";
 pub const DEFAULT_WALLPAPER_PATH: &str = "/usr/share/unicore/wallpaper.png";
-pub const WALLPAPER_PRESETS: [(&str, &str); 3] = [
+pub const WALLPAPER_PRESETS: [(&str, &str); 10] = [
     ("Midnight Blue (Default)", "/usr/share/unicore/wallpaper.png"),
-    ("Aurora Violet", "/usr/share/unicore/wallpaper-aurora.png"),
     ("Daylight Slate", "/usr/share/unicore/wallpaper-light.png"),
+    ("Aurora Violet", "/usr/share/unicore/wallpaper-aurora.png"),
+    ("Nordic Frost", "/usr/share/unicore/wallpaper-nordic.png"),
+    ("Dracula Neon", "/usr/share/unicore/wallpaper-dracula.png"),
+    ("Emerald Forest", "/usr/share/unicore/wallpaper-emerald.png"),
+    ("Amber Sunset", "/usr/share/unicore/wallpaper-sunset.png"),
+    ("Sakura Blossom", "/usr/share/unicore/wallpaper-sakura.png"),
+    ("Cyberpunk Synth", "/usr/share/unicore/wallpaper-cyberpunk.png"),
+    ("Retro Classic 98", "/usr/share/unicore/wallpaper-classic98.png"),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ThemePresetInfo {
+    pub id: &'static str,
+    pub name_en: &'static str,
+    pub name_ms: &'static str,
+    pub subtitle_en: &'static str,
+    pub subtitle_ms: &'static str,
+    pub base_theme: &'static str,
+    pub layout: &'static str,
+    pub taskbar_style: &'static str,
+    pub accent: &'static str,
+    pub wallpaper: &'static str,
+    pub preview_wall_hex: &'static str,
+    pub preview_win_hex: &'static str,
+    pub preview_title_hex: &'static str,
+    pub preview_bar_hex: &'static str,
+    pub preview_accent_hex: &'static str,
+}
+
+pub const THEME_PRESETS: [ThemePresetInfo; 10] = [
+    ThemePresetInfo {
+        id: "midnight",
+        name_en: "UniCore Midnight",
+        name_ms: "UniCore Tengah Malam",
+        subtitle_en: "Dark • Win11 Pill",
+        subtitle_ms: "Gelap • Win11 Terapung",
+        base_theme: "dark",
+        layout: "win11",
+        taskbar_style: "floating",
+        accent: "blue",
+        wallpaper: "/usr/share/unicore/wallpaper.png",
+        preview_wall_hex: "#0f2942",
+        preview_win_hex: "#1e293b",
+        preview_title_hex: "#0f172a",
+        preview_bar_hex: "#0f172a",
+        preview_accent_hex: "#38bdf8",
+    },
+    ThemePresetInfo {
+        id: "daylight",
+        name_en: "UniCore Daylight",
+        name_ms: "UniCore Siang Cerah",
+        subtitle_en: "Light • Win11 Pill",
+        subtitle_ms: "Cerah • Win11 Terapung",
+        base_theme: "light",
+        layout: "win11",
+        taskbar_style: "floating",
+        accent: "blue",
+        wallpaper: "/usr/share/unicore/wallpaper-light.png",
+        preview_wall_hex: "#cbd5e1",
+        preview_win_hex: "#ffffff",
+        preview_title_hex: "#f1f5f9",
+        preview_bar_hex: "#f1f5f9",
+        preview_accent_hex: "#0284c7",
+    },
+    ThemePresetInfo {
+        id: "aurora",
+        name_en: "Aurora Violet",
+        name_ms: "Aurora Ungu",
+        subtitle_en: "Dark • Cosmic Indigo",
+        subtitle_ms: "Gelap • Indigo Kosmik",
+        base_theme: "dark",
+        layout: "win11",
+        taskbar_style: "floating",
+        accent: "purple",
+        wallpaper: "/usr/share/unicore/wallpaper-aurora.png",
+        preview_wall_hex: "#2e1065",
+        preview_win_hex: "#231f42",
+        preview_title_hex: "#131126",
+        preview_bar_hex: "#131126",
+        preview_accent_hex: "#a5b4fc",
+    },
+    ThemePresetInfo {
+        id: "nordic",
+        name_en: "Nordic Frost",
+        name_ms: "Salji Nordik",
+        subtitle_en: "Dark • macOS Top Bar",
+        subtitle_ms: "Gelap • Bar Atas macOS",
+        base_theme: "dark",
+        layout: "macos",
+        taskbar_style: "floating",
+        accent: "blue",
+        wallpaper: "/usr/share/unicore/wallpaper-nordic.png",
+        preview_wall_hex: "#3b4252",
+        preview_win_hex: "#3b4252",
+        preview_title_hex: "#2e3440",
+        preview_bar_hex: "#2e3440",
+        preview_accent_hex: "#88c0d0",
+    },
+    ThemePresetInfo {
+        id: "dracula",
+        name_en: "Dracula Neon",
+        name_ms: "Dracula Neon",
+        subtitle_en: "Dark • Orchid Glow",
+        subtitle_ms: "Gelap • Kilau Orkid",
+        base_theme: "dark",
+        layout: "win11",
+        taskbar_style: "floating",
+        accent: "purple",
+        wallpaper: "/usr/share/unicore/wallpaper-dracula.png",
+        preview_wall_hex: "#44475a",
+        preview_win_hex: "#343746",
+        preview_title_hex: "#282a36",
+        preview_bar_hex: "#282a36",
+        preview_accent_hex: "#ff79c6",
+    },
+    ThemePresetInfo {
+        id: "emerald",
+        name_en: "Emerald Forest",
+        name_ms: "Rimba Zamrud",
+        subtitle_en: "Dark • Deep Jade",
+        subtitle_ms: "Gelap • Zamrud Tenang",
+        base_theme: "dark",
+        layout: "win11",
+        taskbar_style: "floating",
+        accent: "green",
+        wallpaper: "/usr/share/unicore/wallpaper-emerald.png",
+        preview_wall_hex: "#064e3b",
+        preview_win_hex: "#132e26",
+        preview_title_hex: "#0b1f1a",
+        preview_bar_hex: "#0b1f1a",
+        preview_accent_hex: "#34d399",
+    },
+    ThemePresetInfo {
+        id: "sunset",
+        name_en: "Amber Sunset",
+        name_ms: "Senja Emas",
+        subtitle_en: "Dark • Win10 Docked",
+        subtitle_ms: "Gelap • Win10 Klasik",
+        base_theme: "dark",
+        layout: "win10",
+        taskbar_style: "docked",
+        accent: "amber",
+        wallpaper: "/usr/share/unicore/wallpaper-sunset.png",
+        preview_wall_hex: "#9a3412",
+        preview_win_hex: "#2c1f18",
+        preview_title_hex: "#1c1410",
+        preview_bar_hex: "#1c1410",
+        preview_accent_hex: "#fbbf24",
+    },
+    ThemePresetInfo {
+        id: "sakura",
+        name_en: "Sakura Blossom",
+        name_ms: "Mekar Sakura",
+        subtitle_en: "Light • macOS Top Bar",
+        subtitle_ms: "Cerah • Bar Atas macOS",
+        base_theme: "light",
+        layout: "macos",
+        taskbar_style: "floating",
+        accent: "rose",
+        wallpaper: "/usr/share/unicore/wallpaper-sakura.png",
+        preview_wall_hex: "#fbcfe8",
+        preview_win_hex: "#ffffff",
+        preview_title_hex: "#fff5f7",
+        preview_bar_hex: "#fff5f7",
+        preview_accent_hex: "#f43f5e",
+    },
+    ThemePresetInfo {
+        id: "cyberpunk",
+        name_en: "Cyberpunk Synth",
+        name_ms: "Siberpunk Neon",
+        subtitle_en: "Dark • Synthwave Grid",
+        subtitle_ms: "Gelap • Grid Synthwave",
+        base_theme: "dark",
+        layout: "win10",
+        taskbar_style: "floating",
+        accent: "rose",
+        wallpaper: "/usr/share/unicore/wallpaper-cyberpunk.png",
+        preview_wall_hex: "#3b0764",
+        preview_win_hex: "#16122b",
+        preview_title_hex: "#090814",
+        preview_bar_hex: "#090814",
+        preview_accent_hex: "#22d3ee",
+    },
+    ThemePresetInfo {
+        id: "classic98",
+        name_en: "Retro Classic 98",
+        name_ms: "Retro Klasik 98",
+        subtitle_en: "Light • Win98 Classic",
+        subtitle_ms: "Cerah • Win98 Nostalgia",
+        base_theme: "light",
+        layout: "win10",
+        taskbar_style: "docked",
+        accent: "blue",
+        wallpaper: "/usr/share/unicore/wallpaper-classic98.png",
+        preview_wall_hex: "#008080",
+        preview_win_hex: "#dfdfdf",
+        preview_title_hex: "#000080",
+        preview_bar_hex: "#c0c0c0",
+        preview_accent_hex: "#000080",
+    },
 ];
 pub const KB_LAYOUTS: [(&str, &str); 6] = [
     ("us", "US English (us)"),
@@ -1015,6 +1214,7 @@ pub fn save_and_apply_nightlight(
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PersonalizeConfig {
+    pub theme_preset: String,
     pub theme: String,
     pub wallpaper: String,
     pub kb_layout: String,
@@ -1032,6 +1232,7 @@ pub struct PersonalizeConfig {
 impl Default for PersonalizeConfig {
     fn default() -> Self {
         Self {
+            theme_preset: "midnight".to_string(),
             theme: "dark".to_string(),
             wallpaper: DEFAULT_WALLPAPER_PATH.to_string(),
             kb_layout: "us".to_string(),
@@ -1046,6 +1247,52 @@ impl Default for PersonalizeConfig {
             large_text: false,
         }
     }
+}
+
+pub fn validate_theme_preset(raw: &str) -> Result<String, String> {
+    let lower = raw.trim().to_ascii_lowercase();
+    if THEME_PRESETS.iter().any(|p| p.id == lower) {
+        Ok(lower)
+    } else {
+        Err(format!(
+            "Unsupported theme preset '{raw}'. Choose one of the 10 UniCore OS theme presets."
+        ))
+    }
+}
+
+pub fn theme_preset_to_index(raw: &str) -> i32 {
+    THEME_PRESETS
+        .iter()
+        .position(|p| p.id == raw)
+        .unwrap_or(0) as i32
+}
+
+pub fn theme_preset_from_index(idx: i32) -> &'static str {
+    THEME_PRESETS
+        .get(idx as usize)
+        .map(|p| p.id)
+        .unwrap_or("midnight")
+}
+
+pub fn find_theme_preset(id: &str) -> Option<&'static ThemePresetInfo> {
+    let lower = id.trim().to_ascii_lowercase();
+    THEME_PRESETS.iter().find(|p| p.id == lower)
+}
+
+pub fn apply_theme_preset_to_config(
+    mut cfg: PersonalizeConfig,
+    preset_id: &str,
+) -> Result<PersonalizeConfig, String> {
+    let info = find_theme_preset(preset_id).ok_or_else(|| {
+        format!("Unsupported theme preset '{preset_id}'. Choose one of the 10 UniCore OS theme presets.")
+    })?;
+    cfg.theme_preset = info.id.to_string();
+    cfg.theme = info.base_theme.to_string();
+    cfg.wallpaper = info.wallpaper.to_string();
+    cfg.desktop_layout = info.layout.to_string();
+    cfg.taskbar_style = info.taskbar_style.to_string();
+    cfg.accent_color = info.accent.to_string();
+    Ok(cfg)
 }
 
 pub fn validate_desktop_layout(raw: &str) -> Result<String, String> {
@@ -1143,6 +1390,7 @@ pub fn clamp_pointer_speed(val: f32) -> f32 {
 
 pub fn parse_personalize_conf(raw: &str) -> PersonalizeConfig {
     let mut cfg = PersonalizeConfig::default();
+    let mut seen_preset = false;
     for line in raw.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -1153,6 +1401,12 @@ pub fn parse_personalize_conf(raw: &str) -> PersonalizeConfig {
         };
         let val = v.trim();
         match k.trim() {
+            "UNICORE_THEME_PRESET" => {
+                if let Ok(pr) = validate_theme_preset(val) {
+                    cfg.theme_preset = pr;
+                    seen_preset = true;
+                }
+            }
             "UNICORE_THEME" => {
                 if let Ok(t) = validate_theme(val) {
                     cfg.theme = t;
@@ -1223,10 +1477,24 @@ pub fn parse_personalize_conf(raw: &str) -> PersonalizeConfig {
             _ => {}
         }
     }
+    if !seen_preset {
+        cfg.theme_preset = if cfg.theme == "light" {
+            "daylight".to_string()
+        } else {
+            "midnight".to_string()
+        };
+    }
     cfg
 }
 
 pub fn render_personalize_conf(cfg: &PersonalizeConfig) -> String {
+    let preset = validate_theme_preset(&cfg.theme_preset).unwrap_or_else(|_| {
+        if cfg.theme.eq_ignore_ascii_case("light") {
+            "daylight".to_string()
+        } else {
+            "midnight".to_string()
+        }
+    });
     let theme = if cfg.theme.eq_ignore_ascii_case("light") {
         "light"
     } else {
@@ -1245,7 +1513,7 @@ pub fn render_personalize_conf(cfg: &PersonalizeConfig) -> String {
     let lt = if cfg.large_text { "yes" } else { "no" };
     let speed = clamp_pointer_speed(cfg.pointer_speed);
     format!(
-        "UNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\nUNICORE_DESKTOP_ICONS={di}\nUNICORE_TASKBAR_STYLE={ts}\nUNICORE_LAYOUT={layout}\nUNICORE_ACCENT_COLOR={accent}\nUNICORE_HIGH_CONTRAST={hc}\nUNICORE_LARGE_TEXT={lt}\n"
+        "UNICORE_THEME_PRESET={preset}\nUNICORE_THEME={theme}\nUNICORE_WALLPAPER={wallpaper}\nUNICORE_KB_LAYOUT={kb_layout}\nUNICORE_NATURAL_SCROLL={ns}\nUNICORE_TAP_TO_CLICK={tap}\nUNICORE_POINTER_SPEED={speed:.1}\nUNICORE_DESKTOP_ICONS={di}\nUNICORE_TASKBAR_STYLE={ts}\nUNICORE_LAYOUT={layout}\nUNICORE_ACCENT_COLOR={accent}\nUNICORE_HIGH_CONTRAST={hc}\nUNICORE_LARGE_TEXT={lt}\n"
     )
 }
 
@@ -1259,8 +1527,17 @@ pub fn save_and_apply_personalize(
     cfg_dir: &Path,
     cfg: &PersonalizeConfig,
 ) -> Result<PersonalizeConfig, String> {
+    let clean_theme = validate_theme(&cfg.theme)?;
+    let clean_preset = validate_theme_preset(&cfg.theme_preset).unwrap_or_else(|_| {
+        if clean_theme == "light" {
+            "daylight".to_string()
+        } else {
+            "midnight".to_string()
+        }
+    });
     let clean = PersonalizeConfig {
-        theme: validate_theme(&cfg.theme)?,
+        theme_preset: clean_preset,
+        theme: clean_theme,
         wallpaper: validate_wallpaper_path(&cfg.wallpaper)?,
         kb_layout: validate_kb_layout(&cfg.kb_layout)?,
         natural_scroll: cfg.natural_scroll,
@@ -1289,6 +1566,8 @@ pub fn save_and_apply_personalize(
             PERSONALIZE_HELPER_BIN,
             &[
                 "set",
+                "--preset",
+                &clean.theme_preset,
                 "--theme",
                 &clean.theme,
                 "--wallpaper",
@@ -1303,10 +1582,10 @@ pub fn save_and_apply_personalize(
                 &speed,
                 "--desktop-icons",
                 di,
-                "--taskbar-style",
-                &clean.taskbar_style,
                 "--layout",
                 &clean.desktop_layout,
+                "--taskbar-style",
+                &clean.taskbar_style,
                 "--accent",
                 &clean.accent_color,
                 "--high-contrast",
