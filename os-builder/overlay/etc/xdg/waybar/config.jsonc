@@ -30,7 +30,7 @@
   "custom/start": {
     "format": "\uf00a",
     "tooltip-format": "Start Menu (Win)",
-    "on-click": "pkill -f 'unicore-center --start-menu' || /usr/bin/unicore-center --start-menu &"
+    "on-click": "/usr/libexec/unicore-toggle --start-menu"
   },
   "custom/files": {
     "format": "\uf07b",
@@ -45,12 +45,12 @@
   "custom/center": {
     "format": "\uf290",
     "tooltip-format": "UniCore App Store & Center (Win+C)",
-    "on-click": "pkill -f 'unicore-center --tab store' || /usr/bin/unicore-center --tab store &"
+    "on-click": "/usr/libexec/unicore-toggle --tab store"
   },
   "custom/taskmgr": {
     "format": "\uf080",
     "tooltip-format": "Task Manager (Ctrl+Shift+Esc)",
-    "on-click": "pkill -f 'unicore-center --taskmgr' || /usr/bin/unicore-center --taskmgr &"
+    "on-click": "/usr/libexec/unicore-toggle --taskmgr"
   },
   "wlr/taskbar": {
     "format": "{title:.13}",
@@ -102,12 +102,12 @@
   "custom/ai": {
     "format": "\uf0eb AI",
     "tooltip-format": "UniCore AI Assistant (Win+A)",
-    "on-click": "pkill -f 'unicore-center --ai' || /usr/bin/unicore-center --ai &"
+    "on-click": "/usr/libexec/unicore-toggle --ai"
   },
   "custom/quick": {
     "format": "\uf1de",
     "tooltip-format": "Quick Settings (Wi-Fi, Sound, Brightness, Theme, DND)",
-    "on-click": "pkill -f 'unicore-center --quick-settings' || /usr/bin/unicore-center --quick-settings &"
+    "on-click": "/usr/libexec/unicore-toggle --quick-settings"
   },
   "clock": {
     "format": "{:%H:%M\n%d/%m/%Y}",
@@ -116,7 +116,7 @@
   "custom/power": {
     "format": "\uf011",
     "tooltip-format": "Power Options (Win+X)",
-    "on-click": "pkill -f 'unicore-center --power' || /usr/bin/unicore-center --power &"
+    "on-click": "/usr/libexec/unicore-toggle --power"
   },
   "custom/desktop": {
     "format": " ",

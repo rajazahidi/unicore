@@ -423,10 +423,10 @@ while [ ! -S /run/user/1000/wayland-0 ] && [ "${tries}" -lt 80 ]; do
     tries=$((tries + 1))
 done
 test -S /run/user/1000/wayland-0
-pkill -x unicore-center >/dev/null 2>&1 || true
+pkill -f '[u]nicore-center' >/dev/null 2>&1 || true
 sleep 0.6
-if pgrep -x unicore-center >/dev/null 2>&1; then
-    echo "ERROR: unicore-center did not close cleanly after pkill -x"
+if pgrep -f '[u]nicore-center' >/dev/null 2>&1; then
+    echo "ERROR: unicore-center did not close cleanly after pkill -f"
     exit 1
 fi
 
@@ -551,10 +551,11 @@ if pgrep -x cupsd >/dev/null 2>&1; then
 fi
 echo "Persona Printing (CUPS on-demand + doas printer-discover/add/remove + Gutenprint + 0 MB idle) PASS"
 
-# 3E. Full Menu, Waybar, Labwc Keybinding & Desktop Entry Executables Audit
+# 3E. Full Menu, Waybar, Labwc Keybinding, Live Toggle & Desktop Entry Executables Audit
 for menu_bin in \
     /usr/bin/unicore-center \
     /usr/bin/unicore-browser \
+    /usr/libexec/unicore-toggle \
     /usr/libexec/unicore-capture \
     /usr/libexec/unicore-update-check \
     /usr/libexec/unicore-osd \
@@ -569,7 +570,26 @@ for df in /usr/share/applications/unicore-*.desktop; do
     exec_bin="$(awk -F= '$1=="Exec"{print $2; exit}' "${df}" | awk '{print $1}')"
     command -v "${exec_bin}" >/dev/null 2>&1 || { echo "Broken desktop Exec in ${df}: ${exec_bin}"; exit 1; }
 done
-echo "Persona Menu & Shortcut Integrity Audit PASS"
+# Live 2-click toggle verification (simulates pressing Super_L / clicking Waybar Start twice)
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
+    sleep 0.4
+    /usr/libexec/unicore-toggle --start-menu
+    for i in $(seq 1 20); do
+        pgrep -f "[u]nicore-center --start-menu" >/dev/null 2>&1 && break
+        sleep 0.2
+    done
+    pgrep -f "[u]nicore-center --start-menu" >/dev/null 2>&1
+    sleep 0.5
+    /usr/libexec/unicore-toggle --start-menu
+    sleep 0.6
+    if pgrep -f "[u]nicore-center --start-menu" >/dev/null 2>&1; then
+        echo "ERROR: unicore-toggle failed to close --start-menu on second click"
+        exit 1
+    fi
+'
+echo "Persona Menu, Shortcut & Live 2-Click Toggle Integrity Audit PASS"
 
 echo "[3f/5] Applying Phase 20D/v0.4.0 Light Theme, Floating Pill Taskbar, Papirus Icons, Daylight Wallpaper & Input settings..."
 su -s /bin/sh unicore -c '
@@ -601,14 +621,14 @@ grep -q '#f1f5f9' /home/unicore/.config/waybar/style.css
 grep -q 'border-radius: 14px' /home/unicore/.config/waybar/style.css
 
 echo "[4/5] Capturing 14 clean unstacked live Wayland desktop screenshots across all menus & hubs..."
-pkill -x unicore-center >/dev/null 2>&1 || true
+pkill -f '[u]nicore-center' >/dev/null 2>&1 || true
 sleep 0.8
 su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
     snap_dialog() {
         out_png="$1"
         shift
-        pkill -x unicore-center >/dev/null 2>&1 || true
+        pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
         sleep 0.6
         /usr/bin/unicore-center "$@" >/tmp/center_qa.log 2>&1 &
         for i in $(seq 1 30); do
@@ -619,7 +639,7 @@ su -s /bin/sh unicore -c '
         done
         sleep 3.5
         grim "${out_png}"
-        pkill -x unicore-center >/dev/null 2>&1 || true
+        pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
         sleep 0.5
     }
     snap_dialog /tmp/phase20d.png --tab settings:appearance
@@ -649,17 +669,17 @@ grep -q 'border-color=#22d3ee' /home/unicore/.config/mako/config
 su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
     sleep 1
-    pkill -x unicore-center >/dev/null 2>&1 || true
+    pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
     sleep 0.5
     /usr/bin/unicore-center --themes >/tmp/center_themes.log 2>&1 &
     sleep 3
     grim /tmp/v130_themes.png
-    pkill -x unicore-center >/dev/null 2>&1 || true
+    pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
     sleep 0.6
     /usr/bin/unicore-center --tab system >/tmp/center_android.log 2>&1 &
     sleep 3
     grim /tmp/v140_android.png
-    pkill -x unicore-center >/dev/null 2>&1 || true
+    pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png

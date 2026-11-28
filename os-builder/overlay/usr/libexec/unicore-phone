@@ -30,7 +30,7 @@ save_autostart() {
 }
 
 is_kde_running() {
-    pgrep -f kdeconnectd >/dev/null 2>&1
+    pgrep -f '[k]deconnectd' >/dev/null 2>&1
 }
 
 is_safe_id() {
@@ -50,7 +50,7 @@ start_kdeconnectd() {
 }
 
 stop_kdeconnectd() {
-    pkill -f kdeconnectd >/dev/null 2>&1 || true
+    pkill -f '[k]deconnectd' >/dev/null 2>&1 || true
 }
 
 list_kde_devices() {

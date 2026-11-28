@@ -27,13 +27,13 @@
   <keyboard>
     <default />
     <keybind key="Super_L">
-      <action name="Execute" command="pkill -f 'unicore-center --start-menu' || /usr/bin/unicore-center --start-menu" />
+      <action name="Execute" command="/usr/libexec/unicore-toggle --start-menu" />
     </keybind>
     <keybind key="W-period">
-      <action name="Execute" command="pkill -f 'unicore-center --emoji' || /usr/bin/unicore-center --emoji" />
+      <action name="Execute" command="/usr/libexec/unicore-toggle --emoji" />
     </keybind>
     <keybind key="W-a">
-      <action name="Execute" command="pkill -f 'unicore-center --ai' || /usr/bin/unicore-center --ai" />
+      <action name="Execute" command="/usr/libexec/unicore-toggle --ai" />
     </keybind>
     <keybind key="A-space">
       <action name="Execute" command="fuzzel" />
@@ -48,10 +48,10 @@
       <action name="Execute" command="foot" />
     </keybind>
     <keybind key="Print">
-      <action name="Execute" command="/usr/bin/unicore-center --capture" />
+      <action name="Execute" command="/usr/libexec/unicore-toggle --capture" />
     </keybind>
     <keybind key="W-S-r">
-      <action name="Execute" command="/usr/bin/unicore-center --capture" />
+      <action name="Execute" command="/usr/libexec/unicore-toggle --capture" />
     </keybind>
     <keybind key="W-S-s">
       <action name="Execute" command="/usr/libexec/unicore-screenshot --region" />
@@ -69,7 +69,7 @@
       <action name="Execute" command="/usr/bin/unicore-center --tab settings" />
     </keybind>
     <keybind key="W-x">
-      <action name="Execute" command="/usr/bin/unicore-center --power" />
+      <action name="Execute" command="/usr/libexec/unicore-toggle --power" />
     </keybind>
     <keybind key="W-w">
       <action name="Execute" command="/usr/bin/unicore-browser" />
@@ -78,7 +78,7 @@
       <action name="Execute" command="/usr/libexec/unicore-clipboard" />
     </keybind>
     <keybind key="C-S-Escape">
-      <action name="Execute" command="/usr/bin/unicore-center --taskmgr" />
+      <action name="Execute" command="/usr/libexec/unicore-toggle --taskmgr" />
     </keybind>
     <keybind key="W-Left">
       <action name="SnapToEdge" direction="left" />

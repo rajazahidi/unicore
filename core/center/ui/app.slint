@@ -874,7 +874,7 @@ component WinEraRow inherits HorizontalLayout {
 
 export component MainWindow inherits Window {
     title: root.themes-dialog-only ? root.tr.title-theme-studio : (root.family-dialog-only ? root.tr.title-family-hub : (root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))))))));
-    preferred-width: root.themes-dialog-only ? 860px : (root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 420px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))))));
+    preferred-width: root.themes-dialog-only ? 860px : (root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 468px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))))));
     preferred-height: root.themes-dialog-only ? 468px : (root.family-dialog-only ? 600px : (root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 660px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))))))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
@@ -957,7 +957,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v1.4.2";
+    in-out property <string> login-clock-text: "UniCore OS v1.4.3";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1644,6 +1644,7 @@ export component MainWindow inherits Window {
                             font-weight: 800;
                             horizontal-stretch: 1;
                             vertical-alignment: center;
+                            overflow: elide;
                         }
                         Button {
                             text: root.tr.btn-open-themes;
@@ -1653,7 +1654,7 @@ export component MainWindow inherits Window {
                             }
                         }
                         Button {
-                            text: "AI (Win+A)";
+                            text: "AI";
                             clicked => {
                                 root.quick-settings-only = false;
                                 root.ai-dialog-only = true;

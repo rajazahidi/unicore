@@ -15,7 +15,7 @@ find_osk_bin() {
 }
 
 osk_running() {
-    pgrep -f 'wvkbd' >/dev/null 2>&1
+    pgrep -f '[w]vkbd' >/dev/null 2>&1
 }
 
 cmd="${1:-status}"
@@ -41,13 +41,13 @@ case "${cmd}" in
         ;;
 
     osk-stop)
-        pkill -f 'wvkbd' >/dev/null 2>&1 || true
+        pkill -f '[w]vkbd' >/dev/null 2>&1 || true
         echo "On-screen keyboard closed"
         ;;
 
     osk-toggle)
         if osk_running; then
-            pkill -f 'wvkbd' >/dev/null 2>&1 || true
+            pkill -f '[w]vkbd' >/dev/null 2>&1 || true
             echo "On-screen keyboard closed"
         else
             bin="$(find_osk_bin)" || { echo "On-screen keyboard (wvkbd) is not installed." >&2; exit 1; }

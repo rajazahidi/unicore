@@ -1,0 +1,16 @@
+#!/bin/sh
+# UniCore OS Single-Instance Dialog Toggle Helper (Waybar & Labwc keybindings).
+# Avoids Labwc execvp shell-operator failures (no '||' in rc.xml) and BusyBox 'sh -c' pkill -f self-kill.
+set -eu
+
+if [ "$#" -lt 1 ]; then
+    echo "Usage: unicore-toggle <unicore-center-args...>" >&2
+    exit 2
+fi
+
+PAT="[u]nicore-center $*"
+if pgrep -f "${PAT}" >/dev/null 2>&1; then
+    pkill -f "${PAT}" >/dev/null 2>&1 || true
+else
+    /usr/bin/unicore-center "$@" </dev/null >/dev/null 2>&1 &
+fi
