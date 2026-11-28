@@ -177,6 +177,9 @@ test -f /lib/firmware/regulatory.db -o -f /usr/lib/firmware/regulatory.db
 test "$(/usr/libexec/unicore-personalize list-presets | wc -l)" -eq 10
 test -s /usr/share/unicore/wallpaper-cyberpunk.png
 test -f /usr/share/themes/UniCore-Classic98/openbox-3/themerc
+uniload android gsf-id --dry-run | grep -q 'google.com/android/uncertified'
+uniload android install-aurora --dry-run | grep -q '"install-aurora"'
+uniload android restart --dry-run | grep -q '"restart"'
 
 echo "[ARM64-QA] 2/4 Verifying Box64 + Wine 11.0 WoW64 binaries..."
 test -x /usr/share/unicore/arm64-win32/run-wine-box64.sh

@@ -370,6 +370,11 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         hdr_theme_studio: l.hdr_theme_studio.into(),
         sub_theme_studio: l.sub_theme_studio.into(),
         btn_open_themes: l.btn_open_themes.into(),
+        btn_android_gsf: l.btn_android_gsf.into(),
+        btn_android_cert: l.btn_android_cert.into(),
+        btn_android_restart: l.btn_android_restart.into(),
+        btn_android_aurora: l.btn_android_aurora.into(),
+        hint_google_play: l.hint_google_play.into(),
     });
     refresh_guide_chapters(ui, lang, ui.get_guide_chapter_idx());
     let cur_pers = load_personalize_config(&persistent_display_config_dir());
@@ -2130,23 +2135,67 @@ fn main() {
                 );
                 return;
             }
+            if action_str == "open-cert-page" {
+                let res = unicore_center::backend::open_browser_url(
+                    unicore_center::backend::GOOGLE_PLAY_CERT_URL,
+                );
+                report_result(
+                    &ui,
+                    res,
+                    "Opened Google Play Protect certification page (google.com/android/uncertified).",
+                );
+                return;
+            }
             let cfg = b.borrow().config.clone();
             ui.set_android_busy(true);
             let prog = match action_str.as_str() {
                 "init" => format!("Initializing Android ({profile}) into /data/waydroid..."),
                 "setup-arm" => "Downloading & installing libndk_translation ARM translator...".to_string(),
+                "gsf-id" => "Reading Google Play GSF Device ID from Android container...".to_string(),
+                "restart" => "Restarting Android container so Google Play certification takes effect...".to_string(),
+                "install-aurora" => "Downloading & installing official open-source Aurora Store APK...".to_string(),
                 other => format!("Running Android action '{other}'..."),
             };
             ui.set_android_status(SharedString::from(prog.as_str()));
             set_status(&ui, prog, false);
             let thread_ui = ui.as_weak();
+            let act_for_thread = action_str.clone();
             std::thread::spawn(move || {
-                let res = CenterBackend::run_android_setup_blocking(&cfg, &action_str, &profile);
+                let res = CenterBackend::run_android_setup_blocking(&cfg, &act_for_thread, &profile);
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = thread_ui.upgrade() {
                         ui.set_android_busy(false);
                         match res {
                             Ok(msg) => {
+                                if act_for_thread == "gsf-id" {
+                                    if let Some(gsf_id) =
+                                        unicore_center::backend::parse_android_gsf_id(&msg)
+                                    {
+                                        ui.set_sys_android_gsf_id(SharedString::from(
+                                            gsf_id.as_str(),
+                                        ));
+                                        let copied =
+                                            unicore_center::backend::copy_to_wayland_clipboard(
+                                                &gsf_id,
+                                            );
+                                        let _ = unicore_center::backend::open_browser_url(
+                                            unicore_center::backend::GOOGLE_PLAY_CERT_URL,
+                                        );
+                                        let friendly = if copied {
+                                            format!(
+                                                "GSF ID {gsf_id} copied to clipboard & opened google.com/android/uncertified — Paste, click Register, then click 'Restart Android'."
+                                            )
+                                        } else {
+                                            format!(
+                                                "GSF ID: {gsf_id} — Register at google.com/android/uncertified, then click 'Restart Android'."
+                                            )
+                                        };
+                                        ui.set_android_status(SharedString::from(friendly.as_str()));
+                                        set_status(&ui, friendly, false);
+                                        ui.invoke_refresh_all();
+                                        return;
+                                    }
+                                }
                                 ui.set_android_status(SharedString::from(msg.as_str()));
                                 set_status(&ui, msg, false);
                                 ui.invoke_refresh_all();

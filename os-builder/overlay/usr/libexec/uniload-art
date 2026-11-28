@@ -150,8 +150,8 @@ install_arm_translator() {
         return 0
     fi
 
-    work_dir="/tmp/unicore-libndk.$$"
-    mkdir -p "${work_dir}" "${ANDROID_ROOT}/overlay/system"
+    work_dir="$(umask 077 && mktemp -d /tmp/.unicore-libndk.XXXXXX)"
+    mkdir -p "${ANDROID_ROOT}/overlay/system"
     trap 'rm -rf "${work_dir}"' EXIT
 
     ndk_url="${UNICORE_LIBNDK_URL:-https://github.com/supremegamers/vendor_google_proprietary_ndk_translation-prebuilt/archive/refs/heads/master.tar.gz}"
@@ -194,8 +194,7 @@ install_arm_translator() {
 }
 
 install_microg_bundle() {
-    work_dir="/tmp/unicore-microg.$$"
-    mkdir -p "${work_dir}"
+    work_dir="$(umask 077 && mktemp -d /tmp/.unicore-microg.XXXXXX)"
     trap 'rm -rf "${work_dir}"' EXIT
 
     echo "==> Enabling microG signature spoofing & installing F-Droid + microG Services..."
@@ -385,6 +384,66 @@ EOF
                 echo "Desktop clipboard is empty."
             fi
         fi
+        ;;
+
+    gsf-id)
+        if [ ! -f "${ANDROID_ROOT}/images/system.img" ]; then
+            echo "[uniload-art] Android is not initialized yet. Select 'GAPPS' and click 'Initialize Android' first." >&2
+            exit 2
+        fi
+        ensure_container_running
+        raw_id="$(waydroid shell -- sh -c 'ANDROID_RUNTIME_ROOT=/apex/com.android.runtime ANDROID_DATA=/data ANDROID_TZDATA_ROOT=/apex/com.android.tzdata ANDROID_I18N_ROOT=/apex/com.android.i18n sqlite3 /data/data/com.google.android.gsf/databases/gservices.db "select value from main where name = \"android_id\";"' 2>/dev/null | tr -d '\r' | grep -Eo '[0-9]{10,24}' | head -n1 || true)"
+        if [ -z "${raw_id}" ]; then
+            echo "[uniload-art] Google Play GSF ID is not generated yet. Open Android UI once (with GAPPS profile), wait ~15s, then try again." >&2
+            exit 3
+        fi
+        printf 'gsf_id=%s\ncert_url=https://www.google.com/android/uncertified/\n' "${raw_id}"
+        ;;
+
+    restart)
+        if [ ! -f "${ANDROID_ROOT}/images/system.img" ]; then
+            echo "[uniload-art] Android image is not initialized yet." >&2
+            exit 2
+        fi
+        waydroid session stop >/dev/null 2>&1 || true
+        if command -v rc-service >/dev/null 2>&1 && [ -x /etc/init.d/waydroid-container ]; then
+            rc-service waydroid-container stop >/dev/null 2>&1 || true
+        fi
+        waydroid container stop >/dev/null 2>&1 || true
+        sleep 1
+        ensure_container_running
+        echo "Android container restarted cleanly. Google Play certification changes are now active."
+        ;;
+
+    install-aurora)
+        if [ ! -f "${ANDROID_ROOT}/images/system.img" ]; then
+            echo "[uniload-art] Android is not initialized yet. Initialize MICROG, VANILLA, or GAPPS first." >&2
+            exit 2
+        fi
+        work_dir="$(umask 077 && mktemp -d /tmp/.unicore-aurora.XXXXXX)"
+        trap 'rm -rf "${work_dir}"' EXIT
+        ensure_container_running
+
+        aurora_url="${UNICORE_AURORA_URL:-}"
+        if [ -z "${aurora_url}" ] && command -v jq >/dev/null 2>&1; then
+            ver_code="$(curl -fsSL --connect-timeout 15 --max-time 30 -H 'User-Agent: UniCoreOS' "https://f-droid.org/api/v1/packages/com.aurora.store" 2>/dev/null | jq -r '.suggestedVersionCode // empty' 2>/dev/null || true)"
+            if [ -n "${ver_code}" ] && printf '%s' "${ver_code}" | grep -Eq '^[0-9]+$'; then
+                aurora_url="https://f-droid.org/repo/com.aurora.store_${ver_code}.apk"
+            fi
+        fi
+        if [ -z "${aurora_url}" ]; then
+            aurora_url="https://f-droid.org/repo/com.aurora.store_63.apk"
+        fi
+        echo "==> Downloading official open-source Aurora Store (${aurora_url})..."
+        if ! curl -fsSL --connect-timeout 15 --max-time 240 -o "${work_dir}/AuroraStore.apk" "${aurora_url}"; then
+            echo "[uniload-art] Failed to download Aurora Store APK. Check internet connection." >&2
+            exit 1
+        fi
+        waydroid app install "${work_dir}/AuroraStore.apk"
+        sync_shortcuts || true
+        rm -rf "${work_dir}"
+        trap - EXIT
+        echo "Aurora Store installed! Open it from Start Menu or Android UI to download Play Store apps."
         ;;
 
     *)

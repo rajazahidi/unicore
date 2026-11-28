@@ -634,7 +634,9 @@ fn run_android_command(rest: &[String]) -> Result<String, String> {
     const ART_BIN: &str = "/usr/libexec/uniload-art";
     let sub = rest
         .first()
-        .ok_or_else(|| "android requires <status|init|ui|setup-arm|sync-shortcuts>".to_string())?
+        .ok_or_else(|| {
+            "android requires <status|init|ui|setup-arm|sync-shortcuts|clipboard-sync|gsf-id|restart|install-aurora>".to_string()
+        })?
         .as_str();
     let tail = &rest[1..];
 
@@ -668,9 +670,12 @@ fn run_android_command(rest: &[String]) -> Result<String, String> {
         }
         "sync-shortcuts" => vec!["sync-shortcuts".to_string()],
         "clipboard-sync" => vec!["clipboard-sync".to_string()],
+        "gsf-id" => vec!["gsf-id".to_string()],
+        "restart" => vec!["restart".to_string()],
+        "install-aurora" => vec!["install-aurora".to_string()],
         other => {
             return Err(format!(
-                "Unknown android action '{other}'. Choose status, init, ui, setup-arm, sync-shortcuts, or clipboard-sync."
+                "Unknown android action '{other}'. Choose status, init, ui, setup-arm, sync-shortcuts, clipboard-sync, gsf-id, restart, or install-aurora."
             ))
         }
     };
@@ -723,6 +728,12 @@ fn run_android_command(rest: &[String]) -> Result<String, String> {
         "waydroid_installed".to_string(),
         JsonValue::Bool(android.waydroid_installed),
     );
+    if sub == "gsf-id" {
+        out.insert(
+            "cert_url".to_string(),
+            JsonValue::Str("https://www.google.com/android/uncertified/".to_string()),
+        );
+    }
     Ok(to_json_pretty(&JsonValue::Object(out)))
 }
 

@@ -434,6 +434,30 @@ case "$1" in
         [ "$#" -eq 1 ] || exit 2
         exec /usr/libexec/unicore-parental reset-usage
         ;;
+    android-init)
+        [ "$#" -eq 2 ] || exit 2
+        case "$2" in
+            vanilla|microg|gapps) ;;
+            *) echo "Denied invalid Android profile: $2" >&2; exit 2 ;;
+        esac
+        exec /usr/libexec/uniload-art init --profile "$2"
+        ;;
+    android-setup-arm)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/uniload-art setup-arm
+        ;;
+    android-gsf-id)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/uniload-art gsf-id
+        ;;
+    android-restart)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/uniload-art restart
+        ;;
+    android-install-aurora)
+        [ "$#" -eq 1 ] || exit 2
+        exec /usr/libexec/uniload-art install-aurora
+        ;;
     set-cpu-governor)
         [ "$#" -eq 2 ] || exit 2
         target_gov="$2"

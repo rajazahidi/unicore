@@ -393,6 +393,12 @@ done
 for ob in UniCore-Midnight UniCore-Daylight UniCore-Aurora UniCore-Nordic UniCore-Dracula UniCore-Emerald UniCore-Sunset UniCore-Sakura UniCore-Cyberpunk UniCore-Classic98; do
     test -f "/usr/share/themes/${ob}/openbox-3/themerc"
 done
+echo "Checking v1.4.0 Google Play GSF Certification & Aurora Store Helper..."
+uniload android gsf-id --dry-run | grep -q 'google.com/android/uncertified'
+uniload android restart --dry-run | grep -q '"restart"'
+uniload android install-aurora --dry-run | grep -q '"install-aurora"'
+grep -q 'android-gsf-id)' /usr/libexec/unicore-sys-helper
+grep -q 'android-install-aurora)' /usr/libexec/unicore-sys-helper
 /usr/libexec/unicore-update-check --waybar | grep -q '"text"'
 printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_dll Library dplayx.dll not found\n' > /tmp/fake_win32.log
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
@@ -519,6 +525,11 @@ su -s /bin/sh unicore -c '
     /usr/bin/unicore-center --themes >/tmp/center_themes.log 2>&1 &
     sleep 3
     grim /tmp/v130_themes.png
+    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
+    /usr/bin/unicore-center --tab system >/tmp/center_android.log 2>&1 &
+    sleep 3
+    grim /tmp/v140_android.png
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
@@ -531,6 +542,7 @@ test -s /tmp/v100_guide.png
 test -s /tmp/v110_webapps.png
 test -s /tmp/v120_drivers.png
 test -s /tmp/v130_themes.png
+test -s /tmp/v140_android.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -565,6 +577,9 @@ echo "===PNG_DRIVERS_B64_END==="
 echo "===PNG_THEMES_B64_START==="
 base64 /tmp/v130_themes.png
 echo "===PNG_THEMES_B64_END==="
+echo "===PNG_ANDROID_B64_START==="
+base64 /tmp/v140_android.png
+echo "===PNG_ANDROID_B64_END==="
 
 # Restore default dark theme (midnight preset) to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -675,7 +690,13 @@ printf '\n===GATE1_OK===\n'
         th_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v130_themes.png")
         with open(th_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", th_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}, {drv_dest}, {th_dest}")
+        and_m = re.search(r"===PNG_ANDROID_B64_START===\s*(.*?)\s*===PNG_ANDROID_B64_END===", out, re.DOTALL)
+        if not and_m:
+            raise RuntimeError("Missing v1.4.0 Google Play & Android Helper screenshot payload in Gate 1 output")
+        and_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v140_android.png")
+        with open(and_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", and_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}, {drv_dest}, {th_dest}, {and_dest}")
     finally:
         h.close()
 

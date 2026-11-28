@@ -505,7 +505,7 @@ if [ -d /data/network ]; then
 fi
 chown -R 1000:1000 "${MNT}/data/uniload" "${MNT}/data/home" "${MNT}/data/unicore" "${MNT}/data/flatpak" "${MNT}/data/gaming" "${MNT}/data/ai"
 
-OS_VERSION="1.3.1"
+OS_VERSION="1.4.0"
 if [ -r /etc/os-release ]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || true)"
     [ -n "${parsed_ver}" ] && OS_VERSION="${parsed_ver}"

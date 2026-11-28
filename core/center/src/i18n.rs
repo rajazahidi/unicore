@@ -311,6 +311,12 @@ pub struct UiLabels {
     pub hdr_theme_studio: &'static str,
     pub sub_theme_studio: &'static str,
     pub btn_open_themes: &'static str,
+    // v1.4.0 Google Play GSF Certification & Aurora Store Helper
+    pub btn_android_gsf: &'static str,
+    pub btn_android_cert: &'static str,
+    pub btn_android_restart: &'static str,
+    pub btn_android_aurora: &'static str,
+    pub hint_google_play: &'static str,
 }
 
 impl UiLabels {
@@ -536,7 +542,7 @@ impl UiLabels {
                 btn_backup_now: "Backup Selected Save",
                 btn_sync_cloud: "Sync Saves to Cloud",
                 chk_auto_backup: "Auto-Backup Game Saves on Exit",
-                title_guide: "UniCore OS v1.3.1 — Official User Guide & Security",
+                title_guide: "UniCore OS v1.4.0 — Official User Guide & Security",
                 btn_open_guide: "Guide",
                 guide_sec_hdr: "Live Zero-Trust Security & 0-MB-Idle Health",
                 btn_run_sec_audit: "Run Security Audit",
@@ -553,6 +559,11 @@ impl UiLabels {
                 hdr_theme_studio: "10 Complete Desktop Theme Environments",
                 sub_theme_studio: "1-Click Live Wallpaper, Taskbar, Window Borders, Terminal, Launcher & UI Palette",
                 btn_open_themes: "10 Themes",
+                btn_android_gsf: "Get Google Play GSF ID",
+                btn_android_cert: "Open Google Cert Page",
+                btn_android_restart: "Restart Android",
+                btn_android_aurora: "Install Aurora Store",
+                hint_google_play: "Google Play Sign-In: 1) Init GAPPS & open Android UI once -> 2) Click 'Get Google Play GSF ID' (auto-copied + opens google.com/android/uncertified) -> 3) Register & click 'Restart Android'. Or install Aurora Store for MICROG/VANILLA.",
             },
             UiLang::Ms => Self {
                 title_center: "Pusat Aplikasi UniCore",
@@ -774,7 +785,7 @@ impl UiLabels {
                 btn_backup_now: "Sandar Save Sekarang",
                 btn_sync_cloud: "Segerak Save ke Awan",
                 chk_auto_backup: "Auto-Sandar Save Apabila Tutup Game",
-                title_guide: "UniCore OS v1.3.1 — Panduan Pengguna Rasmi & Keselamatan",
+                title_guide: "UniCore OS v1.4.0 — Panduan Pengguna Rasmi & Keselamatan",
                 btn_open_guide: "Panduan",
                 guide_sec_hdr: "Audit Keselamatan Zero-Trust & Status 0-MB-Idle",
                 btn_run_sec_audit: "Jalankan Audit Keselamatan",
@@ -791,6 +802,11 @@ impl UiLabels {
                 hdr_theme_studio: "10 Persekitaran Tema Desktop Lengkap",
                 sub_theme_studio: "Tukar 1-Klik Kertas Dinding, Bar Tugas, Bingkai Tetingkap, Terminal, Pelancar & Palet UI",
                 btn_open_themes: "10 Tema",
+                btn_android_gsf: "Dapatkan ID Google Play",
+                btn_android_cert: "Buka Laman Sijil Google",
+                btn_android_restart: "Mula Semula Android",
+                btn_android_aurora: "Pasang Aurora Store",
+                hint_google_play: "Log Masuk Google Play: 1) Mula profil GAPPS & buka UI Android sekali -> 2) Klik 'Dapatkan ID Google Play' (disalin automatik + buka google.com/android/uncertified) -> 3) Daftar & klik 'Mula Semula Android'. Atau pasang Aurora Store untuk MICROG/VANILLA.",
             },
         }
     }

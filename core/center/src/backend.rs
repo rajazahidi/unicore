@@ -373,18 +373,37 @@ impl CenterBackend {
         })
     }
 
-    /// Run Android setup actions (`init`, `setup-arm`, `sync-shortcuts`, `clipboard-sync`) synchronously
-    /// in a background GUI worker thread so the user gets a smooth graphical progress bar.
+    /// Run Android setup actions (`init`, `setup-arm`, `sync-shortcuts`, `clipboard-sync`,
+    /// `gsf-id`, `restart`, `install-aurora`) synchronously in a background GUI worker thread
+    /// so the user gets a smooth graphical progress bar.
     pub fn run_android_setup_blocking(
         config: &CenterConfig,
         action: &str,
         profile: &str,
     ) -> Result<String, String> {
-        let mut cmd = Command::new(&config.uniload_bin);
-        cmd.arg("android").arg(action);
-        if action == "init" {
-            cmd.arg("--profile").arg(profile);
-        }
+        let mut cmd = if cfg!(target_os = "linux")
+            && matches!(
+                action,
+                "init" | "setup-arm" | "gsf-id" | "restart" | "install-aurora"
+            )
+            && Path::new("/usr/libexec/unicore-sys-helper").is_file()
+            && Path::new("/usr/bin/doas").is_file()
+        {
+            let mut c = Command::new("/usr/bin/doas");
+            c.arg("/usr/libexec/unicore-sys-helper")
+                .arg(format!("android-{action}"));
+            if action == "init" {
+                c.arg(profile);
+            }
+            c
+        } else {
+            let mut c = Command::new(&config.uniload_bin);
+            c.arg("android").arg(action);
+            if action == "init" {
+                c.arg("--profile").arg(profile);
+            }
+            c
+        };
         let out = cmd
             .stdin(Stdio::null())
             .output()
@@ -558,4 +577,68 @@ impl CenterBackend {
             .map(|_| ())
             .map_err(|e| format!("Failed to start Android {action}: {e}"))
     }
+}
+
+pub const GOOGLE_PLAY_CERT_URL: &str = "https://www.google.com/android/uncertified/";
+
+/// Parse a 10–24 digit Google Services Framework (GSF) `android_id` emitted by
+/// `uniload-art gsf-id` (`gsf_id=...`) or raw `sqlite3` output (`android_id|...`).
+pub fn parse_android_gsf_id(raw: &str) -> Option<String> {
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        let candidate = if let Some(v) = trimmed.strip_prefix("gsf_id=") {
+            v.trim()
+        } else if let Some((_, v)) = trimmed.split_once('|') {
+            v.trim()
+        } else {
+            trimmed
+        };
+        if (10..=24).contains(&candidate.len())
+            && candidate.bytes().all(|b| b.is_ascii_digit())
+        {
+            return Some(candidate.to_string());
+        }
+    }
+    None
+}
+
+pub fn copy_to_wayland_clipboard(text: &str) -> bool {
+    if !cfg!(target_os = "linux") || text.is_empty() {
+        return false;
+    }
+    let Ok(mut child) = Command::new("wl-copy")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return false;
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        let _ = stdin.write_all(text.as_bytes());
+    }
+    child.wait().map(|s| s.success()).unwrap_or(false)
+}
+
+pub fn open_browser_url(url: &str) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err("Only https:// URLs can be opened".to_string());
+    }
+    if !cfg!(target_os = "linux") {
+        return Ok(());
+    }
+    let bin = if Path::new("/usr/bin/unicore-browser").is_file() {
+        "/usr/bin/unicore-browser"
+    } else {
+        "xdg-open"
+    };
+    Command::new(bin)
+        .arg(url)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Failed to open browser for {url}: {e}"))
 }

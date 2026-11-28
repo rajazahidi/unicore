@@ -1674,3 +1674,51 @@ fn v100_bwrap_hardening_and_security_audit_cli_work() {
     assert_eq!(obj.get("all_passed").and_then(JsonValue::as_bool), Some(true));
     assert_eq!(obj.get("unshare_uts").and_then(JsonValue::as_bool), Some(true));
 }
+
+#[test]
+fn v140_android_google_play_gsf_restart_and_aurora_cli_work() {
+    let gsf_out = run_cli(&[
+        "android".to_string(),
+        "gsf-id".to_string(),
+        "--dry-run".to_string(),
+    ])
+    .unwrap();
+    let gsf_json = parse_json(&gsf_out).unwrap();
+    let gsf_obj = gsf_json.as_object().unwrap();
+    assert_eq!(gsf_obj.get("action").and_then(JsonValue::as_str), Some("gsf-id"));
+    assert_eq!(
+        gsf_obj.get("cert_url").and_then(JsonValue::as_str),
+        Some("https://www.google.com/android/uncertified/")
+    );
+
+    for act in ["restart", "install-aurora"] {
+        let out = run_cli(&[
+            "android".to_string(),
+            act.to_string(),
+            "--dry-run".to_string(),
+        ])
+        .unwrap();
+        let parsed = parse_json(&out).unwrap();
+        let obj = parsed.as_object().unwrap();
+        assert_eq!(obj.get("action").and_then(JsonValue::as_str), Some(act));
+        assert_eq!(
+            obj.get("runtime_binary").and_then(JsonValue::as_str),
+            Some("/usr/libexec/uniload-art")
+        );
+    }
+
+    // GAPPS profile validates cleanly
+    let gapps = run_cli(&[
+        "android".to_string(),
+        "init".to_string(),
+        "--profile".to_string(),
+        "gapps".to_string(),
+        "--dry-run".to_string(),
+    ])
+    .unwrap();
+    let g_obj = parse_json(&gapps).unwrap();
+    assert_eq!(
+        g_obj.as_object().unwrap().get("profile").and_then(JsonValue::as_str),
+        Some("gapps")
+    );
+}

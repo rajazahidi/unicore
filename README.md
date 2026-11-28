@@ -1,12 +1,16 @@
-# UniCore OS (`1.3.1` — 10-Theme Desktop Studio & Universal Hardware Edition)
+# UniCore OS (`1.4.0` — Google Play Helper, 10-Theme Studio & Universal Hardware Edition)
 
-**UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.22` + `linux-edge 6.15` + `Mesa 25.1` + `Wine 10.7`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, **Web Apps (PWA)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **2026 modern Intel/AMD/NVIDIA x86_64 & ARM64 PCs and laptops**.
+**UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.22` + `linux-edge 6.15` + `Mesa 25.1` + `Wine 10.7`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, **Web Apps (PWA)**, and **Android (`.apk`, Google Play `GAPPS` / `microG` + Aurora Store)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **2026 modern Intel/AMD/NVIDIA x86_64 & ARM64 PCs and laptops**.
 
 > **Official Bilingual Documentation:** Read the complete [Official User Guide (EN / BM)](docs/user-guide.md) — also built directly into the OS offline via **Start Menu → User Guide / Panduan Pengguna** (`unicore-center --help-guide`).
 
 ## Key Capabilities
 
-* **10-Theme Desktop Studio (`v1.3.0`)**:
+* **1-Click Google Play Certification & Aurora Store Helper (`v1.4.0`)**:
+  * **Zero-Terminal Google Play Account Sign-In (`GAPPS` Profile)**: Inside **UniCore Center → System → Android Subsystem**, click **Get Google Play GSF ID** (`uniload android gsf-id`) to automatically extract your Waydroid container's official GSF `android_id`, copy it to your Wayland clipboard, and open Google's official self-certification page (`google.com/android/uncertified`), followed by 1-click **Restart Android** (`uniload android restart`).
+  * **1-Click Open-Source Aurora Store (`uniload android install-aurora`)**: Install the official open-source Aurora Store directly from F-Droid for `MICROG` or `VANILLA` profiles (download Play Store apps anonymously or with a Google account) and sync directly to your Start Menu — all via strictly whitelisted `doas` helpers while preserving **`0 MB` idle RAM**.
+
+* **10-Theme Desktop Studio (`v1.3.0` / `v1.3.1`)**:
   * **10 Complete Curated Desktop Theme Environments (`--themes`, `unicore-personalize preset <id>`)**: Switch in 1 click between **UniCore Midnight**, **UniCore Daylight**, **Aurora Violet**, **Nordic Frost**, **Dracula Neon**, **Emerald Forest**, **Amber Sunset**, **Sakura Blossom**, **Cyberpunk Synth**, and **Retro Classic 98** via a visual 2×5 live-preview gallery (`0 MB` idle overhead).
   * **Full 8-Layer Cohesive Live Switching**: Every theme synchronizes its dedicated 1280×800 HD wallpaper (`swaybg`), Waybar layout & colors (`win11`/`win10`/`macos`), Labwc/Openbox window titlebars & corner radius (`0px`–`12px`), GTK3 + Papirus icons, Fuzzel launcher, Foot terminal palette, Mako notifications, and live Slint `UiTheme` UI colors simultaneously.
 

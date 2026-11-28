@@ -1992,3 +1992,44 @@ fn v130_ten_desktop_theme_environments_work() {
     assert_eq!(en_apps[0].exec_cmd, "/usr/bin/unicore-center --themes");
     assert_ne!(en_apps[0].name, ms_apps[0].name);
 }
+
+#[test]
+fn v140_google_play_gsf_parser_and_bilingual_labels_work() {
+    use unicore_center::backend::{
+        open_browser_url, parse_android_gsf_id, GOOGLE_PLAY_CERT_URL,
+    };
+
+    assert_eq!(
+        GOOGLE_PLAY_CERT_URL,
+        "https://www.google.com/android/uncertified/"
+    );
+    assert_eq!(
+        parse_android_gsf_id("gsf_id=3948123456789012345\ncert_url=https://www.google.com/android/uncertified/\n"),
+        Some("3948123456789012345".to_string())
+    );
+    assert_eq!(
+        parse_android_gsf_id("android_id|4123456789012345678\n"),
+        Some("4123456789012345678".to_string())
+    );
+    assert_eq!(
+        parse_android_gsf_id("  1234567890123456  "),
+        Some("1234567890123456".to_string())
+    );
+    assert_eq!(parse_android_gsf_id("not-a-valid-id"), None);
+    assert_eq!(parse_android_gsf_id("12345"), None);
+
+    // Reject non-https URLs in open_browser_url
+    assert!(open_browser_url("http://example.com").is_err());
+    assert!(open_browser_url("file:///etc/passwd").is_err());
+
+    // Bilingual EN / BM labels for Google Play & Aurora helper
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.btn_android_gsf, ms.btn_android_gsf);
+    assert_ne!(en.btn_android_cert, ms.btn_android_cert);
+    assert_ne!(en.btn_android_restart, ms.btn_android_restart);
+    assert_ne!(en.btn_android_aurora, ms.btn_android_aurora);
+    assert_ne!(en.hint_google_play, ms.hint_google_play);
+    assert!(en.hint_google_play.contains("google.com/android/uncertified"));
+    assert!(ms.hint_google_play.contains("google.com/android/uncertified"));
+}

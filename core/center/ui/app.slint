@@ -388,6 +388,11 @@ export struct UiText {
     hdr-theme-studio: string,
     sub-theme-studio: string,
     btn-open-themes: string,
+    btn-android-gsf: string,
+    btn-android-cert: string,
+    btn-android-restart: string,
+    btn-android-aurora: string,
+    hint-google-play: string,
 }
 
 export struct ThemePresetCard {
@@ -952,7 +957,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v1.3.1";
+    in-out property <string> login-clock-text: "UniCore OS v1.4.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1023,6 +1028,7 @@ export component MainWindow inherits Window {
     in-out property <string> sys-android-image: "-";
     in-out property <string> sys-android-arm: "-";
     in-out property <string> sys-android-container: "Idle (0 MB RAM)";
+    in-out property <string> sys-android-gsf-id: "-";
     in-out property <int> android-profile-idx: 0;
 
     // Bare-metal A/B disk installer state (shown in Live mode)
@@ -5945,6 +5951,7 @@ export component MainWindow inherits Window {
                         InfoRow { label: "Android Image:"; value: root.sys-android-image; }
                         InfoRow { label: "ARM Translator:"; value: root.sys-android-arm; }
                         InfoRow { label: "Runtime State:"; value: root.sys-android-container; value-color: UiTheme.text-ok; }
+                        InfoRow { label: "Google Play GSF ID:"; value: root.sys-android-gsf-id; value-color: UiTheme.text-accent; }
 
                         HorizontalLayout {
                             spacing: 10px;
@@ -5956,7 +5963,11 @@ export component MainWindow inherits Window {
                                 vertical-alignment: center;
                             }
                             ComboBox {
-                                model: ["VANILLA (Minimal Open-Source)", "MICROG (Open-Source Play Services)", "GAPPS"];
+                                model: [
+                                    "VANILLA (Minimal Open-Source)",
+                                    "MICROG (Open-Source + F-Droid & Aurora)",
+                                    "GAPPS (Official Google Play Store & Account)"
+                                ];
                                 current-index <=> root.android-profile-idx;
                                 horizontal-stretch: 1;
                             }
@@ -5998,6 +6009,39 @@ export component MainWindow inherits Window {
                                 text: "Refresh";
                                 clicked => { root.refresh-all(); }
                             }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Button {
+                                text: root.tr.btn-android-gsf;
+                                primary: true;
+                                enabled: !root.android-busy;
+                                clicked => { root.android-action("gsf-id"); }
+                            }
+                            Button {
+                                text: root.tr.btn-android-cert;
+                                enabled: !root.android-busy;
+                                clicked => { root.android-action("open-cert-page"); }
+                            }
+                            Button {
+                                text: root.tr.btn-android-restart;
+                                enabled: !root.android-busy;
+                                clicked => { root.android-action("restart"); }
+                            }
+                            Button {
+                                text: root.tr.btn-android-aurora;
+                                enabled: !root.android-busy;
+                                clicked => { root.android-action("install-aurora"); }
+                            }
+                            Rectangle { horizontal-stretch: 1; }
+                        }
+
+                        Text {
+                            text: root.tr.hint-google-play;
+                            color: UiTheme.text-muted;
+                            font-size: 11px;
+                            wrap: word-wrap;
                         }
                         if root.android-busy : ProgressIndicator {
                             indeterminate: true;
