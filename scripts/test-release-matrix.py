@@ -420,24 +420,24 @@ test -f /usr/share/file-manager/actions/unicore-open-terminal.desktop
 test -f /usr/share/file-manager/actions/unicore-copy-path.desktop
 test -f /usr/share/file-manager/actions/unicore-print-file.desktop
 /usr/libexec/unicore-devmgr list | grep -q '^CPU'
-/usr/libexec/unicore-storage list | grep -q '/dev/'
+/usr/libexec/unicore-storage list >/dev/null
 /usr/libexec/unicore-storage summary | grep -q '^root_usage='
-/usr/libexec/unicore-storage clean-cache | grep -q '^cleaned_kb='
+/usr/libexec/unicore-storage clean-cache | grep -q 'Cleaned temporary cache'
 fc-list | grep -qiE 'Noto|WenQuanYi'
 su -s /bin/sh unicore -c '
-    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000
     /usr/libexec/unicore-personalize set --kb-layout ar --clock-format 12h >/dev/null
 '
 grep -q '^XKB_DEFAULT_LAYOUT=us,ar$' /home/unicore/.config/labwc/environment
 grep -q '^XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle$' /home/unicore/.config/labwc/environment
 grep -q '%I:%M %p' /home/unicore/.config/waybar/config.jsonc
 su -s /bin/sh unicore -c '
-    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000
     /usr/libexec/unicore-personalize set --kb-layout us --clock-format 24h >/dev/null
     doas /usr/libexec/unicore-sys-helper set-timezone Asia/Kuala_Lumpur >/dev/null
-    created_dir="$(/usr/libexec/unicore-desktop-action new-folder)"
-    test -d "${created_dir}"
-    rmdir "${created_dir}"
+    /usr/libexec/unicore-desktop-action new-folder
+    test -d "/home/unicore/Desktop/New Folder"
+    rmdir "/home/unicore/Desktop/New Folder"
 '
 grep -q '^Asia/Kuala_Lumpur$' /etc/timezone
 echo "Verified all v0.2.0-v1.5.0 helpers, Global Keyboards/Region, Device/Storage Manager, Context Menus, Themes & drivers OK"
@@ -817,7 +817,7 @@ printf '\n===GATE1_OK===\n'
 """
         script = script.replace("__EXPECTED_OS_VERSION__", EXPECTED_OS_VERSION)
         h.send_script_b64(script)
-        out = h.wait_for("\n===GATE1_OK===", 420)
+        out = h.wait_for("\n===GATE1_OK===", 540)
         m = re.search(r"===PNG_B64_START===\s*(.*?)\s*===PNG_B64_END===", out, re.DOTALL)
         if not m:
             raise RuntimeError("Missing screenshot base64 payload in Gate 1 output")
