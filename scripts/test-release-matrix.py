@@ -623,38 +623,39 @@ grep -q 'border-radius: 14px' /home/unicore/.config/waybar/style.css
 echo "[4/5] Capturing 14 clean unstacked live Wayland desktop screenshots across all menus & hubs..."
 pkill -f '[u]nicore-center' >/dev/null 2>&1 || true
 sleep 0.8
-su -s /bin/sh unicore -c '
-    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
-    snap_dialog() {
-        out_png="$1"
-        shift
-        pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
-        sleep 0.6
-        /usr/bin/unicore-center "$@" >/tmp/center_qa.log 2>&1 &
-        for i in $(seq 1 30); do
-            if wlrctl toplevel list 2>/dev/null | grep -qiE "UniCore|Capture|Start|Classic|Phone|Game|Guide|Web|Theme|Quick|Settings|Drivers"; then
-                break
-            fi
-            sleep 0.3
-        done
-        sleep 3.5
-        grim "${out_png}"
-        pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
-        sleep 0.5
-    }
-    snap_dialog /tmp/phase20d.png --tab settings:appearance
-    snap_dialog /tmp/v020_dev_ai.png --tab dev
-    snap_dialog /tmp/v050_capture.png --capture
-    snap_dialog /tmp/v060_start.png --start-menu
-    snap_dialog /tmp/v070_retro.png --retro-game
-    snap_dialog /tmp/v080_ecosystem.png --phone
-    snap_dialog /tmp/v090_games.png --games
-    snap_dialog /tmp/v100_guide.png --help-guide
-    snap_dialog /tmp/v110_webapps.png --webapps
-    snap_dialog /tmp/v120_drivers.png --drivers
-    snap_dialog /tmp/v141_quick.png --quick-settings
-    snap_dialog /tmp/v141_printers.png --tab settings:printers
-'
+cat <<'EOF_SNAP' > /tmp/qa_snap.sh
+#!/bin/sh
+set -eu
+export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+out_png="$1"
+shift
+pkill -f '[u]nicore-center' >/dev/null 2>&1 || true
+sleep 0.6
+/usr/bin/unicore-center "$@" >/tmp/center_qa.log 2>&1 &
+for i in $(seq 1 30); do
+    if wlrctl toplevel list 2>/dev/null | grep -qiE "UniCore|Capture|Start|Classic|Phone|Game|Guide|Web|Theme|Quick|Settings|Drivers"; then
+        break
+    fi
+    sleep 0.3
+done
+sleep 3.5
+grim "${out_png}"
+pkill -f '[u]nicore-center' >/dev/null 2>&1 || true
+sleep 0.5
+EOF_SNAP
+chmod +x /tmp/qa_snap.sh
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/phase20d.png --tab settings:appearance'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v020_dev_ai.png --tab dev'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v050_capture.png --capture'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v060_start.png --start-menu'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v070_retro.png --retro-game'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v080_ecosystem.png --phone'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v090_games.png --games'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v100_guide.png --help-guide'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v110_webapps.png --webapps'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v120_drivers.png --drivers'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v141_quick.png --quick-settings'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v141_printers.png --tab settings:printers'
 # Test live 10-Theme Studio switching (Classic 98 -> Nordic Top Bar -> Cyberpunk Synth) & capture Theme Studio + System/Android screenshots
 su -s /bin/sh unicore -c 'export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0; /usr/libexec/unicore-personalize preset classic98 >/dev/null'
 grep -q '<name>UniCore-Classic98</name>' /home/unicore/.config/labwc/rc.xml
@@ -666,21 +667,10 @@ su -s /bin/sh unicore -c 'export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/10
 grep -q '<name>UniCore-Cyberpunk</name>' /home/unicore/.config/labwc/rc.xml
 grep -q 'background=090814' /home/unicore/.config/foot/foot.ini
 grep -q 'border-color=#22d3ee' /home/unicore/.config/mako/config
-su -s /bin/sh unicore -c '
-    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
-    sleep 1
-    pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --themes >/tmp/center_themes.log 2>&1 &
-    sleep 3
-    grim /tmp/v130_themes.png
-    pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
-    sleep 0.6
-    /usr/bin/unicore-center --tab system >/tmp/center_android.log 2>&1 &
-    sleep 3
-    grim /tmp/v140_android.png
-    pkill -f "[u]nicore-center" >/dev/null 2>&1 || true
-'
+sleep 1
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v130_themes.png --themes'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v140_android.png --tab system'
+rm -f /tmp/qa_snap.sh
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
 test -s /tmp/v050_capture.png
