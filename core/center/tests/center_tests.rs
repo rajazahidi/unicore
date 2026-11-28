@@ -2039,3 +2039,130 @@ fn v140_google_play_gsf_parser_and_bilingual_labels_work() {
     assert!(en.hint_google_play.contains("google.com/android/uncertified"));
     assert!(ms.hint_google_play.contains("google.com/android/uncertified"));
 }
+
+#[test]
+fn v150_control_panel_devmgr_storage_region_display_and_autotune_work() {
+    use std::collections::BTreeMap;
+    use unicore_center::oobe::{OOBE_LANGUAGES, OOBE_TIMEZONES};
+    use unicore_center::retro::{apply_retro_profile_to_env, RetroGameProfile, RetroPreset};
+    use unicore_center::settings::{validate_kb_layout, KB_LAYOUTS};
+    use unicore_center::start_emoji::builtin_v150_apps;
+    use unicore_center::system_hub::{
+        filter_devices, parse_devmgr_tsv, parse_scanners_tsv, parse_storage_summary,
+        parse_storage_tsv, render_display_apply_script_ext, validate_clock_format,
+        validate_display_transform, validate_multi_monitor_mode, DISPLAY_ROTATIONS,
+        INTL_LANGUAGES, MULTI_MONITOR_MODES, WORLD_TIMEZONES,
+    };
+
+    // 1. CLI flags for Control Panel, Device Manager, Storage Manager & Region/Language/Keyboard
+    assert_eq!(
+        parse_args(&["--control-panel".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::ControlPanel
+    );
+    assert_eq!(
+        parse_args(&["--devmgr".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::DeviceManager
+    );
+    assert_eq!(
+        parse_args(&["--storage".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::StorageManager
+    );
+    assert_eq!(
+        parse_args(&["--region".to_string()]).unwrap().unwrap().mode,
+        LaunchMode::RegionSettings
+    );
+
+    // 2. International Languages (12), Global Keyboards (21), World Timezones (32)
+    assert_eq!(INTL_LANGUAGES.len(), 12);
+    assert_eq!(OOBE_LANGUAGES.len(), 12);
+    assert_eq!(KB_LAYOUTS.len(), 21);
+    assert_eq!(WORLD_TIMEZONES.len(), 32);
+    assert_eq!(OOBE_TIMEZONES.len(), 32);
+    assert_eq!(DISPLAY_ROTATIONS.len(), 4);
+    assert_eq!(MULTI_MONITOR_MODES.len(), 4);
+    for (code, _) in KB_LAYOUTS {
+        assert_eq!(validate_kb_layout(code).unwrap(), code);
+    }
+    assert!(validate_kb_layout("invalid_kb").is_err());
+    assert_eq!(validate_clock_format("12h").unwrap(), "12h");
+    assert_eq!(validate_clock_format("24h").unwrap(), "24h");
+    assert!(validate_clock_format("99h").is_err());
+
+    // 3. Device Manager & Scanner TSV parsers + category filters
+    let dev_raw = "CPU\tAMD Ryzen 7\tactive\tSystem\tHealthy\n\
+Graphics\tNVIDIA RTX 4060\tnouveau\tPCI 01:00.0\tActive\n\
+Network\tIntel Wi-Fi 6E\tiwlwifi\tPCI 02:00.0\tActive\n\
+Storage\tSamsung NVMe\tnvme\tPCI 03:00.0\tActive\n\
+USB\tLogitech Receiver\tusbcore\tUSB\tConnected\n";
+    let devs = parse_devmgr_tsv(dev_raw);
+    assert_eq!(devs.len(), 5);
+    assert_eq!(filter_devices(&devs, "compute").len(), 2);
+    assert_eq!(filter_devices(&devs, "network").len(), 1);
+    assert_eq!(filter_devices(&devs, "storage").len(), 1);
+    assert_eq!(filter_devices(&devs, "usb").len(), 1);
+    let scans = parse_scanners_tsv("escl:http://192.168.1.50:80\tCanon PIXMA AirScan\n");
+    assert_eq!(scans.len(), 1);
+    assert_eq!(scans[0].description, "Canon PIXMA AirScan");
+
+    // 4. Storage Manager TSV & summary parsers
+    let st_raw = "/dev/nvme0n1\tdisk\tSamsung SSD\t512G\t-\t-\t0\n\
+/dev/sda1\tpart\tSanDisk USB\t32G\tvfat\t/media/usb\t1\n";
+    let vols = parse_storage_tsv(st_raw);
+    assert_eq!(vols.len(), 2);
+    assert!(!vols[0].removable);
+    assert!(vols[1].removable);
+    let sum = parse_storage_summary("root_usage=1.2G / 1.4G (85%)\ndata_usage=4.5G / 120G (4%)\n");
+    assert!(sum.root_usage.contains("1.2G"));
+    assert!(sum.data_usage.contains("120G"));
+
+    // 5. Display Rotation + Multi-Monitor wlr-randr script generator
+    assert_eq!(validate_display_transform("90").unwrap(), "90");
+    assert_eq!(validate_multi_monitor_mode("extend-right").unwrap(), "extend-right");
+    let script = render_display_apply_script_ext(
+        "eDP-1",
+        "1920x1080@60Hz",
+        "1.25",
+        "90",
+        "extend-right",
+        Some("HDMI-A-1"),
+    )
+    .unwrap();
+    assert!(script.contains("--transform 90"));
+    assert!(script.contains("wlr-randr --output HDMI-A-1 --on --right-of eDP-1"));
+
+    // 6. Simplified Legacy Game Auto-Tune (UltraSafe preset auto-enables 1-Core + 60 FPS + 800x600)
+    assert_eq!(RetroPreset::from_index(4), RetroPreset::UltraSafe);
+    assert_eq!(RetroPreset::UltraSafe.auto_tune_defaults(), (true, true, 1));
+    let mut env = BTreeMap::new();
+    let era = apply_retro_profile_to_env(
+        &mut env,
+        &RetroGameProfile {
+            preset: RetroPreset::UltraSafe,
+            fps_cap_60: false,
+            single_core_cpu: false,
+            virtual_desktop: "off".to_string(),
+            cd_iso_path: String::new(),
+        },
+    );
+    assert_eq!(era, Some(WinEra::Win98));
+    assert_eq!(env.get("UNICORE_FPS_CAP_60").map(String::as_str), Some("1"));
+    assert_eq!(env.get("UNICORE_SINGLE_CORE").map(String::as_str), Some("1"));
+    assert_eq!(
+        env.get("UNILOAD_VIRTUAL_DESKTOP").map(String::as_str),
+        Some("800x600")
+    );
+
+    // 7. Start Menu v1.5.0 built-in tools & bilingual EN/BM labels
+    let en_apps = builtin_v150_apps(UiLang::En);
+    let ms_apps = builtin_v150_apps(UiLang::Ms);
+    assert_eq!(en_apps.len(), 3);
+    assert_ne!(en_apps[0].name, ms_apps[0].name);
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.title_control_panel, ms.title_control_panel);
+    assert_ne!(en.title_devmgr, ms.title_devmgr);
+    assert_ne!(en.title_storage, ms.title_storage);
+    assert_ne!(en.title_region, ms.title_region);
+    assert!(en.title_guide.contains("1.5.0"));
+    assert!(ms.title_guide.contains("1.5.0"));
+}

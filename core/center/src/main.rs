@@ -93,6 +93,12 @@ use unicore_center::store::{
     read_browser_overview, read_flatpak_overview, read_proton_overview, set_default_browser,
     sync_store_catalog_blocking, uninstall_store_app_blocking, StoreItemView,
 };
+use unicore_center::system_hub::{
+    apply_and_save_display_ext, apply_region_settings, filter_devices, read_device_manager,
+    read_region_config, read_scanners, read_storage_manager, set_external_ddc_brightness,
+    storage_clean_cache, storage_eject_device, DeviceEntry, DISPLAY_ROTATIONS, INTL_LANGUAGES,
+    MULTI_MONITOR_MODES, WORLD_TIMEZONES,
+};
 use unicore_center::taskmgr::{list_user_processes, terminate_process, ProcessInfo};
 use unicore_center::updater::{
     apply_local_update, apply_remote_update, check_remote_update, read_update_overview,
@@ -375,6 +381,27 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         btn_android_restart: l.btn_android_restart.into(),
         btn_android_aurora: l.btn_android_aurora.into(),
         hint_google_play: l.hint_google_play.into(),
+        title_control_panel: l.title_control_panel.into(),
+        hdr_control_panel: l.hdr_control_panel.into(),
+        sub_control_panel: l.sub_control_panel.into(),
+        title_devmgr: l.title_devmgr.into(),
+        hdr_devmgr: l.hdr_devmgr.into(),
+        title_storage: l.title_storage.into(),
+        hdr_storage: l.hdr_storage.into(),
+        btn_safe_eject: l.btn_safe_eject.into(),
+        btn_clean_cache: l.btn_clean_cache.into(),
+        title_region: l.title_region.into(),
+        hdr_region: l.hdr_region.into(),
+        lbl_intl_lang: l.lbl_intl_lang.into(),
+        lbl_world_tz: l.lbl_world_tz.into(),
+        lbl_clock_fmt: l.lbl_clock_fmt.into(),
+        btn_apply_region: l.btn_apply_region.into(),
+        btn_scan_scanners: l.btn_scan_scanners.into(),
+        lbl_display_rot: l.lbl_display_rot.into(),
+        lbl_multi_mon: l.lbl_multi_mon.into(),
+        lbl_ext_brightness: l.lbl_ext_brightness.into(),
+        retro_adv_show: l.retro_adv_show.into(),
+        retro_adv_hide: l.retro_adv_hide.into(),
     });
     refresh_guide_chapters(ui, lang, ui.get_guide_chapter_idx());
     let cur_pers = load_personalize_config(&persistent_display_config_dir());
@@ -390,6 +417,82 @@ fn ui_lang_from_badge(ui: &MainWindow) -> UiLang {
     } else {
         UiLang::En
     }
+}
+
+fn clear_v150_dialogs(ui: &MainWindow) {
+    ui.set_control_panel_only(false);
+    ui.set_devmgr_dialog_only(false);
+    ui.set_storage_dialog_only(false);
+    ui.set_region_dialog_only(false);
+    ui.set_themes_dialog_only(false);
+    ui.set_ecosystem_dialog_only(false);
+    ui.set_open_dialog_only(false);
+}
+
+fn render_devmgr_rows(ui: &MainWindow, all: &[DeviceEntry], filter: &str) {
+    let rows: Vec<DeviceRow> = filter_devices(all, filter)
+        .into_iter()
+        .map(|d| DeviceRow {
+            category: SharedString::from(d.category),
+            name: SharedString::from(d.name),
+            driver: SharedString::from(d.driver),
+            bus: SharedString::from(d.bus),
+            status: SharedString::from(d.status),
+        })
+        .collect();
+    ui.set_devmgr_rows(ModelRc::new(VecModel::from(rows)));
+}
+
+fn refresh_devmgr(ui: &MainWindow, cache: &Rc<RefCell<Vec<DeviceEntry>>>, filter: &str) {
+    let list = read_device_manager();
+    render_devmgr_rows(ui, &list, filter);
+    ui.set_devmgr_status(SharedString::from(format!(
+        "Scanned {} hardware device(s) (0 MB idle).",
+        list.len()
+    )));
+    *cache.borrow_mut() = list;
+}
+
+fn refresh_storage(ui: &MainWindow) {
+    let (vols, sum) = read_storage_manager();
+    let rows: Vec<StorageRow> = vols
+        .into_iter()
+        .map(|v| StorageRow {
+            path: SharedString::from(v.path),
+            kind: SharedString::from(v.kind),
+            model: SharedString::from(v.model),
+            size: SharedString::from(v.size),
+            fstype: SharedString::from(v.fstype),
+            mountpoint: SharedString::from(v.mountpoint),
+            removable: v.removable,
+        })
+        .collect();
+    ui.set_storage_rows(ModelRc::new(VecModel::from(rows)));
+    ui.set_storage_selected_idx(-1);
+    ui.set_storage_selected_path(SharedString::new());
+    ui.set_storage_root_usage(SharedString::from(sum.root_usage));
+    ui.set_storage_data_usage(SharedString::from(sum.data_usage));
+}
+
+fn refresh_region(ui: &MainWindow) {
+    let cfg = read_region_config();
+    let lang_idx = INTL_LANGUAGES
+        .iter()
+        .position(|(code, _)| *code == cfg.locale)
+        .unwrap_or(0) as i32;
+    let tz_idx = WORLD_TIMEZONES
+        .iter()
+        .position(|tz| *tz == cfg.timezone)
+        .unwrap_or(0) as i32;
+    let kb_idx = KB_LAYOUTS
+        .iter()
+        .position(|(code, _)| *code == cfg.kb_layout)
+        .unwrap_or(0) as i32;
+    let clock_idx = if cfg.clock_format == "12h" { 1 } else { 0 };
+    ui.set_region_lang_idx(lang_idx);
+    ui.set_region_tz_idx(tz_idx);
+    ui.set_region_kb_idx(kb_idx);
+    ui.set_region_clock_idx(clock_idx);
 }
 
 fn sync_theme_studio_cards(ui: &MainWindow, active_preset: &str, lang: UiLang) {
@@ -1692,6 +1795,7 @@ fn main() {
     let start_apps_cache: Rc<RefCell<Vec<DesktopAppItem>>> = Rc::new(RefCell::new(Vec::new()));
     let win_parts_cache: Rc<RefCell<Vec<WindowsPartition>>> = Rc::new(RefCell::new(Vec::new()));
     let gamehub_cache: Rc<RefCell<Vec<GameHubEntry>>> = Rc::new(RefCell::new(Vec::new()));
+    let devmgr_cache: Rc<RefCell<Vec<DeviceEntry>>> = Rc::new(RefCell::new(Vec::new()));
 
     {
         let b = backend.borrow();
@@ -1824,6 +1928,21 @@ fn main() {
                 ui.invoke_set_theme(cur.theme == "light");
                 ui.invoke_set_theme_preset(theme_preset_to_index(&cur.theme_preset));
                 sync_theme_studio_cards(&ui, &cur.theme_preset, lang);
+            }
+            LaunchMode::ControlPanel => {
+                ui.set_control_panel_only(true);
+            }
+            LaunchMode::DeviceManager => {
+                ui.set_devmgr_dialog_only(true);
+                refresh_devmgr(&ui, &devmgr_cache, "all");
+            }
+            LaunchMode::StorageManager => {
+                ui.set_storage_dialog_only(true);
+                refresh_storage(&ui);
+            }
+            LaunchMode::RegionSettings => {
+                ui.set_region_dialog_only(true);
+                refresh_region(&ui);
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -2161,7 +2280,7 @@ fn main() {
                 report_result(
                     &ui,
                     res,
-                    "Opened Google Play Protect certification page (google.com/android/uncertified).",
+                    "Opened device certification page (google.com/android/uncertified).",
                 );
                 return;
             }
@@ -4630,7 +4749,9 @@ fn main() {
                         let req = InstallRequest {
                             app_name: Some(if !name_s.is_empty() { name_s } else { media.name }),
                             win_era: match preset {
-                                RetroPreset::Classic2d | RetroPreset::DosWin16 => Some(WinEra::Win98),
+                                RetroPreset::Classic2d
+                                | RetroPreset::DosWin16
+                                | RetroPreset::UltraSafe => Some(WinEra::Win98),
                                 RetroPreset::Classic3d => Some(WinEra::WinXp),
                                 RetroPreset::Auto => None,
                             },
@@ -5176,7 +5297,7 @@ fn main() {
                             ui.set_eco_busy(false);
                             match res {
                                 Ok(msg) => {
-                                    let note = format!("Windows migration complete! ({msg})");
+                                    let note = format!("PC data migration complete! ({msg})");
                                     ui.set_eco_status(SharedString::from(note.as_str()));
                                     set_status(&ui, note, false);
                                 }
@@ -5723,6 +5844,288 @@ fn main() {
                     set_status(&ui, err, true);
                 }
             }
+        });
+    }
+
+    // === v1.5.0 Control Panel, Device Manager, Storage Manager, Region/Language/Keyboard, Multi-Monitor & Scanners ===
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        let dm_cache = Rc::clone(&devmgr_cache);
+        let lang_rc = Rc::clone(&current_lang);
+        ui.on_cpanel_open_target(move |target| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            clear_v150_dialogs(&ui);
+            match target.as_str() {
+                "cpanel" => {
+                    ui.set_control_panel_only(true);
+                }
+                "devmgr" => {
+                    ui.set_devmgr_dialog_only(true);
+                    let filt = ui.get_devmgr_filter().to_string();
+                    refresh_devmgr(&ui, &dm_cache, &filt);
+                }
+                "storage" => {
+                    ui.set_storage_dialog_only(true);
+                    refresh_storage(&ui);
+                }
+                "region" => {
+                    ui.set_region_dialog_only(true);
+                    refresh_region(&ui);
+                }
+                "themes" => {
+                    ui.set_themes_dialog_only(true);
+                    let cur = load_personalize_config(&persistent_display_config_dir());
+                    sync_theme_studio_cards(&ui, &cur.theme_preset, *lang_rc.borrow());
+                }
+                "drivers" => {
+                    ui.set_ecosystem_dialog_only(true);
+                    ui.set_eco_subtab(3);
+                    refresh_ecosystem(&ui);
+                }
+                "network" => {
+                    ui.set_active_tab(3);
+                    ui.set_settings_subtab(0);
+                    refresh_settings(&ui, &mut st.borrow_mut());
+                }
+                "audio" => {
+                    ui.set_active_tab(3);
+                    ui.set_settings_subtab(2);
+                    refresh_settings(&ui, &mut st.borrow_mut());
+                }
+                "display" => {
+                    ui.set_active_tab(3);
+                    ui.set_settings_subtab(3);
+                    refresh_settings(&ui, &mut st.borrow_mut());
+                }
+                "printers" => {
+                    ui.set_active_tab(3);
+                    ui.set_settings_subtab(4);
+                    refresh_settings(&ui, &mut st.borrow_mut());
+                }
+                "security" => {
+                    ui.set_active_tab(3);
+                    ui.set_settings_subtab(5);
+                    refresh_settings(&ui, &mut st.borrow_mut());
+                }
+                "power" => {
+                    ui.set_active_tab(3);
+                    ui.set_settings_subtab(6);
+                    refresh_settings(&ui, &mut st.borrow_mut());
+                }
+                _ => {
+                    ui.set_active_tab(0);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let dm_cache = Rc::clone(&devmgr_cache);
+        ui.on_devmgr_refresh(move |filter| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let f = filter.to_string();
+            if dm_cache.borrow().is_empty() || f == ui.get_devmgr_filter().as_str() {
+                refresh_devmgr(&ui, &dm_cache, &f);
+            } else {
+                render_devmgr_rows(&ui, &dm_cache.borrow(), &f);
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_storage_refresh(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            refresh_storage(&ui);
+            ui.set_storage_status(SharedString::from("Storage list refreshed."));
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_storage_eject(move |dev_path| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match storage_eject_device(dev_path.as_str()) {
+                Ok(msg) => {
+                    refresh_storage(&ui);
+                    ui.set_storage_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_storage_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_storage_clean_cache(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match storage_clean_cache() {
+                Ok(msg) => {
+                    refresh_storage(&ui);
+                    let note = format!("Cache cleaned ({msg})");
+                    ui.set_storage_status(SharedString::from(note.as_str()));
+                    set_status(&ui, note, false);
+                }
+                Err(err) => {
+                    ui.set_storage_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let lang_rc = Rc::clone(&current_lang);
+        let b = Rc::clone(&backend);
+        let cache = Rc::clone(&apps_cache);
+        ui.on_region_apply(move |lang_idx, tz_idx, kb_idx, clock_idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let (locale, lang_label) = INTL_LANGUAGES
+                .get(lang_idx as usize)
+                .copied()
+                .unwrap_or(INTL_LANGUAGES[0]);
+            let tz = WORLD_TIMEZONES
+                .get(tz_idx as usize)
+                .copied()
+                .unwrap_or("UTC");
+            let (kb_code, kb_label) = KB_LAYOUTS
+                .get(kb_idx as usize)
+                .copied()
+                .unwrap_or(KB_LAYOUTS[0]);
+            let clock_fmt = if clock_idx == 1 { "12h" } else { "24h" };
+            match apply_region_settings(locale, tz, kb_code, clock_fmt) {
+                Ok(new_ui_lang) => {
+                    *lang_rc.borrow_mut() = new_ui_lang;
+                    apply_ui_language(&ui, new_ui_lang);
+                    refresh_system_info(&ui, &b.borrow(), new_ui_lang);
+                    refresh_store_list(&ui, &b.borrow(), &cache.borrow(), new_ui_lang);
+                    ui.set_set_kb_layout_idx(kb_idx);
+                    let msg = format!(
+                        "Applied: {lang_label} | {kb_label} | {tz} | {clock_fmt}"
+                    );
+                    ui.set_region_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_region_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        let st = Rc::clone(&settings_state);
+        ui.on_apply_display_ext(move |out_idx, mode_idx, scale_idx, rot_idx, multi_idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let (selected, secondary) = {
+                let guard = st.borrow();
+                let sel = guard.outputs.get(out_idx as usize).map(|o| {
+                    let mode = o
+                        .modes
+                        .get(mode_idx as usize)
+                        .cloned()
+                        .unwrap_or_else(|| o.current_mode.clone());
+                    (o.name.clone(), mode)
+                });
+                let sec = guard
+                    .outputs
+                    .iter()
+                    .enumerate()
+                    .find(|(i, _)| *i != out_idx as usize)
+                    .map(|(_, o)| o.name.clone());
+                (sel, sec)
+            };
+            let Some((output, mode)) = selected else {
+                set_status(&ui, "No display output available to apply", true);
+                return;
+            };
+            if mode.is_empty() || mode == "Auto" {
+                set_status(&ui, "Select a valid resolution/mode first", true);
+                return;
+            }
+            let scale = DISPLAY_SCALES.get(scale_idx as usize).copied().unwrap_or("1.0");
+            let transform = DISPLAY_ROTATIONS
+                .get(rot_idx as usize)
+                .map(|(k, _)| *k)
+                .unwrap_or("normal");
+            let multi_mode = MULTI_MONITOR_MODES
+                .get(multi_idx as usize)
+                .map(|(k, _)| *k)
+                .unwrap_or("auto");
+            match apply_and_save_display_ext(
+                &output,
+                &mode,
+                scale,
+                transform,
+                multi_mode,
+                secondary.as_deref(),
+            ) {
+                Ok(saved) => set_status(
+                    &ui,
+                    format!(
+                        "Applied {output} {mode} @ {scale}x (rot={transform}, layout={multi_mode}, saved to {})",
+                        saved.display()
+                    ),
+                    false,
+                ),
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_ext_brightness_changed(move |pct| {
+            let thread_ui = ui_weak.clone();
+            std::thread::spawn(move || {
+                let res = set_external_ddc_brightness(pct);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        match res {
+                            Ok(msg) => set_status(&ui, msg, false),
+                            Err(err) => set_status(&ui, err, true),
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_scan_scanners(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            ui.set_set_scanner_summary(SharedString::from("Scanning USB & Wi-Fi SANE scanners..."));
+            let thread_ui = ui.as_weak();
+            std::thread::spawn(move || {
+                let found = read_scanners();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = thread_ui.upgrade() {
+                        if found.is_empty() {
+                            let msg = "No USB/Wi-Fi SANE scanners detected (AirScan/eSCL, HP, Canon PIXMA, Epson ready when plugged in)";
+                            ui.set_set_scanner_summary(SharedString::from(msg));
+                            set_status(&ui, msg, false);
+                        } else {
+                            let desc = found
+                                .iter()
+                                .map(|s| format!("{} [{}]", s.description, s.device_uri))
+                                .collect::<Vec<_>>()
+                                .join(" | ");
+                            ui.set_set_scanner_summary(SharedString::from(desc.as_str()));
+                            set_status(&ui, format!("Detected {} scanner(s)", found.len()), false);
+                        }
+                    }
+                });
+            });
         });
     }
 

@@ -26,6 +26,7 @@ UNICORE_LAYOUT="win11"
 UNICORE_ACCENT_COLOR="blue"
 UNICORE_HIGH_CONTRAST="no"
 UNICORE_LARGE_TEXT="no"
+UNICORE_CLOCK_FORMAT="24h"
 
 validate_preset() {
     case "$1" in
@@ -74,7 +75,17 @@ validate_bool_yn() {
 
 validate_kb_layout() {
     case "$1" in
-        us|my|gb|de|fr|jp) printf '%s\n' "$1" ;;
+        us|my|gb|id|de|fr|es|it|pt|nl|pl|tr|ru|ar|jp|kr|cn|th|vn|dvorak|colemak)
+            printf '%s\n' "$1"
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_clock_format() {
+    case "$1" in
+        24h|24) printf '24h\n' ;;
+        12h|12) printf '12h\n' ;;
         *) return 1 ;;
     esac
 }
@@ -210,6 +221,7 @@ load_conf() {
     UNICORE_ACCENT_COLOR="blue"
     UNICORE_HIGH_CONTRAST="no"
     UNICORE_LARGE_TEXT="no"
+    UNICORE_CLOCK_FORMAT="24h"
     seen_preset=0
     if [ -r "${CONF_PATH}" ]; then
         while IFS='=' read -r k v; do
@@ -256,6 +268,9 @@ load_conf() {
                 UNICORE_LARGE_TEXT)
                     if lt="$(validate_bool_yn "${v}" 2>/dev/null)"; then UNICORE_LARGE_TEXT="${lt}"; fi
                     ;;
+                UNICORE_CLOCK_FORMAT)
+                    if cf="$(validate_clock_format "${v}" 2>/dev/null)"; then UNICORE_CLOCK_FORMAT="${cf}"; fi
+                    ;;
             esac
         done < "${CONF_PATH}"
     fi
@@ -284,6 +299,7 @@ UNICORE_LAYOUT=${UNICORE_LAYOUT}
 UNICORE_ACCENT_COLOR=${UNICORE_ACCENT_COLOR}
 UNICORE_HIGH_CONTRAST=${UNICORE_HIGH_CONTRAST}
 UNICORE_LARGE_TEXT=${UNICORE_LARGE_TEXT}
+UNICORE_CLOCK_FORMAT=${UNICORE_CLOCK_FORMAT}
 EOF
 }
 
@@ -360,22 +376,22 @@ write_waybar_config() {
   ],
   "custom/start": {
     "format": "\\uf00a",
-    "tooltip-format": "Start Menu (Win)",
+    "tooltip-format": "Start Menu (Super)",
     "on-click": "/usr/libexec/unicore-toggle --start-menu"
   },
   "custom/files": {
     "format": "\\uf07b",
-    "tooltip-format": "File Explorer (Win+E)",
+    "tooltip-format": "Computer Explorer (Super+E)",
     "on-click": "pcmanfm /home/unicore &"
   },
   "custom/browser": {
     "format": "\\uf0ac",
-    "tooltip-format": "Web Browser (Win+W)",
+    "tooltip-format": "Web Browser (Super+W)",
     "on-click": "/usr/bin/unicore-browser &"
   },
   "custom/center": {
     "format": "\\uf290",
-    "tooltip-format": "UniCore App Store & Center (Win+C)",
+    "tooltip-format": "UniCore App Store & Center (Super+C)",
     "on-click": "/usr/libexec/unicore-toggle --tab store"
   },
   "custom/taskmgr": {
@@ -434,7 +450,7 @@ write_waybar_config() {
   },
   "custom/ai": {
     "format": "\\uf0eb AI",
-    "tooltip-format": "UniCore AI Assistant (Win+A)",
+    "tooltip-format": "UniCore AI Assistant (Super+A)",
     "on-click": "/usr/libexec/unicore-toggle --ai"
   },
   "custom/quick": {
@@ -443,17 +459,17 @@ write_waybar_config() {
     "on-click": "/usr/libexec/unicore-toggle --quick-settings"
   },
   "clock": {
-    "format": "{:%H:%M\\n%d/%m/%Y}",
+    "format": "$([ "${UNICORE_CLOCK_FORMAT}" = "12h" ] && printf '{:%%I:%%M %%p\\n%%d/%%m/%%Y}' || printf '{:%%H:%%M\\n%%d/%%m/%%Y}')",
     "tooltip-format": "{:%A, %d %B %Y}"
   },
   "custom/power": {
     "format": "\\uf011",
-    "tooltip-format": "Power Options (Win+X)",
+    "tooltip-format": "Power Options (Super+X)",
     "on-click": "/usr/libexec/unicore-toggle --power"
   },
   "custom/desktop": {
     "format": " ",
-    "tooltip-format": "Show Desktop (Win+D)",
+    "tooltip-format": "Show Desktop (Super+D)",
     "on-click": "wlrctl toplevel minimize"
   }
 }
@@ -693,7 +709,17 @@ EOF
             }' /etc/xdg/labwc/rc.xml > "${CFG_ROOT}/labwc/rc.xml"
     fi
 
-    printf 'XKB_DEFAULT_LAYOUT=%s\n' "${UNICORE_KB_LAYOUT}" > "${CFG_ROOT}/labwc/environment"
+    case "${UNICORE_KB_LAYOUT}" in
+        dvorak|colemak)
+            printf 'XKB_DEFAULT_LAYOUT=us\nXKB_DEFAULT_VARIANT=%s\n' "${UNICORE_KB_LAYOUT}" > "${CFG_ROOT}/labwc/environment"
+            ;;
+        ru|ar|jp|kr|cn|th)
+            printf 'XKB_DEFAULT_LAYOUT=us,%s\nXKB_DEFAULT_OPTIONS=grp:alt_shift_toggle\n' "${UNICORE_KB_LAYOUT}" > "${CFG_ROOT}/labwc/environment"
+            ;;
+        *)
+            printf 'XKB_DEFAULT_LAYOUT=%s\n' "${UNICORE_KB_LAYOUT}" > "${CFG_ROOT}/labwc/environment"
+            ;;
+    esac
 
     if [ "${no_reload}" = "0" ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
         LABWC_P="$(pgrep -x labwc 2>/dev/null | head -n1 || true)"
@@ -758,12 +784,12 @@ EOF
         ;;
     status)
         load_conf
-        printf 'theme_preset=%s\ntheme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\ntaskbar_style=%s\nlayout=%s\naccent_color=%s\nhigh_contrast=%s\nlarge_text=%s\n' \
+        printf 'theme_preset=%s\ntheme=%s\nwallpaper=%s\nkb_layout=%s\nnatural_scroll=%s\ntap_to_click=%s\npointer_speed=%s\ndesktop_icons=%s\ntaskbar_style=%s\nlayout=%s\naccent_color=%s\nhigh_contrast=%s\nlarge_text=%s\nclock_format=%s\n' \
             "${UNICORE_THEME_PRESET}" "${UNICORE_THEME}" "${UNICORE_WALLPAPER}" "${UNICORE_KB_LAYOUT}" \
             "${UNICORE_NATURAL_SCROLL}" "${UNICORE_TAP_TO_CLICK}" "${UNICORE_POINTER_SPEED}" \
             "${UNICORE_DESKTOP_ICONS}" "${UNICORE_TASKBAR_STYLE}" \
             "${UNICORE_LAYOUT}" "${UNICORE_ACCENT_COLOR}" \
-            "${UNICORE_HIGH_CONTRAST}" "${UNICORE_LARGE_TEXT}"
+            "${UNICORE_HIGH_CONTRAST}" "${UNICORE_LARGE_TEXT}" "${UNICORE_CLOCK_FORMAT}"
         ;;
     apply)
         no_reload=0
@@ -842,6 +868,10 @@ EOF
                 --large-text)
                     shift || { echo "Missing value for --large-text" >&2; exit 2; }
                     UNICORE_LARGE_TEXT="$(validate_bool_yn "$1")" || { echo "Invalid large-text value: $1" >&2; exit 2; }
+                    ;;
+                --clock-format)
+                    shift || { echo "Missing value for --clock-format" >&2; exit 2; }
+                    UNICORE_CLOCK_FORMAT="$(validate_clock_format "$1")" || { echo "Invalid clock-format value: $1" >&2; exit 2; }
                     ;;
                 *)
                     echo "Unknown option: $1" >&2

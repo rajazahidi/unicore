@@ -1,5 +1,5 @@
-//! Classic Windows 98 & Windows XP Gaming Profile, CD `.iso` / `.zip` Importer,
-//! and Post-Install / Auto-Repair helpers for `unicore-center`.
+//! Classic Legacy PC Gaming Profile, CD `.iso` / `.zip` Importer,
+//! and 1-Click Auto-Tune / Auto-Repair helpers for `unicore-center`.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -15,6 +15,7 @@ pub enum RetroPreset {
     Classic2d,
     Classic3d,
     DosWin16,
+    UltraSafe,
 }
 
 impl RetroPreset {
@@ -24,6 +25,7 @@ impl RetroPreset {
             Self::Classic2d => "classic_2d",
             Self::Classic3d => "classic_3d",
             Self::DosWin16 => "dos_win16",
+            Self::UltraSafe => "ultra_safe",
         }
     }
 
@@ -32,6 +34,7 @@ impl RetroPreset {
             "classic_2d" | "2d" | "win98" => Self::Classic2d,
             "classic_3d" | "3d" | "winxp" => Self::Classic3d,
             "dos_win16" | "dos" | "win16" => Self::DosWin16,
+            "ultra_safe" | "safe" | "legacy_safe" => Self::UltraSafe,
             _ => Self::Auto,
         }
     }
@@ -42,6 +45,7 @@ impl RetroPreset {
             Self::Classic2d => 1,
             Self::Classic3d => 2,
             Self::DosWin16 => 3,
+            Self::UltraSafe => 4,
         }
     }
 
@@ -50,7 +54,19 @@ impl RetroPreset {
             1 => Self::Classic2d,
             2 => Self::Classic3d,
             3 => Self::DosWin16,
+            4 => Self::UltraSafe,
             _ => Self::Auto,
+        }
+    }
+
+    /// Simplified 1-click Auto-Tune defaults `(fps_cap_60, single_core_cpu, virtual_desktop_idx)`.
+    pub fn auto_tune_defaults(self) -> (bool, bool, i32) {
+        match self {
+            Self::Auto => (false, false, 0),
+            Self::Classic2d => (true, true, 0),
+            Self::Classic3d => (true, false, 0),
+            Self::DosWin16 => (false, true, 0),
+            Self::UltraSafe => (true, true, 1), // 60 FPS + 1 CPU core + 800x600 safe window
         }
     }
 }
@@ -145,7 +161,7 @@ pub fn apply_retro_profile_to_env(
     }
 
     let recommended_era = match profile.preset {
-        RetroPreset::Classic2d => {
+        RetroPreset::Classic2d | RetroPreset::UltraSafe => {
             env.insert(
                 "UNILOAD_VK_BACKEND".to_string(),
                 "ddraw-compat+wined3d".to_string(),
@@ -163,13 +179,15 @@ pub fn apply_retro_profile_to_env(
         RetroPreset::Auto => None,
     };
 
-    if profile.fps_cap_60 {
+    let effective_fps = profile.fps_cap_60 || profile.preset == RetroPreset::UltraSafe;
+    if effective_fps {
         env.insert("UNICORE_FPS_CAP_60".to_string(), "1".to_string());
     } else {
         env.remove("UNICORE_FPS_CAP_60");
     }
 
-    if profile.single_core_cpu {
+    let effective_single_core = profile.single_core_cpu || profile.preset == RetroPreset::UltraSafe;
+    if effective_single_core {
         env.insert("UNICORE_SINGLE_CORE".to_string(), "1".to_string());
     } else {
         env.remove("UNICORE_SINGLE_CORE");
@@ -178,6 +196,8 @@ pub fn apply_retro_profile_to_env(
     let vd = profile.virtual_desktop.trim();
     if matches!(vd, "800x600" | "1024x768") {
         env.insert("UNILOAD_VIRTUAL_DESKTOP".to_string(), vd.to_string());
+    } else if profile.preset == RetroPreset::UltraSafe {
+        env.insert("UNILOAD_VIRTUAL_DESKTOP".to_string(), "800x600".to_string());
     } else if profile.preset == RetroPreset::Classic2d {
         // cnc-ddraw handles crisp 4:3 fullscreen natively without forcing an 800x600 Wine box
         env.insert("UNILOAD_VIRTUAL_DESKTOP".to_string(), "off".to_string());

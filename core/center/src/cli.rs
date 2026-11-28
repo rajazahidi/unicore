@@ -28,6 +28,10 @@ pub enum LaunchMode {
     HelpGuide(i32),
     FamilyHub(i32),
     ThemeStudio,
+    ControlPanel,
+    DeviceManager,
+    StorageManager,
+    RegionSettings,
     CheckOnly(Option<PathBuf>),
 }
 
@@ -50,28 +54,32 @@ USAGE:
 OPTIONS:
   --open <FILE>          Open Quick Install & Launch dialog for .exe/.msi/.apk/ELF
   --power                Open Shutdown / Reboot / Sleep / Log Out modal dialog
-  --quick-settings       Open Win11-style Quick Settings popup panel (Wi-Fi, Audio, Brightness, Theme, Power)
+  --quick-settings       Open Quick Settings popup panel (Wi-Fi, Audio, Brightness, Theme, Power)
   --login                Open Multi-User Sign-In screen
   --oobe                 Open First-Boot Setup Wizard (OOBE) before entering desktop center
   --taskmgr              Open lightweight Task Manager to inspect or end running apps
   --ai                   Open Multi-Provider System AI Copilot drawer (Ollama / Gemini / OpenAI)
   --capture              Open Screen Capture & MP4 Video Recorder tool (grim + slurp + wf-recorder)
-  --start-menu           Open Windows 11 / Zorin-style graphical Start Menu
-  --emoji                Open Windows 11-style Emoji Picker (Win+.)
-  --retro-game [FILE]    Open Classic 98/XP Game Wizard (.exe/.msi/CD .iso/.zip/folder)
-  --repair <APP_ID>      Open 1-Click Auto-Repair dialog after a Win98/XP game crash
+  --start-menu           Open UniCore Graphical Start Menu
+  --emoji                Open Emoji Picker (Super+.)
+  --retro-game [FILE]    Open Simplified Legacy Game Auto-Tune Wizard (.exe/.msi/CD .iso/.zip/folder)
+  --repair <APP_ID>      Open 1-Click Auto-Repair dialog after a legacy game crash
   --retro-pick <APP_ID>  Choose the real installed game .exe after running Setup.exe
-  --phone                Open Phone Link hub (KDE Connect + scrcpy Android Screen Mirror)
-  --cloud                Open 1-Click Cloud Drives hub (Google Drive / OneDrive / Dropbox / Nextcloud)
-  --migrate              Open Read-Only Windows Migration Wizard (Files, Bookmarks, Fonts & Store Match)
+  --phone                Open Phone Link hub (KDE Connect + scrcpy Mobile Screen Mirror)
+  --cloud                Open 1-Click Cloud Drives hub (rclone VFS -> ~/Cloud)
+  --migrate              Open Read-Only PC Data Migration Wizard (NTFS Files, Bookmarks & Fonts)
   --drivers              Open Hardware & Driver Health Manager + LVFS Firmware Updater
-  --games                Open Unified Game Hub (98/XP, DOS, Steam, Heroic, Lutris, RetroArch & Android)
-  --gamepad              Open Gamepad Controller Manager & Classic Keyboard/Mouse Mapper
+  --games                Open Unified Game Hub (Legacy PC, DOS, Steam, Heroic, Lutris & Mobile)
+  --gamepad              Open Gamepad Controller Manager & Keyboard/Mouse Mapper
   --saves                Open Game Save Auto-Backup & Cloud Sync Manager
   --help-guide           Open Built-In Offline Bilingual User Guide (EN/BM) & Live Security Audit
-  --webapps              Open 1-Click Web Apps (PWA) Manager (WhatsApp, YouTube, M365, Canva & Custom URLs)
+  --webapps              Open 1-Click Web Apps (PWA) Manager & Custom URLs
   --parental             Open Family Safety & Parental Controls (Safe DNS 1.1.1.3, Screen Time & App Block)
-  --themes               Open 10-Theme Desktop Studio (Midnight, Daylight, Aurora, Nordic, Dracula, Emerald, Sunset, Sakura, Cyberpunk, Classic 98)
+  --themes               Open 10-Theme Desktop Studio (Midnight, Daylight, Aurora, Nordic, Dracula, Emerald, Sunset, Sakura, Cyberpunk, Classic Retro)
+  --control-panel        Open Unified UniCore Control Panel (Category Grid)
+  --devmgr               Open Structured Device Manager (CPU, GPU, Network, Audio, Storage, USB, Input)
+  --storage              Open Storage Manager (Disks, Partitions, S.M.A.R.T, Safe USB Eject & Cache Cleaner)
+  --region               Open International Languages (12), Global Keyboards (21) & World Regions (32)
   --tab <NAME>           Open initial tab: apps | store[:retro] | dev | ai | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security|power|users|ecosystem]
   --state-dir <DIR>      Override sandbox registry root (default: /data/uniload or .uniload_state)
   --apps-dir <DIR>       Override .desktop applications folder (default: ~/.local/share/applications)
@@ -185,6 +193,18 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
             }
             "--themes" | "--theme-studio" => {
                 mode = LaunchMode::ThemeStudio;
+            }
+            "--control-panel" | "--panel" => {
+                mode = LaunchMode::ControlPanel;
+            }
+            "--devmgr" | "--devices" => {
+                mode = LaunchMode::DeviceManager;
+            }
+            "--storage" | "--disks" => {
+                mode = LaunchMode::StorageManager;
+            }
+            "--region" | "--language" | "--keyboard" => {
+                mode = LaunchMode::RegionSettings;
             }
             "--tab" => {
                 let raw = next_value(args, &mut idx, "--tab")?;

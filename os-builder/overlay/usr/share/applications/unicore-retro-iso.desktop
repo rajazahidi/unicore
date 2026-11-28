@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=Play Classic 98/XP Game CD (.iso)
-Name[ms]=Main CD Game Klasik 98/XP (.iso)
-Comment=Mount game CD as Drive D: and install or play inside UniCore Classic 98/XP Mode
+Name=Play Classic PC Game CD (.iso)
+Name[ms]=Main CD Game PC Klasik (.iso)
+Comment=Mount game CD as Drive D: and install or play inside UniCore Classic Game Mode
 Exec=/usr/bin/unicore-center --retro-game %f
 Icon=media-optical
 Terminal=false

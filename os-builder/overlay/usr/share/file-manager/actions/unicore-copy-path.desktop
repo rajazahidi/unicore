@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Action
+Name=Copy Full Path
+Name[ms]=Salin Laluan Penuh
+Tooltip=Copy the selected file or folder path to the clipboard
+Icon=edit-copy
+Profiles=profile-copy-path;
+
+[X-Action-Profile profile-copy-path]
+MimeTypes=all/all;
+SelectionCount==1
+Exec=sh -c 'printf "%s" "$1" | wl-copy' _ %f

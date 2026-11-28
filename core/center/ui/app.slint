@@ -393,6 +393,45 @@ export struct UiText {
     btn-android-restart: string,
     btn-android-aurora: string,
     hint-google-play: string,
+    title-control-panel: string,
+    hdr-control-panel: string,
+    sub-control-panel: string,
+    title-devmgr: string,
+    hdr-devmgr: string,
+    title-storage: string,
+    hdr-storage: string,
+    btn-safe-eject: string,
+    btn-clean-cache: string,
+    title-region: string,
+    hdr-region: string,
+    lbl-intl-lang: string,
+    lbl-world-tz: string,
+    lbl-clock-fmt: string,
+    btn-apply-region: string,
+    btn-scan-scanners: string,
+    lbl-display-rot: string,
+    lbl-multi-mon: string,
+    lbl-ext-brightness: string,
+    retro-adv-show: string,
+    retro-adv-hide: string,
+}
+
+export struct DeviceRow {
+    category: string,
+    name: string,
+    driver: string,
+    bus: string,
+    status: string,
+}
+
+export struct StorageRow {
+    path: string,
+    kind: string,
+    model: string,
+    size: string,
+    fstype: string,
+    mountpoint: string,
+    removable: bool,
 }
 
 export struct ThemePresetCard {
@@ -858,14 +897,14 @@ component WinEraRow inherits HorizontalLayout {
 
     spacing: 10px;
     Text {
-        text: "Windows Era:";
+        text: "PC Era Mode:";
         color: UiTheme.text-muted;
         font-size: root.label-font-size;
         width: root.label-width;
         vertical-alignment: center;
     }
     ComboBox {
-        model: ["Windows 98 (Win98)", "Windows XP (WinXP)", "Windows 7 (Win7)", "Windows 10 / 11 (Win10)"];
+        model: ["98 Era (Legacy 2D)", "XP Era (Classic 3D)", "Era 7 (Standard)", "Modern PC (10/11 API)"];
         current-index <=> root.current-index;
         selected => { root.era-selected(self.current-index); }
         horizontal-stretch: 1;
@@ -873,14 +912,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.themes-dialog-only ? root.tr.title-theme-studio : (root.family-dialog-only ? root.tr.title-family-hub : (root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))))))));
-    preferred-width: root.themes-dialog-only ? 860px : (root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 640px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 468px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))))));
-    preferred-height: root.themes-dialog-only ? 468px : (root.family-dialog-only ? 600px : (root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 660px : (root.retro-wizard-only ? 540px : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))))))));
+    title: root.control-panel-only ? root.tr.title-control-panel : (root.devmgr-dialog-only ? root.tr.title-devmgr : (root.storage-dialog-only ? root.tr.title-storage : (root.region-dialog-only ? root.tr.title-region : (root.themes-dialog-only ? root.tr.title-theme-studio : (root.family-dialog-only ? root.tr.title-family-hub : (root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))))))))))));
+    preferred-width: root.control-panel-only ? 760px : (root.devmgr-dialog-only ? 780px : (root.storage-dialog-only ? 780px : (root.region-dialog-only ? 680px : (root.themes-dialog-only ? 860px : (root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 680px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 468px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))))))))));
+    preferred-height: root.control-panel-only ? 540px : (root.devmgr-dialog-only ? 580px : (root.storage-dialog-only ? 560px : (root.region-dialog-only ? 490px : (root.themes-dialog-only ? 468px : (root.family-dialog-only ? 600px : (root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 660px : (root.retro-wizard-only ? (root.retro-show-advanced ? 590px : 460px) : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))))))))))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only && !root.control-panel-only && !root.devmgr-dialog-only && !root.storage-dialog-only && !root.region-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -933,6 +972,29 @@ export component MainWindow inherits Window {
     in-out property <bool> family-dialog-only: false;
     in-out property <int> fam-subtab: 0; // 0: Web Apps (PWA), 1: Parental Controls
     in-out property <bool> themes-dialog-only: false;
+    in-out property <bool> control-panel-only: false;
+    in-out property <bool> devmgr-dialog-only: false;
+    in-out property <bool> storage-dialog-only: false;
+    in-out property <bool> region-dialog-only: false;
+    in-out property <[DeviceRow]> devmgr-rows: [];
+    in-out property <string> devmgr-filter: "all";
+    in-out property <string> devmgr-status: "";
+    in-out property <[StorageRow]> storage-rows: [];
+    in-out property <int> storage-selected-idx: -1;
+    in-out property <string> storage-selected-path: "";
+    in-out property <string> storage-root-usage: "-";
+    in-out property <string> storage-data-usage: "-";
+    in-out property <string> storage-status: "";
+    in-out property <int> region-lang-idx: 0;
+    in-out property <int> region-tz-idx: 1;
+    in-out property <int> region-kb-idx: 0;
+    in-out property <int> region-clock-idx: 0;
+    in-out property <string> region-status: "";
+    in-out property <int> set-disp-rot-idx: 0;
+    in-out property <int> set-disp-multi-idx: 0;
+    in-out property <float> set-ext-brightness-pct: 80;
+    in-out property <string> set-scanner-summary: "Click Detect Scanners to probe USB/Wi-Fi SANE scanners";
+    in-out property <bool> retro-show-advanced: false;
     in-out property <[ThemePresetCard]> theme-row-1: [];
     in-out property <[ThemePresetCard]> theme-row-2: [];
     in-out property <string> active-theme-preset-label: "UniCore Midnight";
@@ -957,7 +1019,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v1.4.3";
+    in-out property <string> login-clock-text: "UniCore OS v1.5.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1296,7 +1358,7 @@ export component MainWindow inherits Window {
     in-out property <int> eco-win-part-idx: 0;
     in-out property <[string]> eco-win-users: [];
     in-out property <int> eco-win-user-idx: 0;
-    in-out property <string> eco-win-info-summary: "Click 'Scan Windows Drives' to detect Windows NTFS partitions (read-only).";
+    in-out property <string> eco-win-info-summary: "Click 'Scan NTFS Drives' to detect existing NTFS data partitions (read-only).";
     in-out property <string> eco-win-store-matches: "";
     in-out property <bool> eco-mig-docs: true;
     in-out property <bool> eco-mig-pics: true;
@@ -1534,13 +1596,22 @@ export component MainWindow inherits Window {
     callback ai-action(string, string);
     callback ai-ask(string, string);
     callback quick-toggle-theme(bool);
+    callback cpanel-open-target(string);
+    callback devmgr-refresh(string);
+    callback storage-refresh();
+    callback storage-eject(string);
+    callback storage-clean-cache();
+    callback region-apply(int, int, int, int);
+    callback apply-display-ext(int, int, int, int, int);
+    callback ext-brightness-changed(int);
+    callback scan-scanners();
 
     VerticalLayout {
         padding: 14px;
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only && !root.control-panel-only && !root.devmgr-dialog-only && !root.storage-dialog-only && !root.region-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -2648,13 +2719,13 @@ export component MainWindow inherits Window {
             }
         }
 
-        // v0.7.0 Classic 98/XP Game Launcher & Importer Wizard (--retro-game)
+        // v1.5.0 Simplified Legacy Game 1-Click Auto-Tune Launcher (--retro-game)
         if root.retro-wizard-only && !root.picker-open : VerticalLayout {
             spacing: 10px;
             vertical-stretch: 1;
 
             Rectangle {
-                height: 64px;
+                height: 62px;
                 border-radius: 10px;
                 background: @linear-gradient(135deg, #3b0764 0%, #6d28d9 55%, #0284c7 100%);
                 border-width: 1px;
@@ -2673,7 +2744,7 @@ export component MainWindow inherits Window {
                             font-weight: 800;
                         }
                         Text {
-                            text: "1-Click Win98 / WinXP / DOS games: .exe, Setup.exe, CD .iso (Drive D:) or Portable .zip / Folder";
+                            text: "Pick your file (.exe / Setup / CD .iso / .zip) + 1-Click Era Card — CPU, FPS & GPU auto-tuned!";
                             color: #e0f2fe;
                             font-size: 11px;
                             overflow: elide;
@@ -2714,7 +2785,7 @@ export component MainWindow inherits Window {
                             Text { text: "Game Name (Optional):"; color: UiTheme.text-muted; font-size: 12px; width: 140px; vertical-alignment: center; }
                             LineEdit {
                                 text <=> root.retro-name-input;
-                                placeholder-text: "e.g. Red Alert 2, GTA San Andreas, Age of Empires II";
+                                placeholder-text: "e.g. Classic Strategy 1999, Retro Racing 2004, Dungeon RPG";
                                 horizontal-stretch: 1;
                             }
                         }
@@ -2726,91 +2797,149 @@ export component MainWindow inherits Window {
                             font-weight: 700;
                         }
 
+                        // Row 1: 3 Primary 1-Click Auto-Tune Cards
                         HorizontalLayout {
                             spacing: 8px;
                             Rectangle {
                                 horizontal-stretch: 1;
-                                height: 64px;
+                                height: 62px;
+                                border-radius: 8px;
+                                background: root.retro-preset-idx == 0 ? UiTheme.accent : UiTheme.surface-subtle;
+                                border-width: 1px;
+                                border-color: root.retro-preset-idx == 0 ? UiTheme.accent-bright : UiTheme.card-border;
+                                TouchArea { clicked => { root.retro-preset-idx = 0; root.retro-fps-cap = false; root.retro-single-core = false; root.retro-vdesk-idx = 0; } }
+                                VerticalLayout {
+                                    padding: 6px;
+                                    alignment: center;
+                                    spacing: 2px;
+                                    Text { text: "Smart Auto"; color: root.retro-preset-idx == 0 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
+                                    Text { text: "Auto-detect best GPU/CPU"; color: root.retro-preset-idx == 0 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
+                                }
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 62px;
                                 border-radius: 8px;
                                 background: root.retro-preset-idx == 1 ? UiTheme.accent : UiTheme.surface-subtle;
                                 border-width: 1px;
                                 border-color: root.retro-preset-idx == 1 ? UiTheme.accent-bright : UiTheme.card-border;
-                                TouchArea { clicked => { root.retro-preset-idx = 1; root.retro-fps-cap = true; } }
+                                TouchArea { clicked => { root.retro-preset-idx = 1; root.retro-fps-cap = true; root.retro-single-core = true; root.retro-vdesk-idx = 0; } }
                                 VerticalLayout {
-                                    padding: 8px;
+                                    padding: 6px;
                                     alignment: center;
                                     spacing: 2px;
-                                    Text { text: "Classic 2D (Win98/XP)"; color: root.retro-preset-idx == 1 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
-                                    Text { text: "Red Alert 2, AoE2, Diablo II, StarCraft"; color: root.retro-preset-idx == 1 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
+                                    Text { text: "90s 2D Classic"; color: root.retro-preset-idx == 1 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
+                                    Text { text: "RTS / Isometric / 60 FPS + 1-Core"; color: root.retro-preset-idx == 1 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
                                 }
                             }
                             Rectangle {
                                 horizontal-stretch: 1;
-                                height: 64px;
+                                height: 62px;
                                 border-radius: 8px;
                                 background: root.retro-preset-idx == 2 ? UiTheme.accent : UiTheme.surface-subtle;
                                 border-width: 1px;
                                 border-color: root.retro-preset-idx == 2 ? UiTheme.accent-bright : UiTheme.card-border;
-                                TouchArea { clicked => { root.retro-preset-idx = 2; root.retro-fps-cap = true; } }
+                                TouchArea { clicked => { root.retro-preset-idx = 2; root.retro-fps-cap = true; root.retro-single-core = false; root.retro-vdesk-idx = 0; } }
                                 VerticalLayout {
-                                    padding: 8px;
+                                    padding: 6px;
                                     alignment: center;
                                     spacing: 2px;
-                                    Text { text: "Classic 3D (WinXP)"; color: root.retro-preset-idx == 2 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
-                                    Text { text: "GTA SA, NFS U2, War3, CS 1.6"; color: root.retro-preset-idx == 2 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
+                                    Text { text: "2000s 3D Classic"; color: root.retro-preset-idx == 2 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
+                                    Text { text: "DirectX 8/9 3D • 60 FPS Cap"; color: root.retro-preset-idx == 2 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
                                 }
                             }
+                        }
+
+                        // Row 2: DOS / 16-Bit & Ultra-Safe Legacy Cards
+                        HorizontalLayout {
+                            spacing: 8px;
                             Rectangle {
                                 horizontal-stretch: 1;
-                                height: 64px;
+                                height: 58px;
                                 border-radius: 8px;
                                 background: root.retro-preset-idx == 3 ? UiTheme.accent : UiTheme.surface-subtle;
                                 border-width: 1px;
                                 border-color: root.retro-preset-idx == 3 ? UiTheme.accent-bright : UiTheme.card-border;
-                                TouchArea { clicked => { root.retro-preset-idx = 3; } }
+                                TouchArea { clicked => { root.retro-preset-idx = 3; root.retro-fps-cap = false; root.retro-single-core = true; root.retro-vdesk-idx = 0; } }
                                 VerticalLayout {
-                                    padding: 8px;
+                                    padding: 6px;
                                     alignment: center;
                                     spacing: 2px;
-                                    Text { text: "DOS / Win16 (90s)"; color: root.retro-preset-idx == 3 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
-                                    Text { text: "DOSBox-Staging & OTVDM"; color: root.retro-preset-idx == 3 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
+                                    Text { text: "Retro DOS / 16-Bit"; color: root.retro-preset-idx == 3 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
+                                    Text { text: "DOSBox-Staging & OTVDM Runtime"; color: root.retro-preset-idx == 3 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
+                                }
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 58px;
+                                border-radius: 8px;
+                                background: root.retro-preset-idx == 4 ? UiTheme.accent : UiTheme.surface-subtle;
+                                border-width: 1px;
+                                border-color: root.retro-preset-idx == 4 ? UiTheme.accent-bright : UiTheme.card-border;
+                                TouchArea { clicked => { root.retro-preset-idx = 4; root.retro-fps-cap = true; root.retro-single-core = true; root.retro-vdesk-idx = 1; } }
+                                VerticalLayout {
+                                    padding: 6px;
+                                    alignment: center;
+                                    spacing: 2px;
+                                    Text { text: "Ultra-Safe Legacy (Fix Crashes)"; color: root.retro-preset-idx == 4 ? #ffffff : UiTheme.text-primary; font-size: 12px; font-weight: 700; horizontal-alignment: center; }
+                                    Text { text: "1-Core CPU + 60 FPS + Safe 800x600 Window"; color: root.retro-preset-idx == 4 ? #e0f2fe : UiTheme.text-muted; font-size: 10px; horizontal-alignment: center; overflow: elide; }
                                 }
                             }
                         }
 
                         HorizontalLayout {
-                            spacing: 16px;
-                            Switch {
-                                text: root.tr.chk-fps-cap;
-                                checked <=> root.retro-fps-cap;
-                            }
-                            Switch {
-                                text: root.tr.chk-single-core;
-                                checked <=> root.retro-single-core;
-                            }
-                        }
-
-                        HorizontalLayout {
                             spacing: 8px;
-                            Text { text: root.tr.lbl-safe-window; color: UiTheme.text-muted; font-size: 12px; width: 140px; vertical-alignment: center; }
-                            ComboBox {
-                                model: ["Auto Fullscreen (Sharp 4:3 Scaling)", "Safe Window (800x600)", "Safe Window (1024x768)"];
-                                current-index <=> root.retro-vdesk-idx;
-                                horizontal-stretch: 1;
-                            }
-                        }
-
-                        HorizontalLayout {
-                            spacing: 8px;
-                            Text { text: root.tr.lbl-cd-iso; color: UiTheme.text-muted; font-size: 12px; width: 140px; vertical-alignment: center; }
-                            LineEdit {
-                                text <=> root.retro-cd-iso-input;
-                                placeholder-text: "Optional: attach .iso game disc as Drive D:";
-                                horizontal-stretch: 1;
-                            }
                             Button {
-                                text: root.tr.btn-browse;
-                                clicked => { root.open-file-picker("retro-iso"); }
+                                text: root.retro-show-advanced ? root.tr.retro-adv-hide : root.tr.retro-adv-show;
+                                clicked => { root.retro-show-advanced = !root.retro-show-advanced; }
+                            }
+                            Text {
+                                text: (root.retro-fps-cap ? "60 FPS ON" : "FPS Auto") + " • " + (root.retro-single-core ? "1 CPU Core" : "Multi-Core") + (root.retro-vdesk-idx == 1 ? " • 800x600" : (root.retro-vdesk-idx == 2 ? " • 1024x768" : " • Crisp 4:3"));
+                                color: UiTheme.text-ok;
+                                font-size: 11px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+                        }
+
+                        if root.retro-show-advanced : VerticalLayout {
+                            spacing: 8px;
+                            HorizontalLayout {
+                                spacing: 16px;
+                                Switch {
+                                    text: root.tr.chk-fps-cap;
+                                    checked <=> root.retro-fps-cap;
+                                }
+                                Switch {
+                                    text: root.tr.chk-single-core;
+                                    checked <=> root.retro-single-core;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text { text: root.tr.lbl-safe-window; color: UiTheme.text-muted; font-size: 12px; width: 140px; vertical-alignment: center; }
+                                ComboBox {
+                                    model: ["Auto Fullscreen (Sharp 4:3 Scaling)", "Safe Window (800x600)", "Safe Window (1024x768)"];
+                                    current-index <=> root.retro-vdesk-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text { text: root.tr.lbl-cd-iso; color: UiTheme.text-muted; font-size: 12px; width: 140px; vertical-alignment: center; }
+                                LineEdit {
+                                    text <=> root.retro-cd-iso-input;
+                                    placeholder-text: "Optional: attach .iso game disc as Drive D:";
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: root.tr.btn-browse;
+                                    clicked => { root.open-file-picker("retro-iso"); }
+                                }
                             }
                         }
 
@@ -3004,7 +3133,7 @@ export component MainWindow inherits Window {
                             overflow: elide;
                         }
                         Text {
-                            text: "KDE Connect + scrcpy • Cloud Drives (~/Cloud) • Safe Windows NTFS Migration • Drivers & LVFS";
+                            text: "KDE Connect + scrcpy • Cloud Drives (~/Cloud) • Safe PC NTFS Migration • Drivers & LVFS";
                             color: #e0f2fe;
                             font-size: 11px;
                             overflow: elide;
@@ -3218,7 +3347,7 @@ export component MainWindow inherits Window {
                             HorizontalLayout {
                                 spacing: 8px;
                                 ComboBox {
-                                    model: ["Google Drive (OAuth)", "Microsoft OneDrive (OAuth)", "Dropbox (OAuth)", "MEGA (Email + Password)", "Nextcloud / WebDAV"];
+                                    model: ["Cloud Drive OAuth (GD)", "Cloud Storage OAuth (OD)", "Dropbox (OAuth)", "MEGA (Email + Password)", "Nextcloud / WebDAV"];
                                     current-index <=> root.eco-cloud-provider-idx;
                                     width: 230px;
                                 }
@@ -3282,7 +3411,7 @@ export component MainWindow inherits Window {
                                 font-weight: 700;
                             }
                             if root.eco-cloud-remotes.length == 0 : Text {
-                                text: "No cloud drives connected yet. Choose a provider above and click Connect (browser OAuth opens for Google Drive / OneDrive / Dropbox).";
+                                text: "No cloud drives connected yet. Choose a provider above and click Connect (browser OAuth or WebDAV login opens automatically).";
                                 color: UiTheme.text-muted;
                                 font-size: 11px;
                                 wrap: word-wrap;
@@ -3390,7 +3519,7 @@ export component MainWindow inherits Window {
                             padding: 12px;
                             spacing: 8px;
                             Text {
-                                text: "Choose Items to Copy Safely (Windows Drive is Mounted Read-Only)";
+                                text: "Choose Items to Copy Safely (Source NTFS Drive is Mounted Read-Only)";
                                 color: UiTheme.text-primary;
                                 font-size: 13px;
                                 font-weight: 700;
@@ -3410,8 +3539,8 @@ export component MainWindow inherits Window {
                                     horizontal-stretch: 1;
                                     Switch { text: "Videos"; checked <=> root.eco-mig-videos; }
                                     Switch { text: "Game Saves (My Games / Saved Games)"; checked <=> root.eco-mig-saves; }
-                                    Switch { text: "Chrome / Edge Bookmarks (HTML)"; checked <=> root.eco-mig-bookmarks; }
-                                    Switch { text: "Windows Fonts (C:\\Windows\\Fonts)"; checked <=> root.eco-mig-fonts; }
+                                    Switch { text: "Browser Bookmarks (HTML)"; checked <=> root.eco-mig-bookmarks; }
+                                    Switch { text: "TrueType System Fonts (NTFS Fonts)"; checked <=> root.eco-mig-fonts; }
                                 }
                             }
                             HorizontalLayout {
@@ -3727,7 +3856,7 @@ export component MainWindow inherits Window {
                                     font-weight: 700;
                                 }
                                 Text {
-                                    text: "Add any Windows 98/XP/DOS .exe, CD .iso, or .zip game in 1 click, or install Steam / Heroic / RetroArch / freeware classics from UniCore Store.";
+                                    text: "Add any classic PC or DOS .exe, CD .iso, or .zip game in 1 click, or install Steam / Heroic / RetroArch / freeware classics from UniCore Store.";
                                     color: UiTheme.text-muted;
                                     font-size: 12px;
                                     wrap: word-wrap;
@@ -3825,7 +3954,7 @@ export component MainWindow inherits Window {
                             padding: 12px;
                             spacing: 8px;
                             Text {
-                                text: "Connected Controllers (Xbox / PlayStation / Switch / 8BitDo — USB & Bluetooth)";
+                                text: "Connected Controllers (Standard XInput / DInput / HID Gamepads — USB & Bluetooth)";
                                 color: UiTheme.text-primary;
                                 font-size: 13px;
                                 font-weight: 700;
@@ -4642,6 +4771,576 @@ export component MainWindow inherits Window {
             }
         }
 
+        // v1.5.0 Unified UniCore Control Panel Hub (--control-panel)
+        if root.control-panel-only && !root.picker-open : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 62px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #0f172a 0%, #0369a1 55%, #1d4ed8 100%);
+                border-width: 1px;
+                border-color: UiTheme.accent-bright;
+                HorizontalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 2px;
+                        Text { text: root.tr.hdr-control-panel; color: #ffffff; font-size: 16px; font-weight: 800; }
+                        Text { text: root.tr.sub-control-panel; color: #e0f2fe; font-size: 11px; overflow: elide; }
+                    }
+                    TabPill {
+                        label: root.lang-badge;
+                        active: false;
+                        clicked => { root.toggle-language(); }
+                    }
+                }
+            }
+
+            // 2 x 4 Category Card Grid
+            VerticalLayout {
+                vertical-stretch: 1;
+                spacing: 10px;
+                HorizontalLayout {
+                    spacing: 10px;
+                    vertical-stretch: 1;
+                    // 1. Network & Shares
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("network"); } }
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            alignment: center;
+                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #0284c7; Text { text: "NET"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            Text { text: root.tr.subtab-wifi; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                            Text { text: "Wi-Fi, Ethernet, SMB/NAS, VPN"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                        }
+                    }
+                    // 2. Audio & Bluetooth
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("audio"); } }
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            alignment: center;
+                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #7c3aed; Text { text: "AUD"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            Text { text: root.tr.subtab-audio; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                            Text { text: "PipeWire Output, Mic & Bluetooth"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                        }
+                    }
+                    // 3. Display & 10 Themes
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("display"); } }
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            alignment: center;
+                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #db2777; Text { text: "DSP"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            Text { text: root.tr.subtab-display; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                            Text { text: "Resolution, Rotation, Multi-Monitor, 10 Themes"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                        }
+                    }
+                    // 4. Region, Language & Keyboard
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("region"); } }
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            alignment: center;
+                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #059669; Text { text: "LNG"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            Text { text: root.tr.title-region; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                            Text { text: "12 Languages, 21 Keyboards, 32 Timezones"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    vertical-stretch: 1;
+                    // 5. Device Manager
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("devmgr"); } }
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            alignment: center;
+                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #0d9488; Text { text: "DEV"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            Text { text: root.tr.title-devmgr; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                            Text { text: "CPU, GPU, PCI, USB, Camera & Drivers"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                        }
+                    }
+                    // 6. Storage Manager
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("storage"); } }
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            alignment: center;
+                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #d97706; Text { text: "DSK"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            Text { text: root.tr.title-storage; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                            Text { text: "Disks, Partitions, Safe USB Eject, Cache"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                        }
+                    }
+                    // 7. Printers & Scanners
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("printers"); } }
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            alignment: center;
+                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #4f46e5; Text { text: "PRN"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            Text { text: root.tr.subtab-printers; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                            Text { text: "CUPS USB/Wi-Fi Printers & SANE Scanners"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                        }
+                    }
+                    // 8. Security, Power & Accounts
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("security"); } }
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            alignment: center;
+                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #dc2626; Text { text: "SEC"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            Text { text: root.tr.subtab-security; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                            Text { text: "Firewall, VPN, Encrypted Backup & Users"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                height: 36px;
+                spacing: 8px;
+                Button {
+                    height: 36px;
+                    text: root.tr.btn-open-themes;
+                    primary: true;
+                    clicked => { root.cpanel-open-target("themes"); }
+                }
+                Button {
+                    height: 36px;
+                    text: root.tr.btn-open-center;
+                    clicked => { root.cpanel-open-target("center"); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    height: 36px;
+                    text: root.tr.btn-close;
+                    clicked => { root.cancel-open(); }
+                }
+            }
+        }
+
+        // v1.5.0 Structured Device Manager (--devmgr)
+        if root.devmgr-dialog-only && !root.picker-open : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 58px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #0f172a 0%, #0d9488 65%, #0284c7 100%);
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 2px;
+                        Text { text: root.tr.hdr-devmgr; color: #ffffff; font-size: 15px; font-weight: 800; }
+                        Text { text: root.devmgr-rows.length + " hardware devices detected • Kernel drivers & bus status"; color: #e0f2fe; font-size: 11px; }
+                    }
+                    TabPill { label: root.lang-badge; active: false; clicked => { root.toggle-language(); } }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 6px;
+                TabPill { label: "All"; active: root.devmgr-filter == "all"; clicked => { root.devmgr-filter = "all"; root.devmgr-refresh("all"); } }
+                TabPill { label: "CPU & GPU"; active: root.devmgr-filter == "compute"; clicked => { root.devmgr-filter = "compute"; root.devmgr-refresh("compute"); } }
+                TabPill { label: "Network"; active: root.devmgr-filter == "network"; clicked => { root.devmgr-filter = "network"; root.devmgr-refresh("network"); } }
+                TabPill { label: "Audio & Cam"; active: root.devmgr-filter == "audio"; clicked => { root.devmgr-filter = "audio"; root.devmgr-refresh("audio"); } }
+                TabPill { label: "Storage"; active: root.devmgr-filter == "storage"; clicked => { root.devmgr-filter = "storage"; root.devmgr-refresh("storage"); } }
+                TabPill { label: "USB & Input"; active: root.devmgr-filter == "usb"; clicked => { root.devmgr-filter = "usb"; root.devmgr-refresh("usb"); } }
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: root.tr.btn-refresh; clicked => { root.devmgr-refresh(root.devmgr-filter); } }
+            }
+
+            Card {
+                vertical-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 6px;
+                        alignment: start;
+
+                        if root.devmgr-rows.length == 0 : Text {
+                            text: "No matching hardware devices found in this category.";
+                            color: UiTheme.text-muted;
+                            font-size: 12px;
+                        }
+
+                        for dev in root.devmgr-rows : Rectangle {
+                            height: 44px;
+                            border-radius: 6px;
+                            background: UiTheme.surface-subtle;
+                            border-width: 1px;
+                            border-color: UiTheme.card-border;
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 10px;
+                                Rectangle {
+                                    width: 72px;
+                                    height: 22px;
+                                    y: 11px;
+                                    border-radius: 5px;
+                                    background: UiTheme.accent-dark;
+                                    Text { text: dev.category; color: #ffffff; font-size: 10px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                                }
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: center;
+                                    spacing: 1px;
+                                    Text { text: dev.name; color: UiTheme.text-primary; font-size: 12px; font-weight: 600; overflow: elide; }
+                                    Text { text: "Driver: " + dev.driver + "  •  Bus: " + dev.bus; color: UiTheme.text-muted; font-size: 10.5px; overflow: elide; }
+                                }
+                                Text { text: dev.status; color: UiTheme.text-ok; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.devmgr-status != "" : Text { text: root.devmgr-status; color: UiTheme.text-accent; font-size: 11px; overflow: elide; }
+
+            HorizontalLayout {
+                height: 36px;
+                spacing: 8px;
+                Button {
+                    height: 36px;
+                    text: root.tr.eco-tab-drivers;
+                    primary: true;
+                    clicked => { root.cpanel-open-target("drivers"); }
+                }
+                Button {
+                    height: 36px;
+                    text: root.tr.hdr-control-panel;
+                    clicked => { root.cpanel-open-target("cpanel"); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button { height: 36px; text: root.tr.btn-close; clicked => { root.cancel-open(); } }
+            }
+        }
+
+        // v1.5.0 Storage Manager (--storage)
+        if root.storage-dialog-only && !root.picker-open : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 58px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #0f172a 0%, #b45309 65%, #d97706 100%);
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 2px;
+                        Text { text: root.tr.hdr-storage; color: #ffffff; font-size: 15px; font-weight: 800; }
+                        Text { text: "Root: " + root.storage-root-usage + "  •  User Data (/data): " + root.storage-data-usage; color: #fef3c7; font-size: 11px; overflow: elide; }
+                    }
+                    TabPill { label: root.lang-badge; active: false; clicked => { root.toggle-language(); } }
+                }
+            }
+
+            Card {
+                vertical-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 6px;
+                        alignment: start;
+
+                        if root.storage-rows.length == 0 : Text {
+                            text: "No block storage devices listed.";
+                            color: UiTheme.text-muted;
+                            font-size: 12px;
+                        }
+
+                        for vol[sidx] in root.storage-rows : Rectangle {
+                            height: 46px;
+                            border-radius: 6px;
+                            background: sidx == root.storage-selected-idx ? UiTheme.accent-dark : (svta.has-hover ? UiTheme.surface-hover : UiTheme.surface-subtle);
+                            border-width: 1px;
+                            border-color: sidx == root.storage-selected-idx ? UiTheme.accent-bright : UiTheme.card-border;
+                            svta := TouchArea {
+                                clicked => {
+                                    root.storage-selected-idx = sidx;
+                                    root.storage-selected-path = vol.path;
+                                }
+                            }
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 10px;
+                                Rectangle {
+                                    width: 64px;
+                                    height: 22px;
+                                    y: 12px;
+                                    border-radius: 5px;
+                                    background: vol.removable ? #d97706 : #334155;
+                                    Text { text: vol.removable ? "USB" : vol.kind; color: #ffffff; font-size: 10px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                                }
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: center;
+                                    spacing: 1px;
+                                    Text {
+                                        text: vol.path + "  —  " + vol.model + " (" + vol.size + ")";
+                                        color: sidx == root.storage-selected-idx ? #ffffff : UiTheme.text-primary;
+                                        font-size: 12px;
+                                        font-weight: 600;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: "FS: " + vol.fstype + "  •  Mount: " + vol.mountpoint;
+                                        color: sidx == root.storage-selected-idx ? #e0f2fe : UiTheme.text-muted;
+                                        font-size: 10.5px;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.storage-status != "" : Text { text: root.storage-status; color: UiTheme.text-accent; font-size: 11.5px; wrap: word-wrap; }
+
+            HorizontalLayout {
+                height: 36px;
+                spacing: 8px;
+                Button {
+                    height: 36px;
+                    text: root.tr.btn-safe-eject;
+                    primary: true;
+                    enabled: root.storage-selected-path != "";
+                    clicked => { root.storage-eject(root.storage-selected-path); }
+                }
+                Button {
+                    height: 36px;
+                    text: root.tr.btn-clean-cache;
+                    clicked => { root.storage-clean-cache(); }
+                }
+                Button {
+                    height: 36px;
+                    text: "S.M.A.R.T.";
+                    clicked => { root.cpanel-open-target("power"); }
+                }
+                Button {
+                    height: 36px;
+                    text: root.tr.btn-refresh;
+                    clicked => { root.storage-refresh(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button { height: 36px; text: root.tr.btn-close; clicked => { root.cancel-open(); } }
+            }
+        }
+
+        // v1.5.0 International Languages (12), Keyboards (21) & World Regions (32) (--region)
+        if root.region-dialog-only && !root.picker-open : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 58px;
+                border-radius: 10px;
+                background: @linear-gradient(135deg, #0f172a 0%, #059669 65%, #0284c7 100%);
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 2px;
+                        Text { text: root.tr.title-region; color: #ffffff; font-size: 15px; font-weight: 800; }
+                        Text { text: root.tr.hdr-region; color: #d1fae5; font-size: 11px; overflow: elide; }
+                    }
+                    TabPill { label: root.lang-badge; active: false; clicked => { root.toggle-language(); } }
+                }
+            }
+
+            Card {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 12px;
+                    alignment: start;
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: root.tr.lbl-intl-lang; color: UiTheme.text-secondary; font-size: 13px; width: 170px; vertical-alignment: center; }
+                        ComboBox {
+                            model: [
+                                "English (International)",
+                                "Bahasa Melayu (Malaysia)",
+                                "Bahasa Indonesia",
+                                "中文 (简体 / Simplified Chinese)",
+                                "日本語 (Japanese)",
+                                "한국어 (Korean)",
+                                "العربية (Arabic)",
+                                "Español (Spanish)",
+                                "Français (French)",
+                                "Deutsch (German)",
+                                "Português (Portuguese)",
+                                "Русский (Russian)"
+                            ];
+                            current-index <=> root.region-lang-idx;
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: root.tr.lbl-kb-layout; color: UiTheme.text-secondary; font-size: 13px; width: 170px; vertical-alignment: center; }
+                        ComboBox {
+                            model: [
+                                "US English (us)",
+                                "Malay / QWERTY (my)",
+                                "UK English (gb)",
+                                "Indonesian / QWERTY (id)",
+                                "German / QWERTZ (de)",
+                                "French / AZERTY (fr)",
+                                "Spanish (es)",
+                                "Italian (it)",
+                                "Portuguese (pt)",
+                                "Dutch (nl)",
+                                "Polish (pl)",
+                                "Turkish (tr)",
+                                "Russian / Cyrillic + Alt+Shift (ru)",
+                                "Arabic + Alt+Shift (ar)",
+                                "Japanese + Alt+Shift (jp)",
+                                "Korean + Alt+Shift (kr)",
+                                "Chinese + Alt+Shift (cn)",
+                                "Thai + Alt+Shift (th)",
+                                "Vietnamese (vn)",
+                                "English Dvorak (dvorak)",
+                                "English Colemak (colemak)"
+                            ];
+                            current-index <=> root.region-kb-idx;
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: root.tr.lbl-world-tz; color: UiTheme.text-secondary; font-size: 13px; width: 170px; vertical-alignment: center; }
+                        ComboBox {
+                            model: [
+                                "UTC",
+                                "Asia/Kuala_Lumpur",
+                                "Asia/Singapore",
+                                "Asia/Jakarta",
+                                "Asia/Bangkok",
+                                "Asia/Manila",
+                                "Asia/Ho_Chi_Minh",
+                                "Asia/Tokyo",
+                                "Asia/Seoul",
+                                "Asia/Shanghai",
+                                "Asia/Hong_Kong",
+                                "Asia/Kolkata",
+                                "Asia/Dubai",
+                                "Asia/Riyadh",
+                                "Europe/London",
+                                "Europe/Paris",
+                                "Europe/Berlin",
+                                "Europe/Madrid",
+                                "Europe/Rome",
+                                "Europe/Amsterdam",
+                                "Europe/Istanbul",
+                                "Europe/Moscow",
+                                "America/New_York",
+                                "America/Chicago",
+                                "America/Denver",
+                                "America/Los_Angeles",
+                                "America/Toronto",
+                                "America/Sao_Paulo",
+                                "Australia/Sydney",
+                                "Pacific/Auckland",
+                                "Africa/Cairo",
+                                "Africa/Johannesburg"
+                            ];
+                            current-index <=> root.region-tz-idx;
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: root.tr.lbl-clock-fmt; color: UiTheme.text-secondary; font-size: 13px; width: 170px; vertical-alignment: center; }
+                        ComboBox {
+                            model: ["24-Hour (14:30)", "12-Hour (02:30 PM)"];
+                            current-index <=> root.region-clock-idx;
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    Text {
+                        text: "Tip: Non-Latin keyboards (Arabic, Russian, Japanese, Korean, Chinese, Thai) automatically pair with US English — press Alt+Shift anytime to switch scripts. Arabic & CJK fonts are pre-bundled.";
+                        color: UiTheme.text-muted;
+                        font-size: 11px;
+                        wrap: word-wrap;
+                    }
+
+                    if root.region-status != "" : Text {
+                        text: root.region-status;
+                        color: UiTheme.text-ok;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                height: 36px;
+                spacing: 8px;
+                Button {
+                    height: 36px;
+                    text: root.tr.btn-apply-region;
+                    primary: true;
+                    clicked => {
+                        root.region-apply(
+                            root.region-lang-idx,
+                            root.region-tz-idx,
+                            root.region-kb-idx,
+                            root.region-clock-idx
+                        );
+                    }
+                }
+                Button {
+                    height: 36px;
+                    text: root.tr.hdr-control-panel;
+                    clicked => { root.cpanel-open-target("cpanel"); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button { height: 36px; text: root.tr.btn-close; clicked => { root.cancel-open(); } }
+            }
+        }
+
         // Built-in Graphical File Picker Overlay
         if root.picker-open : Card {
             vertical-stretch: 1;
@@ -5036,7 +5735,20 @@ export component MainWindow inherits Window {
                             spacing: 10px;
                             Text { text: root.tr.oobe-lang; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
                             ComboBox {
-                                model: ["English (United States - en_US.UTF-8)", "Bahasa Melayu (Malaysia - ms_MY.UTF-8)", "Minimal POSIX UTF-8 (C.UTF-8)"];
+                                model: [
+                                    "English (International - en_US.UTF-8)",
+                                    "Bahasa Melayu (Malaysia - ms_MY.UTF-8)",
+                                    "Bahasa Indonesia (id_ID.UTF-8)",
+                                    "中文 (简体 / Simplified Chinese)",
+                                    "日本語 (Japanese)",
+                                    "한국어 (Korean)",
+                                    "العربية (Arabic)",
+                                    "Español (Spanish)",
+                                    "Français (French)",
+                                    "Deutsch (German)",
+                                    "Português (Portuguese)",
+                                    "Русский (Russian)"
+                                ];
                                 current-index <=> root.oobe-lang-idx;
                                 selected => { root.oobe-lang-selected(self.current-index); }
                                 horizontal-stretch: 1;
@@ -5046,7 +5758,16 @@ export component MainWindow inherits Window {
                             spacing: 10px;
                             Text { text: root.tr.oobe-tz; color: UiTheme.text-muted; font-size: 13px; width: 130px; vertical-alignment: center; }
                             ComboBox {
-                                model: ["UTC", "Asia/Kuala_Lumpur", "Asia/Singapore", "America/New_York", "Europe/London", "Asia/Tokyo"];
+                                model: [
+                                    "UTC", "Asia/Kuala_Lumpur", "Asia/Singapore", "Asia/Jakarta",
+                                    "Asia/Bangkok", "Asia/Manila", "Asia/Ho_Chi_Minh", "Asia/Tokyo",
+                                    "Asia/Seoul", "Asia/Shanghai", "Asia/Hong_Kong", "Asia/Kolkata",
+                                    "Asia/Dubai", "Asia/Riyadh", "Europe/London", "Europe/Paris",
+                                    "Europe/Berlin", "Europe/Madrid", "Europe/Rome", "Europe/Amsterdam",
+                                    "Europe/Istanbul", "Europe/Moscow", "America/New_York", "America/Chicago",
+                                    "America/Denver", "America/Los_Angeles", "America/Toronto", "America/Sao_Paulo",
+                                    "Australia/Sydney", "Pacific/Auckland", "Africa/Cairo", "Africa/Johannesburg"
+                                ];
                                 current-index <=> root.oobe-tz-idx;
                                 horizontal-stretch: 1;
                             }
@@ -5073,19 +5794,19 @@ export component MainWindow inherits Window {
                         HorizontalLayout {
                             spacing: 8px;
                             Button {
-                                text: "Windows 11 Modern";
+                                text: "Modern Floating Dock";
                                 primary: root.set-desktop-layout-idx == 0;
                                 horizontal-stretch: 1;
                                 clicked => { root.set-desktop-layout-idx = 0; root.preview-look-oobe(root.set-theme-idx, 0, root.set-accent-idx); }
                             }
                             Button {
-                                text: "Windows 10 / Zorin";
+                                text: "Classic Bottom Bar";
                                 primary: root.set-desktop-layout-idx == 1;
                                 horizontal-stretch: 1;
                                 clicked => { root.set-desktop-layout-idx = 1; root.preview-look-oobe(root.set-theme-idx, 1, root.set-accent-idx); }
                             }
                             Button {
-                                text: "macOS Top Dock";
+                                text: "Top Bar Dock";
                                 primary: root.set-desktop-layout-idx == 2;
                                 horizontal-stretch: 1;
                                 clicked => { root.set-desktop-layout-idx = 2; root.preview-look-oobe(root.set-theme-idx, 2, root.set-accent-idx); }
@@ -5643,7 +6364,7 @@ export component MainWindow inherits Window {
                         }
 
                         if !root.open-has-file : Text {
-                            text: "Select a file on the left or enter a file path above to configure Windows Era and Sandbox Permissions.";
+                            text: "Select a file on the left or enter a file path above to configure PC Era Mode and Sandbox Permissions.";
                             color: UiTheme.text-muted;
                             font-size: 12px;
                             wrap: word-wrap;
@@ -5744,7 +6465,7 @@ export component MainWindow inherits Window {
                         padding: 14px;
                         spacing: 8px;
                         Text {
-                            text: "Install UniCore OS to Disk (A/B Hybrid BIOS + UEFI / Safe Windows Dual-Boot)";
+                            text: "Install UniCore OS to Disk (A/B Hybrid BIOS + UEFI / Safe Dual-Boot)";
                             color: UiTheme.text-primary;
                             font-size: 15px;
                             font-weight: 700;
@@ -5753,7 +6474,7 @@ export component MainWindow inherits Window {
                             spacing: 10px;
                             Text { text: "Install Mode:"; color: UiTheme.text-muted; font-size: 12px; width: 92px; vertical-alignment: center; }
                             ComboBox {
-                                model: ["Erase Whole Disk (Hybrid BIOS + UEFI A/B)", "Safe Dual-Boot Alongside Windows (Uses >= 10 GB Unallocated GPT Space)"];
+                                model: ["Erase Whole Disk (Hybrid BIOS + UEFI A/B)", "Safe Dual-Boot Alongside Existing OS (>= 10 GB Unallocated GPT Space)"];
                                 current-index <=> root.inst-mode-idx;
                                 enabled: root.inst-has-disk && !root.inst-busy;
                                 horizontal-stretch: 1;
@@ -5761,7 +6482,7 @@ export component MainWindow inherits Window {
                         }
                         Text {
                             text: root.inst-mode-idx == 1
-                                ? "SAFE DUAL-BOOT: Installs A/B slots into unallocated GPT free space (>= 10 GB) without touching or resizing any Windows NTFS partition, reuses Windows ESP, and auto-adds Windows Boot Manager + UniCore Recovery to GRUB. Need free space? Shrink C: inside Windows Disk Management first."
+                                ? "SAFE DUAL-BOOT: Installs A/B slots into unallocated GPT free space (>= 10 GB) without touching or resizing existing NTFS partitions, reuses the EFI System Partition, and auto-adds existing boot entries + UniCore Recovery to GRUB."
                                 : "WHOLE-DISK MODE: Creates GPT Hybrid BIOS + UEFI layout with Slot A (UNICORE_SYS_A), Slot B fallback (UNICORE_SYS_B), UniCore Recovery submenu, and persistent UNICORE_DATA. ALL existing data on the selected disk will be erased.";
                             color: root.inst-mode-idx == 1 ? #38bdf8 : #fbbf24;
                             font-size: 12px;
@@ -5818,7 +6539,7 @@ export component MainWindow inherits Window {
                                 horizontal-stretch: 1;
                             }
                             Button {
-                                text: root.inst-busy ? "Installing..." : (root.inst-mode-idx == 1 ? "Install Alongside Windows" : "Erase & Install UniCore OS");
+                                text: root.inst-busy ? "Installing..." : (root.inst-mode-idx == 1 ? "Install Alongside Existing OS" : "Erase & Install UniCore OS");
                                 primary: true;
                                 enabled: root.inst-has-disk && !root.inst-busy;
                                 clicked => { root.start-disk-install(root.inst-disk-idx, root.inst-mode-idx, root.inst-confirm-input, root.inst-encrypt-data, root.inst-luks-pass, root.inst-luks-confirm); }
@@ -5954,7 +6675,7 @@ export component MainWindow inherits Window {
                         InfoRow { label: "Android Image:"; value: root.sys-android-image; }
                         InfoRow { label: "ARM Translator:"; value: root.sys-android-arm; }
                         InfoRow { label: "Runtime State:"; value: root.sys-android-container; value-color: UiTheme.text-ok; }
-                        InfoRow { label: "Google Play GSF ID:"; value: root.sys-android-gsf-id; value-color: UiTheme.text-accent; }
+                        InfoRow { label: "Mobile GSF Device ID:"; value: root.sys-android-gsf-id; value-color: UiTheme.text-accent; }
 
                         HorizontalLayout {
                             spacing: 10px;
@@ -5968,8 +6689,8 @@ export component MainWindow inherits Window {
                             ComboBox {
                                 model: [
                                     "VANILLA (Minimal Open-Source)",
-                                    "MICROG (Open-Source + F-Droid & Aurora)",
-                                    "GAPPS (Official Google Play Store & Account)"
+                                    "MICROG (Open-Source + F-Droid & Open App Market)",
+                                    "GAPPS (Full Mobile Account & App Market)"
                                 ];
                                 current-index <=> root.android-profile-idx;
                                 horizontal-stretch: 1;
@@ -6315,7 +7036,7 @@ export component MainWindow inherits Window {
                                 font-weight: 700;
                             }
                             Text {
-                                text: "Connect Windows/NAS SMB shares (smb://192.168.1.10/Share), SFTP servers (sftp://host/path), or WebDAV/Nextcloud (davs://...). Android MTP & iPhone AFC auto-mount in Files.";
+                                text: "Connect Network/NAS SMB shares (smb://192.168.1.10/Share), SFTP servers (sftp://host/path), or WebDAV/Nextcloud (davs://...). Mobile MTP/AFC devices auto-mount in Computer Explorer.";
                                 color: UiTheme.text-muted;
                                 font-size: 11px;
                                 wrap: word-wrap;
@@ -6679,10 +7400,50 @@ export component MainWindow inherits Window {
                                 }
                             }
 
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.tr.lbl-display-rot;
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["Landscape (0°)", "Portrait (90°)", "Flipped (180°)", "Portrait Flipped (270°)"];
+                                    current-index <=> root.set-disp-rot-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.tr.lbl-multi-mon;
+                                    color: UiTheme.text-muted;
+                                    font-size: 13px;
+                                    width: 160px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["Auto / Single Display", "Extend Secondary to Right", "Extend Secondary to Left", "Mirror / Duplicate Displays"];
+                                    current-index <=> root.set-disp-multi-idx;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
                             Button {
                                 text: "Apply & Save Display Settings";
                                 primary: true;
-                                clicked => { root.apply-display(root.set-disp-output-idx, root.set-disp-mode-idx, root.set-disp-scale-idx); }
+                                clicked => {
+                                    root.apply-display-ext(
+                                        root.set-disp-output-idx,
+                                        root.set-disp-mode-idx,
+                                        root.set-disp-scale-idx,
+                                        root.set-disp-rot-idx,
+                                        root.set-disp-multi-idx
+                                    );
+                                }
                             }
 
                             Rectangle { height: 1px; background: UiTheme.card-border; }
@@ -6703,6 +7464,25 @@ export component MainWindow inherits Window {
                                     value <=> root.set-brightness-pct;
                                     enabled: root.set-backlight-available;
                                     released(val) => { root.brightness-changed(Math.round(val)); }
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Text {
+                                    text: root.tr.lbl-ext-brightness + " (" + Math.round(root.set-ext-brightness-pct) + "%)";
+                                    color: UiTheme.text-secondary;
+                                    font-size: 13px;
+                                    width: 215px;
+                                    vertical-alignment: center;
+                                }
+                                Slider {
+                                    minimum: 10;
+                                    maximum: 100;
+                                    step: 5;
+                                    value <=> root.set-ext-brightness-pct;
+                                    released(val) => { root.ext-brightness-changed(Math.round(val)); }
                                     horizontal-stretch: 1;
                                 }
                             }
@@ -6833,7 +7613,29 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                                 ComboBox {
-                                    model: ["US English (us)", "Malay / QWERTY (my)", "UK English (gb)", "German (de)", "French (fr)", "Japanese (jp)"];
+                                    model: [
+                                        "US English (us)",
+                                        "Malay / QWERTY (my)",
+                                        "UK English (gb)",
+                                        "Indonesian / QWERTY (id)",
+                                        "German / QWERTZ (de)",
+                                        "French / AZERTY (fr)",
+                                        "Spanish (es)",
+                                        "Italian (it)",
+                                        "Portuguese (pt)",
+                                        "Dutch (nl)",
+                                        "Polish (pl)",
+                                        "Turkish (tr)",
+                                        "Russian / Cyrillic + Alt+Shift (ru)",
+                                        "Arabic + Alt+Shift (ar)",
+                                        "Japanese + Alt+Shift (jp)",
+                                        "Korean + Alt+Shift (kr)",
+                                        "Chinese + Alt+Shift (cn)",
+                                        "Thai + Alt+Shift (th)",
+                                        "Vietnamese (vn)",
+                                        "English Dvorak (dvorak)",
+                                        "English Colemak (colemak)"
+                                    ];
                                     current-index <=> root.set-kb-layout-idx;
                                     horizontal-stretch: 1;
                                 }
@@ -6849,7 +7651,7 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                                 ComboBox {
-                                    model: ["Windows 11 Modern (Centered Floating)", "Windows 10 / Zorin Classic (Left Bar)", "macOS / Zorin Top Dock"];
+                                    model: ["Modern Floating Dock (Centered)", "Classic Bottom Bar (Left Start)", "Top Bar Dock (Full Width)"];
                                     current-index <=> root.set-desktop-layout-idx;
                                     horizontal-stretch: 1;
                                 }
@@ -7025,15 +7827,20 @@ export component MainWindow inherits Window {
                     }
 
                     InfoRow { label: "CUPS Status:"; value: root.set-cups-summary; value-color: root.set-cups-active ? UiTheme.text-ok : UiTheme.text-accent; }
+                    InfoRow { label: "SANE Scanners:"; value: root.set-scanner-summary; value-color: UiTheme.text-secondary; }
 
                     HorizontalLayout {
-                        spacing: 12px;
+                        spacing: 8px;
                         Switch {
                             text: root.tr.chk-cups-service;
                             checked <=> root.set-cups-active;
                             toggled => { root.toggle-cups(self.checked); }
                         }
                         Rectangle { horizontal-stretch: 1; }
+                        Button {
+                            text: root.tr.btn-scan-scanners;
+                            clicked => { root.scan-scanners(); }
+                        }
                         Button {
                             text: root.tr.btn-open-scanner;
                             clicked => { root.open-document-scanner(); }
@@ -8163,7 +8970,7 @@ export component MainWindow inherits Window {
                                     horizontal-stretch: 1;
                                     spacing: 4px;
                                     Text {
-                                        text: "Modern PC Gaming • Flatpak + GE-Proton + Xbox/PS/Switch Gamepads";
+                                        text: "Modern PC Gaming • Flatpak + GE-Proton + USB/Bluetooth Gamepads";
                                         color: #ffffff;
                                         font-size: 14px;
                                         font-weight: 800;

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Action
+Name=Open Terminal Here
+Name[ms]=Buka Terminal Di Sini
+Tooltip=Open a Foot terminal window inside this folder
+Icon=utilities-terminal
+Profiles=profile-open-term;
+
+[X-Action-Profile profile-open-term]
+MimeTypes=inode/directory;
+SelectionCount==1
+Exec=foot -D %f

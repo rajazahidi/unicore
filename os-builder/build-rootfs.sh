@@ -101,6 +101,8 @@ DESKTOP_PKGS=(
     wireplumber
     pipewire-spa-bluez
     font-noto-emoji
+    font-noto-arabic
+    font-wqy-zenhei
     font-awesome
     font-carlito
     font-liberation
@@ -548,6 +550,9 @@ chmod 0755 \
     "${ROOTFS_DIR}/usr/libexec/unicore-webapps" \
     "${ROOTFS_DIR}/usr/libexec/unicore-parental" \
     "${ROOTFS_DIR}/usr/libexec/unicore-toggle" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-devmgr" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-storage" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-desktop-action" \
     "${ROOTFS_DIR}/etc/local.d/unicore-binfmt.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-android.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-hwprofile.start" \
@@ -922,7 +927,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="1.4.3"
+OS_VERSION="1.5.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

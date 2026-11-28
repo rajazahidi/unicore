@@ -1,0 +1,73 @@
+#!/bin/sh
+# UniCore OS Storage Manager Helper (0 MB idle RAM)
+set -eu
+
+cmd="${1:-list}"
+shift || true
+
+case "${cmd}" in
+    list)
+        if command -v lsblk >/dev/null 2>&1; then
+            lsblk -P -o PATH,TYPE,SIZE,FSTYPE,MOUNTPOINT,MODEL,TRAN,RM 2>/dev/null | while IFS= read -r line; do
+                PATH_VAL="" TYPE_VAL="" SIZE_VAL="" FSTYPE_VAL="" MOUNT_VAL="" MODEL_VAL="" TRAN_VAL="" RM_VAL=""
+                eval "$(printf '%s' "${line}" | sed 's/PATH=/PATH_VAL=/; s/TYPE=/TYPE_VAL=/; s/SIZE=/SIZE_VAL=/; s/FSTYPE=/FSTYPE_VAL=/; s/MOUNTPOINT=/MOUNT_VAL=/; s/MODEL=/MODEL_VAL=/; s/TRAN=/TRAN_VAL=/; s/RM=/RM_VAL=/')" 2>/dev/null || continue
+                case "${TYPE_VAL}" in
+                    disk|part|crypt)
+                        case "${PATH_VAL}" in
+                            /dev/loop*|/dev/zram*|/dev/sr*) continue ;;
+                        esac
+                        label="${MODEL_VAL}"
+                        [ -n "${label}" ] || label="${TRAN_VAL:-Local Volume}"
+                        fs="${FSTYPE_VAL:-unformatted}"
+                        mp="${MOUNT_VAL:--}"
+                        rm_flag="${RM_VAL:-0}"
+                        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                            "${PATH_VAL}" "${TYPE_VAL}" "${label}" "${SIZE_VAL:-0}" "${fs}" "${mp}" "${rm_flag}"
+                        ;;
+                esac
+            done
+        fi
+        ;;
+
+    summary)
+        root_df="$(df -h / 2>/dev/null | awk 'NR==2{print $3" / "$2" ("$5")"}' || echo 'N/A')"
+        data_df="$(df -h /data 2>/dev/null | awk 'NR==2{print $3" / "$2" ("$5" used, "$4" free)"}' || echo 'Live RAM Mode')"
+        printf 'root_usage=%s\ndata_usage=%s\n' "${root_df}" "${data_df}"
+        ;;
+
+    eject)
+        dev="${1:-}"
+        if ! printf '%s' "${dev}" | grep -Eq '^/dev/(sd[a-z][0-9]*|nvme[0-9]+n[0-9]+p?[0-9]*|mmcblk[0-9]+p?[0-9]*)$'; then
+            echo "Unsafe block device path: ${dev}" >&2
+            exit 1
+        fi
+        mp="$(lsblk -no MOUNTPOINT "${dev}" 2>/dev/null | head -n1 || true)"
+        case "${mp}" in
+            "/"|"/data"|"/mnt/unicore-media"|"/boot"|"/efi")
+                echo "Refusing to unmount protected system mountpoint: ${mp}" >&2
+                exit 1
+                ;;
+        esac
+        sync
+        if [ -n "${mp}" ]; then
+            umount "${dev}" 2>/dev/null || umount "${mp}"
+        fi
+        echo "Safely unmounted ${dev}"
+        ;;
+
+    clean-cache)
+        USER_HOME="${HOME:-/home/unicore}"
+        before_kb="$(du -sk "${USER_HOME}/.cache" 2>/dev/null | awk '{print $1}' || echo 0)"
+        rm -rf "${USER_HOME}/.cache/thumbnails"/* "${USER_HOME}/.cache/epiphany"/* "${USER_HOME}/.cache/fontconfig"/* 2>/dev/null || true
+        rm -f /tmp/center_*.log /tmp/unicore-center.log 2>/dev/null || true
+        after_kb="$(du -sk "${USER_HOME}/.cache" 2>/dev/null | awk '{print $1}' || echo 0)"
+        freed_kb=$((before_kb - after_kb))
+        [ "${freed_kb}" -lt 0 ] && freed_kb=0
+        echo "Cleaned temporary cache (freed ${freed_kb} KB)"
+        ;;
+
+    *)
+        echo "Usage: unicore-storage <list|summary|eject <dev>|clean-cache>" >&2
+        exit 2
+        ;;
+esac

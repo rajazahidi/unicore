@@ -287,6 +287,26 @@ case "$1" in
             ln -snf "/usr/share/zoneinfo/${tz}" /etc/localtime
         fi
         ;;
+    set-timezone)
+        [ "$#" -eq 2 ] || exit 2
+        tz="$2"
+        case "${tz}" in
+            *..*) echo "Denied invalid timezone: ${tz}" >&2; exit 1 ;;
+        esac
+        if ! printf '%s' "${tz}" | grep -Eq '^[A-Za-z0-9_/+.-]+$'; then
+            echo "Denied invalid timezone: ${tz}" >&2
+            exit 1
+        fi
+        printf '%s\n' "${tz}" > /etc/timezone
+        if [ -f "/usr/share/zoneinfo/${tz}" ]; then
+            ln -snf "/usr/share/zoneinfo/${tz}" /etc/localtime
+        fi
+        echo "timezone=${tz}"
+        ;;
+    storage-eject)
+        [ "$#" -eq 2 ] || exit 2
+        exec /usr/libexec/unicore-storage eject "$2"
+        ;;
     set-user-password)
         [ "$#" -eq 1 ] || exit 2
         IFS= read -r user_pass || user_pass=""

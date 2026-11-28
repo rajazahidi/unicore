@@ -1,0 +1,121 @@
+#!/bin/sh
+# UniCore OS Device Manager & Scanner Discovery Helper (0 MB idle RAM)
+set -eu
+
+cmd="${1:-list}"
+
+emit_row() {
+    # category<TAB>name<TAB>driver<TAB>bus<TAB>status
+    printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5"
+}
+
+case "${cmd}" in
+    list)
+        # 1. CPU
+        cpu_model="$(awk -F: '/model name|Model Name|Hardware/{gsub(/^[ \t]+/,"",$2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)"
+        [ -n "${cpu_model}" ] || cpu_model="$(uname -m 2>/dev/null || echo Processor)"
+        cores="$(nproc 2>/dev/null || echo 1)"
+        gov="$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo auto)"
+        emit_row "CPU" "${cpu_model} (${cores} cores)" "cpufreq:${gov}" "System" "Healthy"
+
+        # 2. PCI Devices (Graphics, Network, Audio, Storage, USB Controllers)
+        if command -v lspci >/dev/null 2>&1; then
+            lspci -k 2>/dev/null | awk '
+                /^[^ \t]/ {
+                    if (slot != "") {
+                        printf "%s|%s|%s|%s\n", cat, desc, drv, slot
+                    }
+                    slot = $1
+                    rest = substr($0, length($1) + 2)
+                    cat = "Other"
+                    if (rest ~ /VGA|3D controller|Display controller/) cat = "Graphics"
+                    else if (rest ~ /Network controller|Ethernet controller/) cat = "Network"
+                    else if (rest ~ /Audio device|Multimedia audio/) cat = "Audio"
+                    else if (rest ~ /SATA|NVMe|Non-Volatile|RAID|IDE|SCSI|Mass storage/) cat = "Storage"
+                    else if (rest ~ /USB controller|Thunderbolt/) cat = "USB"
+                    desc = rest
+                    sub(/^[^:]+:[ \t]*/, "", desc)
+                    drv = "kernel-builtin"
+                }
+                /Kernel driver in use:/ {
+                    drv = $0
+                    sub(/.*Kernel driver in use:[ \t]*/, "", drv)
+                }
+                END {
+                    if (slot != "") {
+                        printf "%s|%s|%s|%s\n", cat, desc, drv, slot
+                    }
+                }
+            ' | while IFS='|' read -r cat desc drv slot; do
+                case "${cat}" in
+                    Graphics|Network|Audio|Storage|USB)
+                        emit_row "${cat}" "${desc}" "${drv}" "PCI:${slot}" "Active"
+                        ;;
+                esac
+            done
+        fi
+
+        # 3. USB Devices
+        if command -v lsusb >/dev/null 2>&1; then
+            lsusb 2>/dev/null | head -n 16 | while IFS= read -r line; do
+                [ -n "${line}" ] || continue
+                bus_id="$(printf '%s' "${line}" | awk '{print $6}')"
+                name="$(printf '%s' "${line}" | sed 's/^Bus [0-9]* Device [0-9]*: ID [0-9a-fA-F:]*[[:space:]]*//')"
+                [ -n "${name}" ] || name="USB Peripheral"
+                emit_row "USB" "${name}" "usbcore" "USB:${bus_id}" "Connected"
+            done
+        fi
+
+        # 4. Bluetooth Controllers
+        for bt in /sys/class/bluetooth/hci*; do
+            [ -e "${bt}" ] || continue
+            bname="$(basename "${bt}")"
+            emit_row "Bluetooth" "Bluetooth Adapter (${bname})" "btusb/bluez" "Bluetooth" "Ready"
+        done
+
+        # 5. Cameras (V4L2)
+        for cam in /dev/video*; do
+            [ -e "${cam}" ] || continue
+            cname="$(basename "${cam}")"
+            label="$(cat "/sys/class/video4linux/${cname}/name" 2>/dev/null || echo "Webcam ${cname}")"
+            emit_row "Camera" "${label}" "uvcvideo" "/dev/${cname}" "Ready"
+        done
+
+        # 6. Input Devices (Keyboards, Mice, Touchpads, Gamepads)
+        if [ -r /proc/bus/input/devices ]; then
+            awk '
+                /^N: Name=/ {
+                    n = $0
+                    sub(/^N: Name="/, "", n)
+                    sub(/"$/, "", n)
+                }
+                /^H: Handlers=/ {
+                    if ($0 ~ /kbd|mouse|js[0-9]/) {
+                        print n
+                    }
+                }
+            ' /proc/bus/input/devices | head -n 8 | while IFS= read -r iname; do
+                [ -n "${iname}" ] || continue
+                emit_row "Input" "${iname}" "libinput" "HID" "Active"
+            done
+        fi
+
+        # 7. PipeWire Audio Stack Status
+        if pgrep -f '[p]ipewire' >/dev/null 2>&1; then
+            emit_row "Audio" "UniCore PipeWire Audio Engine" "pipewire+alsa" "Sound" "Running"
+        fi
+        ;;
+
+    scanners)
+        if command -v scanimage >/dev/null 2>&1; then
+            # scanimage -L can take 1-3s probing USB/eSCL; keep bounded
+            raw="$(timeout 6 scanimage -L 2>/dev/null || true)"
+            printf '%s\n' "${raw}" | sed -n "s/^device \`\([^']*\)' is a \(.*\)$/\1\t\2/p"
+        fi
+        ;;
+
+    *)
+        echo "Usage: unicore-devmgr <list|scanners>" >&2
+        exit 2
+        ;;
+esac

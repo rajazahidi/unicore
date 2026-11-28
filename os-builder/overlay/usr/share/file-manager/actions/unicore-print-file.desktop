@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Action
+Name=Print Document...
+Name[ms]=Cetak Dokumen...
+Tooltip=Send this document or image to your default printer (starts CUPS on-demand)
+Icon=document-print
+Profiles=profile-print-doc;
+
+[X-Action-Profile profile-print-doc]
+MimeTypes=application/pdf;text/plain;image/png;image/jpeg;application/postscript;
+Basenames=*.pdf;*.PDF;*.txt;*.TXT;*.png;*.PNG;*.jpg;*.JPG;*.jpeg;*.JPEG;
+SelectionCount==1
+Exec=/usr/libexec/unicore-desktop-action print-file %f

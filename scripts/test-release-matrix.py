@@ -412,7 +412,35 @@ printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'directplay'
 rm -f /tmp/fake_win32.log
-echo "Verified all v0.2.0-v1.4.1 helpers, Boot Splash, Capture, DND, Network Drives, BlueZ PipeWire, Accessibility, Classic 98/XP Gaming, Themes & drivers OK"
+echo "Checking v1.5.0 Global Control Panel, Device/Storage Manager, 12 Languages, 21 Keyboards, Scanners & Context Menus..."
+test -x /usr/libexec/unicore-devmgr
+test -x /usr/libexec/unicore-storage
+test -x /usr/libexec/unicore-desktop-action
+test -f /usr/share/file-manager/actions/unicore-open-terminal.desktop
+test -f /usr/share/file-manager/actions/unicore-copy-path.desktop
+test -f /usr/share/file-manager/actions/unicore-print-file.desktop
+/usr/libexec/unicore-devmgr list | grep -q '^CPU'
+/usr/libexec/unicore-storage list | grep -q '/dev/'
+/usr/libexec/unicore-storage summary | grep -q '^root_usage='
+/usr/libexec/unicore-storage clean-cache | grep -q '^cleaned_kb='
+fc-list | grep -qiE 'Noto|WenQuanYi'
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    /usr/libexec/unicore-personalize set --kb-layout ar --clock-format 12h >/dev/null
+'
+grep -q '^XKB_DEFAULT_LAYOUT=us,ar$' /home/unicore/.config/labwc/environment
+grep -q '^XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle$' /home/unicore/.config/labwc/environment
+grep -q '%I:%M %p' /home/unicore/.config/waybar/config.jsonc
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    /usr/libexec/unicore-personalize set --kb-layout us --clock-format 24h >/dev/null
+    doas /usr/libexec/unicore-sys-helper set-timezone Asia/Kuala_Lumpur >/dev/null
+    created_dir="$(/usr/libexec/unicore-desktop-action new-folder)"
+    test -d "${created_dir}"
+    rmdir "${created_dir}"
+'
+grep -q '^Asia/Kuala_Lumpur$' /etc/timezone
+echo "Verified all v0.2.0-v1.5.0 helpers, Global Keyboards/Region, Device/Storage Manager, Context Menus, Themes & drivers OK"
 
 echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
 mkdir -p /data/unicore
@@ -620,7 +648,7 @@ grep -q '^XKB_DEFAULT_LAYOUT=my$' /home/unicore/.config/labwc/environment
 grep -q '#f1f5f9' /home/unicore/.config/waybar/style.css
 grep -q 'border-radius: 14px' /home/unicore/.config/waybar/style.css
 
-echo "[4/5] Capturing 14 clean unstacked live Wayland desktop screenshots across all menus & hubs..."
+echo "[4/5] Capturing 18 clean unstacked live Wayland desktop screenshots across all menus & hubs..."
 pkill -f '[u]nicore-center' >/dev/null 2>&1 || true
 sleep 0.8
 cat <<'EOF_SNAP' > /tmp/qa_snap.sh
@@ -633,7 +661,7 @@ pkill -f '[u]nicore-center' >/dev/null 2>&1 || true
 sleep 0.6
 /usr/bin/unicore-center "$@" >/tmp/center_qa.log 2>&1 &
 for i in $(seq 1 30); do
-    if wlrctl toplevel list 2>/dev/null | grep -qiE "UniCore|Capture|Start|Classic|Phone|Game|Guide|Web|Theme|Quick|Settings|Drivers"; then
+    if wlrctl toplevel list 2>/dev/null | grep -qiE "UniCore|Capture|Start|Classic|Legacy|Phone|Game|Guide|Web|Theme|Quick|Settings|Drivers|Control|Device|Storage|Region|Language"; then
         break
     fi
     sleep 0.3
@@ -656,6 +684,10 @@ su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v110_webapps.png --webapps'
 su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v120_drivers.png --drivers'
 su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v141_quick.png --quick-settings'
 su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v141_printers.png --tab settings:printers'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v150_cpanel.png --control-panel'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v150_devmgr.png --devmgr'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v150_storage.png --storage'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v150_region.png --region'
 # Test live 10-Theme Studio switching (Classic 98 -> Nordic Top Bar -> Cyberpunk Synth) & capture Theme Studio + System/Android screenshots
 su -s /bin/sh unicore -c 'export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0; /usr/libexec/unicore-personalize preset classic98 >/dev/null'
 grep -q '<name>UniCore-Classic98</name>' /home/unicore/.config/labwc/rc.xml
@@ -685,6 +717,10 @@ test -s /tmp/v130_themes.png
 test -s /tmp/v140_android.png
 test -s /tmp/v141_quick.png
 test -s /tmp/v141_printers.png
+test -s /tmp/v150_cpanel.png
+test -s /tmp/v150_devmgr.png
+test -s /tmp/v150_storage.png
+test -s /tmp/v150_region.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -728,6 +764,18 @@ echo "===PNG_QUICK_B64_END==="
 echo "===PNG_PRINTERS_B64_START==="
 base64 /tmp/v141_printers.png
 echo "===PNG_PRINTERS_B64_END==="
+echo "===PNG_CPANEL_B64_START==="
+base64 /tmp/v150_cpanel.png
+echo "===PNG_CPANEL_B64_END==="
+echo "===PNG_DEVMGR_B64_START==="
+base64 /tmp/v150_devmgr.png
+echo "===PNG_DEVMGR_B64_END==="
+echo "===PNG_STORAGE_B64_START==="
+base64 /tmp/v150_storage.png
+echo "===PNG_STORAGE_B64_END==="
+echo "===PNG_REGION_B64_START==="
+base64 /tmp/v150_region.png
+echo "===PNG_REGION_B64_END==="
 
 # Restore default dark theme (midnight preset) to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -856,7 +904,22 @@ printf '\n===GATE1_OK===\n'
         prn_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v141_printers.png")
         with open(prn_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", prn_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! 14 Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}, {drv_dest}, {th_dest}, {and_dest}, {quick_dest}, {prn_dest}")
+        for tag_key, fname, label in [
+            ("CPANEL", "desktop_v150_cpanel.png", "v1.5.0 Control Panel"),
+            ("DEVMGR", "desktop_v150_devmgr.png", "v1.5.0 Device Manager"),
+            ("STORAGE", "desktop_v150_storage.png", "v1.5.0 Storage Manager"),
+            ("REGION", "desktop_v150_region.png", "v1.5.0 Region & Keyboard"),
+        ]:
+            mm = re.search(
+                rf"===PNG_{tag_key}_B64_START===\s*(.*?)\s*===PNG_{tag_key}_B64_END===",
+                out,
+                re.DOTALL,
+            )
+            if not mm:
+                raise RuntimeError(f"Missing {label} screenshot payload in Gate 1 output")
+            with open(os.path.join(os.path.dirname(SCREENSHOT_DEST), fname), "wb") as f:
+                f.write(base64.b64decode(re.sub(r"\s+", "", mm.group(1))))
+        print(f"    [PASS] Gate 1 passed! 18 Screenshots saved in {os.path.dirname(SCREENSHOT_DEST)}")
     finally:
         h.close()
 

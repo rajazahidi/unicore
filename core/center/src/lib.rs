@@ -17,6 +17,7 @@ pub mod retro;
 pub mod settings;
 pub mod start_emoji;
 pub mod store;
+pub mod system_hub;
 pub mod taskmgr;
 pub mod updater;
 pub mod users_power;

@@ -1,6 +1,6 @@
 NAME="UniCore OS"
 ID=unicore
 ID_LIKE=alpine
-VERSION_ID="1.4.3"
-PRETTY_NAME="UniCore OS 1.4.3 (Zero-Defect Persona Verified, CUPS, Google Play & 10-Theme Studio)"
+VERSION_ID="1.5.0"
+PRETTY_NAME="UniCore OS 1.5.0 (Global Control Panel, 12 Languages, 21 Keyboards, Device/Storage Manager & Auto-Tune Gaming)"
 HOME_URL="https://github.com/rajazahidi/unicore"

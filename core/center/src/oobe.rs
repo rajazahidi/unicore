@@ -8,19 +8,67 @@ use std::process::{Command, Stdio};
 use crate::settings::SYS_HELPER_BIN;
 
 pub const DEFAULT_OOBE_DIR: &str = "/data/unicore";
-pub const OOBE_LANGUAGES: [&str; 3] = ["en_US.UTF-8", "ms_MY.UTF-8", "C.UTF-8"];
-pub const OOBE_LANGUAGE_LABELS: [&str; 3] = [
-    "English (United States - en_US.UTF-8)",
-    "Bahasa Melayu (Malaysia - ms_MY.UTF-8)",
-    "Minimal POSIX UTF-8 (C.UTF-8)",
+pub const OOBE_LANGUAGES: [&str; 12] = [
+    "en_US.UTF-8",
+    "ms_MY.UTF-8",
+    "id_ID.UTF-8",
+    "zh_CN.UTF-8",
+    "ja_JP.UTF-8",
+    "ko_KR.UTF-8",
+    "ar_SA.UTF-8",
+    "es_ES.UTF-8",
+    "fr_FR.UTF-8",
+    "de_DE.UTF-8",
+    "pt_BR.UTF-8",
+    "ru_RU.UTF-8",
 ];
-pub const OOBE_TIMEZONES: [&str; 6] = [
+pub const OOBE_LANGUAGE_LABELS: [&str; 12] = [
+    "English (International - en_US.UTF-8)",
+    "Bahasa Melayu (Malaysia - ms_MY.UTF-8)",
+    "Bahasa Indonesia (id_ID.UTF-8)",
+    "中文 简体 (Simplified Chinese - zh_CN.UTF-8)",
+    "日本語 (Japanese - ja_JP.UTF-8)",
+    "한국어 (Korean - ko_KR.UTF-8)",
+    "العربية (Arabic - ar_SA.UTF-8)",
+    "Español (Spanish - es_ES.UTF-8)",
+    "Français (French - fr_FR.UTF-8)",
+    "Deutsch (German - de_DE.UTF-8)",
+    "Português (Portuguese - pt_BR.UTF-8)",
+    "Русский (Russian - ru_RU.UTF-8)",
+];
+pub const OOBE_TIMEZONES: [&str; 32] = [
     "UTC",
     "Asia/Kuala_Lumpur",
     "Asia/Singapore",
-    "America/New_York",
-    "Europe/London",
+    "Asia/Jakarta",
+    "Asia/Bangkok",
+    "Asia/Manila",
+    "Asia/Ho_Chi_Minh",
     "Asia/Tokyo",
+    "Asia/Seoul",
+    "Asia/Shanghai",
+    "Asia/Hong_Kong",
+    "Asia/Kolkata",
+    "Asia/Dubai",
+    "Asia/Riyadh",
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Europe/Madrid",
+    "Europe/Rome",
+    "Europe/Amsterdam",
+    "Europe/Istanbul",
+    "Europe/Moscow",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "America/Toronto",
+    "America/Sao_Paulo",
+    "Australia/Sydney",
+    "Pacific/Auckland",
+    "Africa/Cairo",
+    "Africa/Johannesburg",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

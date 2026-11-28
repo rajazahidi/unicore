@@ -1,0 +1,63 @@
+#!/bin/sh
+# UniCore OS Desktop & Computer Explorer Right-Click Action Helper
+set -eu
+
+USER_HOME="${HOME:-/home/unicore}"
+DESKTOP_DIR="${USER_HOME}/Desktop"
+cmd="${1:-}"
+shift || true
+
+notify_user() {
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "UniCore OS" "$1" >/dev/null 2>&1 || true
+    fi
+}
+
+case "${cmd}" in
+    new-folder)
+        mkdir -p "${DESKTOP_DIR}"
+        target="${DESKTOP_DIR}/New Folder"
+        n=2
+        while [ -e "${target}" ]; do
+            target="${DESKTOP_DIR}/New Folder ${n}"
+            n=$((n + 1))
+        done
+        mkdir -p "${target}"
+        notify_user "Created folder: $(basename "${target}")"
+        ;;
+
+    new-file)
+        mkdir -p "${DESKTOP_DIR}"
+        target="${DESKTOP_DIR}/New Document.txt"
+        n=2
+        while [ -e "${target}" ]; do
+            target="${DESKTOP_DIR}/New Document ${n}.txt"
+            n=$((n + 1))
+        done
+        : > "${target}"
+        notify_user "Created file: $(basename "${target}")"
+        if command -v mousepad >/dev/null 2>&1; then
+            mousepad "${target}" </dev/null >/dev/null 2>&1 &
+        fi
+        ;;
+
+    print-file)
+        fpath="${1:-}"
+        [ -f "${fpath}" ] || { notify_user "File not found to print"; exit 1; }
+        if ! pgrep -x cupsd >/dev/null 2>&1; then
+            doas /usr/libexec/unicore-sys-helper cups-start >/dev/null 2>&1 || true
+            sleep 1
+        fi
+        if lpstat -d 2>/dev/null | grep -q 'system default destination:'; then
+            lp "${fpath}" >/dev/null 2>&1 && notify_user "Sent to default printer: $(basename "${fpath}")"
+        else
+            notify_user "No default printer configured — opening Printers & Scanners"
+            /usr/bin/unicore-center --tab settings:printers </dev/null >/dev/null 2>&1 &
+        fi
+        ;;
+
+    *)
+        echo "Usage: unicore-desktop-action <new-folder|new-file|print-file <path>>" >&2
+        exit 2
+        ;;
+esac

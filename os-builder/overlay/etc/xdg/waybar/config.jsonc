@@ -29,22 +29,22 @@
   ],
   "custom/start": {
     "format": "\uf00a",
-    "tooltip-format": "Start Menu (Win)",
+    "tooltip-format": "Start Menu (Super)",
     "on-click": "/usr/libexec/unicore-toggle --start-menu"
   },
   "custom/files": {
     "format": "\uf07b",
-    "tooltip-format": "File Explorer (Win+E)",
+    "tooltip-format": "Computer Explorer (Super+E)",
     "on-click": "pcmanfm /home/unicore &"
   },
   "custom/browser": {
     "format": "\uf0ac",
-    "tooltip-format": "Web Browser (Win+W)",
+    "tooltip-format": "Web Browser (Super+W)",
     "on-click": "/usr/bin/unicore-browser &"
   },
   "custom/center": {
     "format": "\uf290",
-    "tooltip-format": "UniCore App Store & Center (Win+C)",
+    "tooltip-format": "UniCore App Store & Center (Super+C)",
     "on-click": "/usr/libexec/unicore-toggle --tab store"
   },
   "custom/taskmgr": {
@@ -101,7 +101,7 @@
   },
   "custom/ai": {
     "format": "\uf0eb AI",
-    "tooltip-format": "UniCore AI Assistant (Win+A)",
+    "tooltip-format": "UniCore AI Assistant (Super+A)",
     "on-click": "/usr/libexec/unicore-toggle --ai"
   },
   "custom/quick": {
@@ -115,12 +115,12 @@
   },
   "custom/power": {
     "format": "\uf011",
-    "tooltip-format": "Power Options (Win+X)",
+    "tooltip-format": "Power Options (Super+X)",
     "on-click": "/usr/libexec/unicore-toggle --power"
   },
   "custom/desktop": {
     "format": " ",
-    "tooltip-format": "Show Desktop (Win+D)",
+    "tooltip-format": "Show Desktop (Super+D)",
     "on-click": "wlrctl toplevel minimize"
   }
 }

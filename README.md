@@ -1,12 +1,19 @@
-# UniCore OS (`1.4.3` — Zero-Defect Persona Verified, CUPS, Google Play Helper, 10-Theme Studio & Universal Hardware Edition)
+# UniCore OS (`1.5.0` — Global Control Panel, 12 Languages, 21 Keyboards, Device/Storage Manager & Sovereign Desktop Edition)
 
-**UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.22` + `linux-edge 6.15` + `Mesa 25.1` + `Wine 10.7`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, **Web Apps (PWA)**, and **Android (`.apk`, Google Play `GAPPS` / `microG` + Aurora Store)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **2026 modern Intel/AMD/NVIDIA x86_64 & ARM64 PCs and laptops**.
+**UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.22` + `linux-edge 6.15` + `Mesa 25.1` + `Wine 10.7`) built to run **native Linux (`Flatpak` / `ELF`)**, **Classic & Modern PC (`.exe`/`.msi`/16-bit `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **DOS (`.exe`/`.com`/`.bat`)**, **Web Apps (PWA)**, and **Mobile (`.apk` via Waydroid)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **2026 modern Intel/AMD/NVIDIA x86_64 & ARM64 PCs and laptops**.
 
 > **Official Bilingual Documentation:** Read the complete [Official User Guide (EN / BM)](docs/user-guide.md) — also built directly into the OS offline via **Start Menu → User Guide / Panduan Pengguna** (`unicore-center --help-guide`).
 
 ## Key Capabilities
 
-* **1-Click Google Play Certification & Aurora Store Helper (`v1.4.0`)**:
+* **Global Desktop Control Panel, Device/Storage Manager & Simplified Legacy Game Auto-Tune (`v1.5.0`)**:
+  * **12 International Languages, 21 Global Keyboards & 32 World Regions/Timezones (`--region`)**: Full international font coverage (Latin, Arabic `font-noto-arabic`, CJK `font-wqy-zenhei`), automatic `us,<layout>` + `Alt+Shift` switching for non-Latin scripts (`ru`, `ar`, `jp`, `kr`, `cn`, `th`), Dvorak/Colemak variants, and live 24h/12h taskbar clock formatting.
+  * **Unified Control Panel (`--control-panel`), Structured Device Manager (`--devmgr`) & Storage Manager (`--storage`)**: One-click 2×4 Control Panel hub, live hardware inventory (CPU, GPU, Network, Audio, Camera, Storage, USB, Bluetooth, Input HID, SANE Scanners), and disk/partition viewer with safe USB unmount & temp cache cleaner — all **`0 MB` idle RAM**.
+  * **Multi-Monitor, Screen Rotation (`0°/90°/180°/270°`), DDC/CI Brightness & Rich Right-Click Menus**: Desktop right-click (New Folder, New Text Document, Control Panel, Device/Storage Manager, Display, Themes) + Computer Explorer sidebar bookmarks & right-click actions (Open Terminal, Copy Path, Print File, Extract/Compress, Run in Sandbox).
+  * **Simplified 1-Click Legacy Game Auto-Tune (`--retro-game`)**: 5 plain-language Era cards (`Smart Auto`, `90s 2D Classic`, `2000s 3D Classic`, `Retro DOS / 16-Bit`, `Ultra-Safe Legacy`) with automatic CPU core lock, 60 FPS cap, and safe windowing plus collapsible Advanced Hardware Tuning.
+  * **Sovereign Brand-Clean UI**: Cleaned third-party OS/store brand references across menus, guides, and settings in favor of native UniCore OS terminology.
+
+* **1-Click Mobile Device Certification & Open App Market Helper (`v1.4.0`–`v1.4.3`)**:
   * **Zero-Terminal Google Play Account Sign-In (`GAPPS` Profile)**: Inside **UniCore Center → System → Android Subsystem**, click **Get Google Play GSF ID** (`uniload android gsf-id`) to automatically extract your Waydroid container's official GSF `android_id`, copy it to your Wayland clipboard, and open Google's official self-certification page (`google.com/android/uncertified`), followed by 1-click **Restart Android** (`uniload android restart`).
   * **1-Click Open-Source Aurora Store (`uniload android install-aurora`)**: Install the official open-source Aurora Store directly from F-Droid for `MICROG` or `VANILLA` profiles (download Play Store apps anonymously or with a Google account) and sync directly to your Start Menu — all via strictly whitelisted `doas` helpers while preserving **`0 MB` idle RAM**.
 

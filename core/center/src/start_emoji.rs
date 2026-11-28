@@ -162,8 +162,8 @@ pub fn builtin_pinned_apps(lang: UiLang) -> Vec<DesktopAppItem> {
         },
         DesktopAppItem {
             id: "unicore-files".to_string(),
-            name: if ms { "Pengurus Fail" } else { "File Explorer" }.to_string(),
-            comment: if ms { "Buka folder, USB & fail" } else { "Browse folders, USB & files" }.to_string(),
+            name: if ms { "Penjelajah Komputer" } else { "Computer Explorer" }.to_string(),
+            comment: if ms { "Buka folder, USB, cakera & fail" } else { "Browse folders, USB, drives & files" }.to_string(),
             category: "system".to_string(),
             exec_cmd: "pcmanfm /home/unicore".to_string(),
             badge: "DIR".to_string(),
@@ -173,7 +173,7 @@ pub fn builtin_pinned_apps(lang: UiLang) -> Vec<DesktopAppItem> {
         DesktopAppItem {
             id: "unicore-store".to_string(),
             name: if ms { "Kedai Aplikasi" } else { "App Store" }.to_string(),
-            comment: if ms { "Pasang 33+ aplikasi Windows, Linux & Android" } else { "Install 33+ Windows, Linux & Android apps" }.to_string(),
+            comment: if ms { "Pasang 33+ aplikasi Desktop, Linux & Mudah Alih" } else { "Install 33+ Desktop, Linux & Mobile apps" }.to_string(),
             category: "system".to_string(),
             exec_cmd: "/usr/bin/unicore-center --tab store".to_string(),
             badge: "APP".to_string(),
@@ -183,7 +183,7 @@ pub fn builtin_pinned_apps(lang: UiLang) -> Vec<DesktopAppItem> {
         DesktopAppItem {
             id: "unicore-office".to_string(),
             name: if ms { "Dokumen & Pejabat" } else { "Office Writer" }.to_string(),
-            comment: if ms { "Sunting dokumen Word (.docx) & teks" } else { "Edit Word (.docx) & rich documents" }.to_string(),
+            comment: if ms { "Sunting dokumen (.docx/.odt) & teks" } else { "Edit rich documents (.docx/.odt) & notes" }.to_string(),
             category: "office".to_string(),
             exec_cmd: "sh -c 'if command -v libreoffice >/dev/null 2>&1; then exec libreoffice --writer; else exec abiword; fi'".to_string(),
             badge: "DOC".to_string(),
@@ -203,7 +203,7 @@ pub fn builtin_pinned_apps(lang: UiLang) -> Vec<DesktopAppItem> {
         DesktopAppItem {
             id: "unicore-ai".to_string(),
             name: if ms { "Pembantu AI" } else { "AI Copilot" }.to_string(),
-            comment: if ms { "Pembantu AI tempatan atau awan (Win+A)" } else { "Local or cloud AI assistant (Win+A)" }.to_string(),
+            comment: if ms { "Pembantu AI tempatan atau awan (Super+A)" } else { "Local or cloud AI assistant (Super+A)" }.to_string(),
             category: "internet".to_string(),
             exec_cmd: "/usr/bin/unicore-center --ai".to_string(),
             badge: "AI".to_string(),
@@ -212,18 +212,18 @@ pub fn builtin_pinned_apps(lang: UiLang) -> Vec<DesktopAppItem> {
         },
         DesktopAppItem {
             id: "unicore-settings".to_string(),
-            name: if ms { "Tetapan Sistem" } else { "Settings" }.to_string(),
-            comment: if ms { "Wi-Fi, Bluetooth, Bunyi, Tema & Pencetak" } else { "Wi-Fi, Bluetooth, Audio, Theme & Printers" }.to_string(),
+            name: if ms { "Pusat Kawalan" } else { "Control Panel" }.to_string(),
+            comment: if ms { "Rangkaian, Bunyi, Paparan, Bahasa, Peranti & Storan" } else { "Network, Audio, Display, Region, Devices & Storage" }.to_string(),
             category: "system".to_string(),
-            exec_cmd: "/usr/bin/unicore-center --tab settings".to_string(),
-            badge: "SET".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --control-panel".to_string(),
+            badge: "CP".to_string(),
             accent_hex: "#0f766e".to_string(),
             pinned: true,
         },
         DesktopAppItem {
             id: "unicore-retro".to_string(),
-            name: if ms { "Game Klasik 98/XP" } else { "Classic 98/XP" }.to_string(),
-            comment: if ms { "Main .exe, CD .iso & .zip game zaman Win98/XP" } else { "Play Win98/XP .exe, CD .iso & .zip games" }.to_string(),
+            name: if ms { "Game Klasik" } else { "Classic Games" }.to_string(),
+            comment: if ms { "Auto-talaan 1-klik untuk game PC lama (.exe/.iso/.zip)" } else { "1-click auto-tune for classic PC games (.exe/.iso/.zip)" }.to_string(),
             category: "gaming".to_string(),
             exec_cmd: "/usr/bin/unicore-center --retro-game".to_string(),
             badge: "98".to_string(),
@@ -352,7 +352,7 @@ pub fn builtin_ecosystem_apps(lang: UiLang) -> Vec<DesktopAppItem> {
         DesktopAppItem {
             id: "unicore-cloud".to_string(),
             name: if ms { "Pemacu Awan (Cloud)" } else { "Cloud Drives" }.to_string(),
-            comment: if ms { "Lekap Google Drive, OneDrive, Dropbox & Nextcloud ke ~/Cloud" } else { "Mount Google Drive, OneDrive, Dropbox & Nextcloud in ~/Cloud" }.to_string(),
+            comment: if ms { "Lekap pemacu awan OAuth, WebDAV & Nextcloud ke ~/Cloud" } else { "Mount OAuth, WebDAV & Nextcloud drives in ~/Cloud" }.to_string(),
             category: "internet".to_string(),
             exec_cmd: "/usr/bin/unicore-center --cloud".to_string(),
             badge: "CL".to_string(),
@@ -361,11 +361,11 @@ pub fn builtin_ecosystem_apps(lang: UiLang) -> Vec<DesktopAppItem> {
         },
         DesktopAppItem {
             id: "unicore-migrate".to_string(),
-            name: if ms { "Migrasi Windows" } else { "Windows Migration" }.to_string(),
-            comment: if ms { "Import selamat fail, penanda buku & fon dari partisyen Windows" } else { "Safely import files, bookmarks & fonts from Windows drives" }.to_string(),
+            name: if ms { "Migrasi Data PC" } else { "PC Data Migration" }.to_string(),
+            comment: if ms { "Import selamat fail, penanda buku & fon dari partisyen NTFS" } else { "Safely import files, bookmarks & fonts from NTFS drives" }.to_string(),
             category: "system".to_string(),
             exec_cmd: "/usr/bin/unicore-center --migrate".to_string(),
-            badge: "WM".to_string(),
+            badge: "MG".to_string(),
             accent_hex: "#059669".to_string(),
             pinned: false,
         },
@@ -459,12 +459,49 @@ pub fn builtin_v130_apps(lang: UiLang) -> Vec<DesktopAppItem> {
     }]
 }
 
+pub fn builtin_v150_apps(lang: UiLang) -> Vec<DesktopAppItem> {
+    let ms = lang == UiLang::Ms;
+    vec![
+        DesktopAppItem {
+            id: "unicore-devmgr".to_string(),
+            name: if ms { "Pengurus Peranti" } else { "Device Manager" }.to_string(),
+            comment: if ms { "Semak semua peranti CPU, GPU, Rangkaian, Audio, USB & pemacu" } else { "Inspect all CPU, GPU, Network, Audio, USB devices & kernel drivers" }.to_string(),
+            category: "system".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --devmgr".to_string(),
+            badge: "DM".to_string(),
+            accent_hex: "#0284c7".to_string(),
+            pinned: false,
+        },
+        DesktopAppItem {
+            id: "unicore-storage".to_string(),
+            name: if ms { "Pengurus Storan" } else { "Storage Manager" }.to_string(),
+            comment: if ms { "Cakera, partisyen, kesihatan S.M.A.R.T, keluar USB & bersihkan cache" } else { "Disks, partitions, S.M.A.R.T health, safe USB eject & cache cleaner" }.to_string(),
+            category: "system".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --storage".to_string(),
+            badge: "ST".to_string(),
+            accent_hex: "#d97706".to_string(),
+            pinned: false,
+        },
+        DesktopAppItem {
+            id: "unicore-region".to_string(),
+            name: if ms { "Bahasa, Wilayah & Papan Kekunci" } else { "Region, Language & Keyboard" }.to_string(),
+            comment: if ms { "12 bahasa antarabangsa, 21 susun atur papan kekunci & 32 zon masa" } else { "12 international languages, 21 global keyboards & 32 world timezones" }.to_string(),
+            category: "system".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --region".to_string(),
+            badge: "RG".to_string(),
+            accent_hex: "#059669".to_string(),
+            pinned: false,
+        },
+    ]
+}
+
 pub fn discover_start_menu_apps(
     scan_dirs: &[&Path],
     sandbox_apps: &[AppSandbox],
     lang: UiLang,
 ) -> Vec<DesktopAppItem> {
     let mut items = builtin_pinned_apps(lang);
+    items.extend(builtin_v150_apps(lang));
     items.extend(builtin_ecosystem_apps(lang));
     items.extend(builtin_gamehub_apps(lang));
     items.extend(builtin_guide_apps(lang));

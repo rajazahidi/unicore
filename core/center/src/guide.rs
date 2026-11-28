@@ -62,13 +62,13 @@ pub fn bilingual_guide_chapters(lang: UiLang) -> Vec<GuideChapter> {
             GuideChapter {
                 id: "getting-started",
                 title: "1. Quick Start & Shortcuts".to_string(),
-                subtitle: "Windows 11 / Zorin-style Wayland desktop essentials".to_string(),
+                subtitle: "UniCore Modern Wayland desktop essentials".to_string(),
                 body: "\
-• Press the Windows (Super) key to open the Graphical Start Menu and search apps.\n\
-• Press Super + . for Emoji Picker, Super + A for AI Copilot, Super + E for File Explorer, and PrintScreen for Screenshots & MP4 Recording.\n\
+• Press the Super (Meta) key to open the Graphical Start Menu and search apps.\n\
+• Press Super + . for Emoji Picker, Super + A for AI Copilot, Super + E for Computer Explorer, and PrintScreen for Screenshots & MP4 Recording.\n\
 • Press Ctrl + Shift + Esc anytime to open Task Manager, or Super + L to lock your screen.\n\
-• Customize your taskbar (Win11 Centered, Win10 Classic, or macOS Dock), Dark/Light/High Contrast theme, and 6 accent colors in Settings -> Display & Style.".to_string(),
-                tip: "Tip: Right-click any desktop area for quick actions, Display Settings, or New Folder.".to_string(),
+• Customize your taskbar (Floating Dock, Classic Bottom Bar, or Top Bar), 10 Desktop Themes, 12 International Languages, and 21 Keyboard Layouts in Control Panel.".to_string(),
+                tip: "Tip: Right-click any desktop area for New Folder, Control Panel, Device Manager, Storage Manager, or Display Settings.".to_string(),
             },
             GuideChapter {
                 id: "install-dualboot",
@@ -76,32 +76,32 @@ pub fn bilingual_guide_chapters(lang: UiLang) -> Vec<GuideChapter> {
                 subtitle: "Live USB, Ventoy, Secure Boot MOK & safe disk installation".to_string(),
                 body: "\
 • Boot UniCore OS directly from Ventoy (just copy the .iso file) or a standard USB stick.\n\
-• UEFI Secure Boot is supported out-of-the-box via Microsoft-signed shim + UniCore MOK (enroll once on first boot or in System -> Secure Boot).\n\
-• Open System -> Install to Disk to install Alongside Windows (safe Dual-Boot using free disk space) or Full Disk A/B layout.\n\
+• UEFI Secure Boot is supported out-of-the-box via signed UEFI Boot Shim + UniCore MOK (enroll once on first boot or in System -> Secure Boot).\n\
+• Open System -> Install to Disk to install Safe Dual-Boot (using free disk space without touching existing OS partitions) or Full Disk A/B layout.\n\
 • Tick 'Encrypt /data with LUKS2' (min 8-char passphrase) to protect all personal documents, passwords, and sandboxes.".to_string(),
                 tip: "Tip: Your /data partition stays untouched across OS updates and A/B slot rollbacks.".to_string(),
             },
             GuideChapter {
                 id: "apps-gaming",
-                title: "3. Apps, Store & 98/XP Gaming".to_string(),
-                subtitle: "Unified Game Hub, Classic 98/XP/DOS Wizard, Gamepad & Cloud Saves".to_string(),
+                title: "3. Apps, Store & Classic PC Gaming".to_string(),
+                subtitle: "Unified Game Hub, Simplified Legacy Auto-Tune, Gamepad & Cloud Saves".to_string(),
                 body: "\
-• Double-click any Windows .exe/.msi, MS-DOS .exe, CD .iso, .zip, or Android .apk to run it cleanly inside an isolated UniCore sandbox.\n\
-• Open Unified Game Hub (--games) to launch all 98/XP, DOS, Steam, Heroic, Lutris, RetroArch, and Android games from one place.\n\
-• For vintage 1998–2008 games, use 1-Click 60 FPS Cap, 1-Core CPU Lock, Safe 800x600 Window, CD .iso mounting (D:\\), and 1-Click Crash Auto-Repair.\n\
-• Plug in Xbox, PlayStation, Switch, or 8BitDo controllers in Gamepad Hub (--gamepad) and enable the Pure-Rust uinput Keyboard/Mouse Mapper for older games.\n\
+• Double-click any desktop .exe/.msi, MS-DOS .exe, CD .iso, .zip, or mobile .apk package to run it cleanly inside an isolated UniCore sandbox.\n\
+• Open Unified Game Hub (--games) to launch all Classic 2D/3D, DOS, Steam, Heroic, Lutris, RetroArch, and mobile games from one place.\n\
+• For vintage 1995–2008 titles, simply choose one plain-language Auto-Tune preset (Smart Auto, 90s 2D Classic, 2000s 3D Classic, Retro DOS, or Ultra-Safe Legacy) — UniCore configures 60 FPS cap, 1-Core CPU lock, sharp 4:3 scaling, and CD .iso mounting automatically.\n\
+• Plug in standard USB/Bluetooth gamepads in Gamepad Hub (--gamepad) and enable the Pure-Rust uinput Keyboard/Mouse Mapper for older games.\n\
 • Enable Auto-Backup Game Saves (--saves) to keep 5 local snapshots per game and sync them to your Cloud Drive.".to_string(),
                 tip: "Tip: Game Mode & MangoHud FPS overlay can be toggled right inside Unified Game Hub.".to_string(),
             },
             GuideChapter {
                 id: "ecosystem-migrate",
-                title: "4. Phone, Cloud & Migration".to_string(),
-                subtitle: "KDE Connect, scrcpy, rclone Cloud Drives, NTFS RO Migration & Drivers".to_string(),
+                title: "4. Phone, Cloud, Devices & Storage".to_string(),
+                subtitle: "KDE Connect, scrcpy, rclone Cloud Drives, Read-Only NTFS Migration & Device/Storage Managers".to_string(),
                 body: "\
-• Phone Link (--phone): Pair your phone with KDE Connect for notifications, SMS, clipboard & file sharing, or mirror/control Android screens via USB/Wi-Fi scrcpy.\n\
-• Cloud Drives (--cloud): Mount Google Drive, OneDrive, Dropbox, MEGA, or Nextcloud directly into ~/Cloud/<Name> with 1 click.\n\
-• Windows Migration (--migrate): Safely mounts Windows NTFS drives Read-Only (zero risk to Windows!) to import Documents, Pictures, Fonts, Saved Games, Chrome/Edge Bookmarks, and match Program Files to UniCore Store.\n\
-• Hardware & Drivers (--drivers): Inspect GPU/Vulkan/Wi-Fi/USB health, toggle Safe GPU Mode (Pixman), fix Wi-Fi power-save drops, reset Audio/Bluetooth in 1 click, or run LVFS firmware updates.".to_string(),
+• Phone Link (--phone): Pair your smartphone with KDE Connect for notifications, SMS, clipboard & file sharing, or mirror/control mobile screens via USB/Wi-Fi scrcpy.\n\
+• Cloud Drives (--cloud): Mount personal or enterprise Cloud Drives (OAuth / WebDAV / Nextcloud) directly into ~/Cloud/<Name> with 1 click.\n\
+• PC Data Migration (--migrate): Safely mounts existing NTFS partitions Read-Only to import Documents, Pictures, Fonts, Saved Games, and Browser Bookmarks.\n\
+• Device Manager (--devmgr) & Storage Manager (--storage): Inspect every hardware controller, kernel driver, SANE scanner, disk/partition usage, S.M.A.R.T health, safe USB eject, and LVFS firmware updates.".to_string(),
                 tip: "Tip: KDE Connect and fwupd use 0 MB RAM while idle until you turn them on.".to_string(),
             },
             GuideChapter {
@@ -131,13 +131,13 @@ pub fn bilingual_guide_chapters(lang: UiLang) -> Vec<GuideChapter> {
             GuideChapter {
                 id: "getting-started",
                 title: "1. Mula Pantas & Pintasan".to_string(),
-                subtitle: "Asas desktop Wayland gaya Windows 11 / Zorin".to_string(),
+                subtitle: "Asas desktop Wayland moden UniCore OS".to_string(),
                 body: "\
-• Tekan kekunci Windows (Super) untuk membuka Menu Mula Bergrafik dan mencari aplikasi.\n\
-• Tekan Super + . untuk Pemilih Emoji, Super + A untuk Pembantu AI, Super + E untuk Pengurus Fail, dan PrintScreen untuk Tangkap Skrin & Rakam Video MP4.\n\
+• Tekan kekunci Super (Meta) untuk membuka Menu Mula Bergrafik dan mencari aplikasi.\n\
+• Tekan Super + . untuk Pemilih Emoji, Super + A untuk Pembantu AI, Super + E untuk Penjelajah Komputer, dan PrintScreen untuk Tangkap Skrin & Rakam Video MP4.\n\
 • Tekan Ctrl + Shift + Esc bila-bila masa untuk Pengurus Tugas, atau Super + L untuk mengunci skrin.\n\
-• Tukar gaya bar tugas (Win11 Tengah, Win10 Klasik, atau macOS Dock), tema Gelap/Cerah/Kontras Tinggi, dan 6 warna aksen di Tetapan -> Paparan & Gaya.".to_string(),
-                tip: "Tip: Klik kanan di mana-mana ruang desktop untuk tetapan pantas, Paparan atau Folder Baharu.".to_string(),
+• Sesuaikan bar tugas (Dok Terapung, Bar Bawah Klasik, atau Bar Atas), 10 Tema Desktop, 12 Bahasa Antarabangsa & 21 Papan Kekunci di Pusat Kawalan.".to_string(),
+                tip: "Tip: Klik kanan di mana-mana ruang desktop untuk Folder Baharu, Pusat Kawalan, Pengurus Peranti, Pengurus Storan atau Tetapan Paparan.".to_string(),
             },
             GuideChapter {
                 id: "install-dualboot",
@@ -145,32 +145,32 @@ pub fn bilingual_guide_chapters(lang: UiLang) -> Vec<GuideChapter> {
                 subtitle: "Live USB, Ventoy, Secure Boot MOK & pemasangan cakera selamat".to_string(),
                 body: "\
 • Boot UniCore OS terus daripada pemacu USB Ventoy (hanya salin fail .iso) atau USB biasa.\n\
-• UEFI Secure Boot disokong sedia ada melalui shim bertandatangan Microsoft + MOK UniCore (daftar sekali semasa boot pertama atau di Sistem -> Secure Boot).\n\
-• Buka Sistem -> Pasang ke Cakera untuk memilih Dual-Boot Bersama Windows (guna ruang kosong tanpa menyentuh Windows) atau Pasang Penuh A/B.\n\
+• UEFI Secure Boot disokong sedia ada melalui Boot Shim UEFI bertandatangan + MOK UniCore (daftar sekali semasa boot pertama atau di Sistem -> Secure Boot).\n\
+• Buka Sistem -> Pasang ke Cakera untuk memilih Dual-Boot Selamat (guna ruang kosong tanpa menyentuh OS sedia ada) atau Pasang Penuh A/B.\n\
 • Tandakan 'Sulitkan /data dengan LUKS2' (kata laluan minimum 8 aksara) untuk melindungi semua dokumen, kata laluan, dan sandbox aplikasi.".to_string(),
                 tip: "Tip: Partisyen /data anda kekal selamat walaupun sistem dikemas kini atau di-rollback.".to_string(),
             },
             GuideChapter {
                 id: "apps-gaming",
-                title: "3. Aplikasi, Kedai & Game 98/XP".to_string(),
-                subtitle: "Hab Game Bersepadu, Wizard 98/XP/DOS, Gamepad & Cloud Save".to_string(),
+                title: "3. Aplikasi, Kedai & Game PC Klasik".to_string(),
+                subtitle: "Hab Game Bersepadu, Auto-Talaan Game Lama 1-Klik, Gamepad & Cloud Save".to_string(),
                 body: "\
-• Klik dua kali mana-mana fail Windows .exe/.msi, MS-DOS, CD .iso, .zip atau Android .apk untuk menjalankannya dalam sandbox terasing.\n\
-• Buka Hab Permainan (--games) untuk melihat dan melancarkan semua game 98/XP, DOS, Steam, Heroic, Lutris, RetroArch, dan Android di satu tempat.\n\
-• Untuk game klasik 1998–2008, aktifkan Had 60 FPS, Kunci 1 Teras CPU, Tetingkap Selamat 800x600, lekap CD .iso (D:\\) & Auto-Baiki 1-Klik.\n\
-• Sambungkan pengawal Xbox, PlayStation, Switch, atau 8BitDo di Panel Gamepad (--gamepad) dan hidupkan Pemeta Kekunci/Tetikus Rust (uinput) bagi game lama.\n\
+• Klik dua kali mana-mana fail desktop .exe/.msi, MS-DOS, CD .iso, .zip atau pakej mudah alih .apk untuk menjalankannya dalam sandbox terasing.\n\
+• Buka Hab Permainan (--games) untuk melihat dan melancarkan semua game klasik 2D/3D, DOS, Steam, Heroic, Lutris, RetroArch, dan mudah alih di satu tempat.\n\
+• Untuk game klasik 1995–2008, pilih satu profil Auto-Talaan mudah (Auto Pintar, Klasik 2D 90-an, Klasik 3D 2000-an, Retro DOS, atau Mod Selamat) — had 60 FPS, kunci 1 teras CPU, nisbah 4:3 & lekap CD .iso dilaras secara automatik.\n\
+• Sambungkan pengawal USB/Bluetooth di Panel Gamepad (--gamepad) dan hidupkan Pemeta Kekunci/Tetikus Rust (uinput) bagi game lama.\n\
 • Aktifkan Auto-Sandar Save (--saves) untuk menyimpan 5 salinan tempatan setiap game serta sync terus ke Pemacu Awan anda.".to_string(),
                 tip: "Tip: Mod Permainan & paparan FPS MangoHud boleh dihidupkan terus di dalam Hab Permainan.".to_string(),
             },
             GuideChapter {
                 id: "ecosystem-migrate",
-                title: "4. Telefon, Awan & Migrasi Windows".to_string(),
-                subtitle: "KDE Connect, scrcpy, Pemacu Awan rclone, Migrasi NTFS & Pemacu".to_string(),
+                title: "4. Telefon, Awan, Peranti & Storan".to_string(),
+                subtitle: "KDE Connect, scrcpy, Pemacu Awan rclone, Migrasi NTFS & Pengurus Peranti/Storan".to_string(),
                 body: "\
-• Sambung Telefon (--phone): Gandingkan telefon melalui KDE Connect (notifikasi, SMS, papan klip, kongsi fail) atau cermin skrin Android USB/Wi-Fi menggunakan scrcpy.\n\
-• Pemacu Awan (--cloud): Lekap Google Drive, OneDrive, Dropbox, MEGA, atau Nextcloud terus ke ~/Cloud/<Nama> dengan 1 klik.\n\
-• Migrasi Windows (--migrate): Lekap partisyen NTFS Windows secara Baca-Sahaja (100% selamat!) untuk menyalin Dokumen, Gambar, Fon, Save Game, Penanda Buku Chrome/Edge dan cadangan padanan Kedai.\n\
-• Perkakasan & Pemacu (--drivers): Semak GPU/Vulkan/Wi-Fi/USB, suis Mod GPU Selamat (Pixman), baiki Wi-Fi terputus, Reset Audio & Bluetooth 1-klik, serta kemas kini firmware LVFS.".to_string(),
+• Sambung Telefon (--phone): Gandingkan telefon melalui KDE Connect (notifikasi, SMS, papan klip, kongsi fail) atau cermin skrin mudah alih USB/Wi-Fi menggunakan scrcpy.\n\
+• Pemacu Awan (--cloud): Lekap Pemacu Awan peribadi atau organisasi (OAuth / WebDAV / Nextcloud) terus ke ~/Cloud/<Nama> dengan 1 klik.\n\
+• Migrasi Data PC (--migrate): Lekap partisyen NTFS secara Baca-Sahaja (100% selamat!) untuk menyalin Dokumen, Gambar, Fon, Save Game dan Penanda Buku.\n\
+• Pengurus Peranti (--devmgr) & Pengurus Storan (--storage): Semak semua peranti perkakasan, pemacu kernel, pengimbas SANE, ruang cakera, kesihatan S.M.A.R.T, keluarkan USB selamat & kemas kini firmware LVFS.".to_string(),
                 tip: "Tip: KDE Connect dan fwupd menggunakan 0 MB RAM ketika terbiar sehingga anda menghidupkannya.".to_string(),
             },
             GuideChapter {

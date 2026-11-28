@@ -2,7 +2,18 @@
 # UniCore OS Wayland Desktop Autostart
 
 USER_HOME="${HOME:-/home/unicore}"
-mkdir -p "${USER_HOME}/.local/share/applications" "${USER_HOME}/Desktop"
+mkdir -p "${USER_HOME}/.local/share/applications" "${USER_HOME}/Desktop" "${USER_HOME}/Documents" "${USER_HOME}/Downloads" "${USER_HOME}/Music" "${USER_HOME}/Pictures" "${USER_HOME}/Videos" "${USER_HOME}/Cloud" "${USER_HOME}/.config/gtk-3.0"
+if [ ! -f "${USER_HOME}/.config/gtk-3.0/bookmarks" ]; then
+    cat <<EOF_BM > "${USER_HOME}/.config/gtk-3.0/bookmarks"
+file://${USER_HOME}/Desktop Desktop
+file://${USER_HOME}/Documents Documents
+file://${USER_HOME}/Downloads Downloads
+file://${USER_HOME}/Music Music
+file://${USER_HOME}/Pictures Pictures
+file://${USER_HOME}/Videos Videos
+file://${USER_HOME}/Cloud Cloud Drives
+EOF_BM
+fi
 for desk_src in \
     /usr/share/applications/unicore-center.desktop \
     /usr/share/applications/unicore-files.desktop \
