@@ -125,6 +125,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    const std::string pluginName = desc->Name ? desc->Name : "";
+    const std::string pluginLabel = desc->Label ? desc->Label : "";
+    const unsigned long portCount = desc->PortCount;
+
     desc->deactivate(h);
     desc->cleanup(h);
     dlclose(dl);
@@ -135,6 +139,6 @@ int main(int argc, char** argv) {
         return 1;
     }
     std::printf("{\"plugin\":\"%s\",\"label\":\"%s\",\"ports\":%lu,\"in_rms\":%.4f,\"out_rms\":%.4f,\"all_passed\":true}\n",
-        desc->Name, desc->Label, desc->PortCount, inRms, outRms);
+        pluginName.c_str(), pluginLabel.c_str(), portCount, inRms, outRms);
     return 0;
 }
