@@ -1,6 +1,6 @@
 NAME="UniCore OS"
 ID=unicore
 ID_LIKE=alpine
-VERSION_ID="1.6.0"
-PRETTY_NAME="UniCore OS 1.6.0 (AegisTunnel Anti-DPI/PQ VPN, ResonanceFX PipeWire Equalizer & Sovereign Desktop Edition)"
+VERSION_ID="2.0.0"
+PRETTY_NAME="UniCore OS 2.0.0 (Sovereign Desktop, AegisTunnel PQ-VPN & ResonanceFX DSP Edition)"
 HOME_URL="https://github.com/rajazahidi/unicore"

@@ -1,8 +1,19 @@
-# UniCore OS (`1.6.0` — Native AegisTunnel PQ-VPN, ResonanceFX PipeWire DSP & Sovereign Desktop Edition)
+# UniCore OS (`2.0.0` — Sovereign Desktop, AegisTunnel PQ-VPN, ResonanceFX PipeWire DSP & Industry-Standard Documentation)
 
-**UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.22` + `linux-edge 6.15` + `Mesa 25.1` + `Wine 10.7`) built to run **native Linux (`Flatpak` / `ELF`)**, **Classic & Modern PC (`.exe`/`.msi`/16-bit `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **DOS (`.exe`/`.com`/`.bat`)**, **Web Apps (PWA)**, and **Mobile (`.apk` via Waydroid)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **2026 modern Intel/AMD/NVIDIA x86_64 & ARM64 PCs and laptops**.
+**UniCore OS** is a lightweight, immutable, zero-trust desktop operating system (`Alpine 3.22` + `linux-edge 6.15` + `Mesa 25.1` + `PipeWire` + `Wine 10.7`) built to run **native Linux (`Flatpak` / `ELF`)**, **Classic & Modern PC (`.exe`/`.msi`/16-bit `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **DOS (`.exe`/`.com`/`.bat`)**, **Web Apps (PWA)**, and **Mobile (`.apk` via Waydroid)** applications alongside embedded **AegisTunnel Post-Quantum VPN** and **ResonanceFX PipeWire 10-Band Equalizer** across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **2026 modern Intel/AMD/NVIDIA `x86_64` & `ARM64` PCs and laptops**.
 
-> **Official Bilingual Documentation:** Read the complete [Official User Guide (EN / BM)](docs/user-guide.md) — also built directly into the OS offline via **Start Menu → User Guide / Panduan Pengguna** (`unicore-center --help-guide`).
+## Industry-Standard Documentation Suite (`v2.0.0`)
+
+| Document | Purpose |
+| :--- | :--- |
+| **[Documentation Portal](docs/README.md)** | Complete index across end-user, admin, security, hardware & engineering handbooks |
+| **[User Manual (English)](docs/USER_MANUAL_EN.md)** & **[Manual Pengguna (BM)](docs/USER_MANUAL_MS.md)** | Full end-user desktop handbooks (Control Panel, 12 Languages, 21 Keyboards, VPN, EQ, Classic Games & Themes) |
+| **[System Architecture](docs/ARCHITECTURE.md)** | 5-layer stack, immutable A/B SquashFS+LUKS2, `0 MB`-idle lifecycle, AegisTunnel & ResonanceFX DSP Mermaid specs |
+| **[Security & Threat Model](docs/SECURITY.md)** | Threat model, Secure Boot (`shim`+MOK), Ed25519 OTA, `bwrap` confinement, `doas` boundaries & ML-KEM-768 PQ KEM |
+| **[Administration & Operations](docs/ADMIN_AND_OPERATIONS.md)** | Ventoy/Dual-Boot/LUKS2 deployment, air-gapped OTA hosting, rollback & troubleshooting runbook |
+| **[Hardware Compatibility Matrix](docs/HARDWARE_COMPATIBILITY.md)** | 2005 512 MB → 2026 Intel/AMD/NVIDIA NVK+GSP/`DRI_PRIME` & ARM64 support matrix |
+| **[Developer & QA Guide](docs/DEVELOPER_GUIDE.md)** | Workspace build guide (Rust + Slint + C++17), coding gates & 5-Gate + A/B + ARM64 QEMU QA harness |
+| **[Offline Quick Guide](docs/user-guide.md)** & **[CHANGELOG](CHANGELOG.md)** | Built-in offline OS handbook (`unicore-center --help-guide`) and semantic release history |
 
 ## Key Capabilities
 
@@ -93,9 +104,11 @@
 
 * `core/orchestrator/` (`uniload`) — Pure-Rust binary inspector, sandbox planner (`bwrap`), Windows/DOS/Android subsystems, hardware profiler (`hw-profile`), verified App Store catalog (`store`), and A/B + Ed25519 OTA engine (`update`).
 * `core/center/` (`unicore-center`) — Rust + Slint (`renderer-software`) GUI App & Security Center (`~22–23 MB RSS`) with `--oobe`, `--open`, `--power`, `--taskmgr`, and `--tab store|settings:...`.
-* `os-builder/` — Alpine `3.20` (`linux-edge`) rootfs builder, Wayland overlay (`labwc`, `waybar`, `fuzzel`, `pcmanfm`), universal Stage-1 `initramfs-init`, and Hybrid Legacy BIOS + UEFI ISO builder.
+* `core/aegis-proto/` & `core/aegis-vpn/` (`unicore-aegis-vpn`) — Embedded pure-Rust WireGuard + AmneziaWG Anti-DPI + REALITY TCP/443 + Hybrid Post-Quantum ML-KEM-768 VPN engine (`0 MB` idle).
+* `core/resonance-fx/` (`libunicore_resonance_fx.so`) — Embedded pure C++17 PipeWire LADSPA 1.1 10-band equalizer & spatial audio DSP studio (`0 MB` idle).
+* `os-builder/` — Alpine `3.22` (`linux-edge 6.15`) rootfs builder, Wayland overlay (`labwc`, `waybar`, `fuzzel`, `pcmanfm`), universal Stage-1 `initramfs-init`, and Hybrid Legacy BIOS + UEFI ISO builder.
 * `scripts/` — Unified environment controller (`unicore-env.ps1`), local LAN/QEMU OTA server (`ota-local-server.py`), Windows cargo wrapper (`cargo-dev.ps1`), Ed25519 release signer (`sign-release.ps1`), safe Windows USB flasher helper (`write-usb-windows.ps1`), and automated 5-gate QA Matrix (`test-release-matrix.py`) + A/B LUKS2 E2E (`test-ab-install-luks.py`).
-* `docs/` — [Architecture](docs/architecture.md), [Release & QA Guide](docs/release-guide.md), and [v1.0 Readiness Checklist](docs/v1-readiness-checklist.md).
+* `docs/` — Complete [Industry-Standard Documentation Portal](docs/README.md) ([Architecture](docs/ARCHITECTURE.md), [Security](docs/SECURITY.md), [Admin & Operations](docs/ADMIN_AND_OPERATIONS.md), [Developer Guide](docs/DEVELOPER_GUIDE.md), [Hardware Matrix](docs/HARDWARE_COMPATIBILITY.md), [User Manuals EN/BM](docs/USER_MANUAL_EN.md)).
 
 ## Quick Start (Windows Host)
 

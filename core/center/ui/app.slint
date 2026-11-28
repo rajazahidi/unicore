@@ -919,7 +919,7 @@ component WinEraRow inherits HorizontalLayout {
 
 export component MainWindow inherits Window {
     title: root.aegis-vpn-dialog-only ? root.tr.title-aegis-vpn : (root.resonance-dialog-only ? root.tr.title-resonance-fx : (root.control-panel-only ? root.tr.title-control-panel : (root.devmgr-dialog-only ? root.tr.title-devmgr : (root.storage-dialog-only ? root.tr.title-storage : (root.region-dialog-only ? root.tr.title-region : (root.themes-dialog-only ? root.tr.title-theme-studio : (root.family-dialog-only ? root.tr.title-family-hub : (root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))))))))))))));
-    preferred-width: root.aegis-vpn-dialog-only ? 760px : (root.resonance-dialog-only ? 820px : (root.control-panel-only ? 780px : (root.devmgr-dialog-only ? 780px : (root.storage-dialog-only ? 780px : (root.region-dialog-only ? 680px : (root.themes-dialog-only ? 860px : (root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 680px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 468px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))))))))))));
+    preferred-width: root.aegis-vpn-dialog-only ? 840px : (root.resonance-dialog-only ? 880px : (root.control-panel-only ? 780px : (root.devmgr-dialog-only ? 780px : (root.storage-dialog-only ? 780px : (root.region-dialog-only ? 680px : (root.themes-dialog-only ? 860px : (root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 680px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 468px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))))))))))));
     preferred-height: root.aegis-vpn-dialog-only ? 610px : (root.resonance-dialog-only ? 650px : (root.control-panel-only ? 580px : (root.devmgr-dialog-only ? 580px : (root.storage-dialog-only ? 560px : (root.region-dialog-only ? 490px : (root.themes-dialog-only ? 468px : (root.family-dialog-only ? 600px : (root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 660px : (root.retro-wizard-only ? (root.retro-show-advanced ? 590px : 460px) : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))))))))))))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
@@ -1081,7 +1081,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v1.6.0";
+    in-out property <string> login-clock-text: "UniCore OS v2.0.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -5597,7 +5597,7 @@ export component MainWindow inherits Window {
                 Button { height: 36px; text: "Save Profile"; clicked => { root.aegis-save-profile(); } }
                 Button { height: 36px; text: "Rotate PQ Key"; enabled: root.aegis-running; clicked => { root.aegis-rotate-pq(); } }
                 Button { height: 36px; text: "Self-Test"; clicked => { root.aegis-self-test(); } }
-                Button { height: 36px; text: root.tr.hdr-control-panel; clicked => { root.cpanel-open-target("cpanel"); } }
+                Button { height: 36px; text: "Control Panel"; clicked => { root.cpanel-open-target("cpanel"); } }
                 Rectangle { horizontal-stretch: 1; }
                 Button { height: 36px; text: root.tr.btn-close; clicked => { root.cancel-open(); } }
             }
@@ -5724,35 +5724,35 @@ export component MainWindow inherits Window {
 
                             HorizontalLayout {
                                 spacing: 10px;
-                                Switch { text: "Pure Bass"; width: 130px; checked <=> root.rfx-bass-on; }
-                                ComboBox { model: ["Smooth Lows", "Deep Impact", "Subwoofer"]; current-index <=> root.rfx-bass-mode; width: 140px; }
+                                Switch { text: "Pure Bass"; width: 150px; checked <=> root.rfx-bass-on; }
+                                ComboBox { model: ["Smooth Lows", "Deep Impact", "Subwoofer"]; current-index <=> root.rfx-bass-mode; width: 162px; }
                                 Slider { minimum: 0; maximum: 12; step: 0.5; value <=> root.rfx-bass-db; horizontal-stretch: 1; }
                                 Text { text: (Math.round(root.rfx-bass-db * 2) / 2) + " dB"; width: 48px; font-size: 11px; color: UiTheme.text-secondary; vertical-alignment: center; }
                             }
 
                             HorizontalLayout {
                                 spacing: 10px;
-                                Switch { text: "Silky Clarity"; width: 130px; checked <=> root.rfx-clarity-on; }
-                                ComboBox { model: ["Studio Natural", "Air Dynamic", "Ultra Hi-Fi"]; current-index <=> root.rfx-clarity-mode; width: 140px; }
+                                Switch { text: "Silky Clarity"; width: 150px; checked <=> root.rfx-clarity-on; }
+                                ComboBox { model: ["Studio Natural", "Air Dynamic", "Ultra Hi-Fi"]; current-index <=> root.rfx-clarity-mode; width: 162px; }
                                 Slider { minimum: 0; maximum: 10; step: 0.5; value <=> root.rfx-clarity-db; horizontal-stretch: 1; }
                                 Text { text: (Math.round(root.rfx-clarity-db * 2) / 2) + " dB"; width: 48px; font-size: 11px; color: UiTheme.text-secondary; vertical-alignment: center; }
                             }
 
                             HorizontalLayout {
                                 spacing: 10px;
-                                Switch { text: "3D Surround"; width: 130px; checked <=> root.rfx-surround-on; }
+                                Switch { text: "3D Surround"; width: 150px; checked <=> root.rfx-surround-on; }
                                 Slider { minimum: 0; maximum: 100; step: 5; value <=> root.rfx-surround-pct; horizontal-stretch: 1; }
                                 Text { text: Math.round(root.rfx-surround-pct) + "%"; width: 40px; font-size: 11px; color: UiTheme.text-secondary; vertical-alignment: center; }
-                                Switch { text: "Tube Warmth"; width: 130px; checked <=> root.rfx-tube-on; }
+                                Switch { text: "Tube Warmth"; width: 150px; checked <=> root.rfx-tube-on; }
                                 Slider { minimum: 0; maximum: 100; step: 5; value <=> root.rfx-tube-pct; horizontal-stretch: 1; }
                                 Text { text: Math.round(root.rfx-tube-pct) + "%"; width: 40px; font-size: 11px; color: UiTheme.text-secondary; vertical-alignment: center; }
                             }
 
                             HorizontalLayout {
                                 spacing: 10px;
-                                Switch { text: "Binaural / 8D"; width: 130px; checked <=> root.rfx-binaural-on; }
+                                Switch { text: "Binaural / 8D"; width: 150px; checked <=> root.rfx-binaural-on; }
                                 ComboBox { model: ["Natural Stage", "Studio Pan", "8D Orbit"]; current-index <=> root.rfx-binaural-mode; horizontal-stretch: 1; }
-                                Switch { text: "Convolver IR"; width: 130px; checked <=> root.rfx-convolver-on; }
+                                Switch { text: "Convolver IR"; width: 150px; checked <=> root.rfx-convolver-on; }
                                 ComboBox { model: ["Studio Monitor", "Concert Hall", "Vinyl Club", "Headphone Ref"]; current-index <=> root.rfx-convolver-preset; horizontal-stretch: 1; }
                             }
 

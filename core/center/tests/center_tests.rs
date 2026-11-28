@@ -2163,8 +2163,8 @@ USB\tLogitech Receiver\tusbcore\tUSB\tConnected\n";
     assert_ne!(en.title_devmgr, ms.title_devmgr);
     assert_ne!(en.title_storage, ms.title_storage);
     assert_ne!(en.title_region, ms.title_region);
-    assert!(en.title_guide.contains("1.6.0"));
-    assert!(ms.title_guide.contains("1.6.0"));
+    assert!(en.title_guide.contains("2.0.0"));
+    assert!(ms.title_guide.contains("2.0.0"));
 }
 
 #[test]

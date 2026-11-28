@@ -1,110 +1,56 @@
-# UniCore OS v1.4.0 — Official Bilingual User Guide (EN / BM)
+# UniCore OS `v2.0.0` — Official Offline Bilingual Quick Guide (EN / BM)
 
-Welcome to **UniCore OS v1.4.0 ("Google Play Helper, 10-Theme Studio & Universal Hardware Edition")** — featuring **1-click Google Play GSF Certification & Aurora Store** (`unicore-center --tab system`), **10 complete 1-click Desktop Theme Environments** (`unicore-center --themes`), powered by **Alpine 3.22, Linux Kernel 6.15, Mesa 25.1 (including NVIDIA NVK Vulkan 1.4 & GSP firmware), Wine 10.7, `pipewire-alsa`, `wireless-regdb`, and Early Intel/AMD CPU Microcode** — built to run **Linux, Windows (Win98/XP/7/10/11 & MS-DOS), Web Apps (PWA), and Android** apps across **2005 512 MB PCs** to **2026 Intel/AMD/NVIDIA x86_64 & ARM64 laptops**.
+Welcome to **UniCore OS `v2.0.0` ("Sovereign Desktop Edition")** — powered by **Alpine 3.22, Linux Kernel 6.15, Mesa 25.1 (with NVIDIA NVK Vulkan 1.4 & Open GSP), PipeWire, Wine 10.7, Native AegisTunnel Post-Quantum VPN, and Native ResonanceFX PipeWire 10-Band Equalizer** — engineered for `x86_64` (2005 512 MB PCs through 2026 laptops) and `aarch64` (ARM64 UEFI).
 
-*Selamat datang ke **UniCore OS v1.4.0 ("Pembantu Google Play, Studio 10 Tema & Perkakasan Universal")** — dilengkapi **Pembantu Pengesahan Google Play (GSF ID) & Aurora Store 1-klik** (`unicore-center --tab system`) serta **10 Persekitaran Tema Desktop 1-klik** (`unicore-center --themes`), pantas, bebas kembung (*zero-bloat*), dan mudah digunakan seperti Windows/Zorin dari PC lama 2005 (512 MB RAM) hingga komputer riba Intel/AMD/NVIDIA & ARM64 2026.*
+*Selamat datang ke **UniCore OS `v2.0.0` ("Edisi Desktop Berdaulat")** — pantas, kalis rosak (*immutable*), bebas kembung (*0 MB idle*), dilengkapi **Pusat Kawalan Global, 12 Bahasa, 21 Papan Kekunci, Pengurus Peranti & Storan, VPN AegisTunnel Pasca-Kuantum, Equalizer PipeWire ResonanceFX, serta Studio 10 Tema Desktop**.*
 
-> **Offline Built-In Reader:** On UniCore OS desktop, open **Start Menu → User Guide / Panduan Pengguna** or run `unicore-center --help-guide` at any time — no internet connection required!
+> **Full Documentation Portal:** See [`docs/README.md`](README.md) for the complete [English Manual](USER_MANUAL_EN.md), [Manual Bahasa Melayu](USER_MANUAL_MS.md), [Architecture](ARCHITECTURE.md), [Security](SECURITY.md), [Admin & Operations](ADMIN_AND_OPERATIONS.md), [Hardware Matrix](HARDWARE_COMPATIBILITY.md), and [Developer Guide](DEVELOPER_GUIDE.md).
 
 ---
 
-## 1. Quick Start & Keyboard Shortcuts / Mula Pantas & Pintasan
+## 1. Quick Start & Shortcuts / Mula Pantas & Pintasan
 
 | Shortcut / Pintasan | Action (EN) | Tindakan (BM) |
 | :--- | :--- | :--- |
-| **`Super` (Windows Key)** | Open Graphical Start Menu | Buka Menu Mula Bergrafik |
-| **`Super + .`** | Open Emoji Picker | Buka Pemilih Emoji |
+| **`Super`** | Open Graphical Start Menu | Buka Menu Mula Bergrafik |
+| **`Super + E`** | Open Computer Explorer | Buka Penjelajah Komputer |
 | **`Super + A`** | Open AI Copilot (Ollama / Gemini / OpenAI) | Buka Pembantu AI |
-| **`Super + E`** | Open File Explorer (`pcmanfm`) | Buka Pengurus Fail |
-| **`Super + L`** | Lock Screen (`swaylock`) | Kunci Skrin |
-| **`PrintScreen`** | Open Screen Capture & MP4 Recorder | Tangkap Skrin & Rakam MP4 |
-| **`Ctrl + Shift + Esc`** | Open Task Manager | Buka Pengurus Tugas |
-| **`Alt + Tab`** | Switch Open Windows | Tukar Tetingkap Aktif |
-
-### Desktop Styles (Appearance Settings / Gaya Desktop)
-Open **Settings → Display & Style** (`unicore-center --tab settings:appearance`) to switch with 1 click between:
-- **Win11 Centered** (default centered taskbar)
-- **Win10 Classic** (left-aligned taskbar)
-- **macOS Dock** (floating bottom dock)
-- Plus **Dark / Light / High Contrast** themes and **6 Accent Colors**!
+| **`Super + .`** | Open Emoji Picker | Buka Pemilih Emoji |
+| **`Super + V`** | Clipboard History | Sejarah Papan Keratan |
+| **`Super + L`** | Lock Screen | Kunci Skrin |
+| **`PrintScreen`** | Screen Capture & MP4 Recorder | Tangkap Skrin & Rakam MP4 |
+| **`Ctrl + Shift + Esc`** | Task Manager | Pengurus Tugas |
+| **`Alt + Shift`** | Switch Non-Latin / US Keyboard Script | Tukar Papan Kekunci Bukan-Latin / US |
 
 ---
 
-## 2. Booting Live USB, Safe Dual-Boot & LUKS2 Install / Live USB, Dual-Boot & LUKS2
+## 2. Control Panel, Languages, Keyboards & Devices / Pusat Kawalan & Peranti
 
-1. **Create Bootable USB:** Copy `unicore-os-1.0.0-x86_64.iso` directly onto a **Ventoy** USB drive (no reformatting needed!), or write with **Rufus / BalenaEtcher**.
-2. **Secure Boot Support:** UniCore OS ships with Microsoft-signed `shim` + `MokManager`. On first UEFI Secure Boot launch, choose **Enroll MOK** (`ENROLL_UNICORE_MOK.cer`) once, or enroll from **System → Secure Boot** inside UniCore Center.
-3. **Install to Disk (`System → Install to Disk`):**
-   - **Install Alongside Windows / Dual-Boot:** Safely installs UniCore OS into unallocated free disk space without touching your Windows NTFS partition, and adds a clean **Windows Boot Manager** entry to GRUB!
-   - **Full Disk (Wipe):** Formats the target drive with an immutable **A/B System Partition** layout (`UNICORE_SYS_A`, `UNICORE_SYS_B`, `UNICORE_DATA`).
-   - **Optional LUKS2 Encryption:** Tick **Encrypt `/data` with LUKS2** and set a passphrase (minimum 8 characters) to protect all personal documents, saved passwords, and app sandboxes at rest.
-
----
-
-## 3. Apps, Store & Classic 98/XP/DOS Gaming / Aplikasi, Kedai & Game Klasik 98/XP
-
-### Unified Game Hub (`unicore-center --games`)
-Open **Start Menu → Unified Game Hub / Hab Permainan** to see all your games in one clean grid:
-- **Windows 98/XP/DOS (`uniload`)**, **Steam**, **Heroic (Epic/GOG)**, **Lutris**, **RetroArch**, and **Android (`.apk`)**.
-- Toggle **Game Mode** (CPU performance governor) and **FPS HUD** (MangoHud / DXVK HUD) with 1 click.
-- **Gamepad & Classic Mapper (`--gamepad`):** Detects Xbox, PlayStation, Switch & 8BitDo controllers (USB/Bluetooth) with live battery readout, `evtest` button tester, and a built-in **Pure-Rust `uinput` Gamepad → Keyboard/Mouse mapper** (`WASD + Mouse`, `Arrows + Space`, `MS-DOS Classic`) for vintage games with no controller support!
-- **Auto-Backup Game Saves & Cloud Sync (`--saves`):** Automatically saves up to 5 snapshots per sandbox game to `~/Backups/GameSaves` on exit, with 1-click sync to your mounted **Cloud Drive** (`~/Cloud/<Drive>/UniCore-GameSaves`).
-
-### Playing Classic 1998–2008 Windows & DOS Games (`--retro-game`)
-Double-click any `.exe`, `.msi`, CD `.iso`, or `.zip` game — or open **Classic 98/XP Wizard**:
-- Automatic era presets: **Win98 2D DirectDraw (`cnc-ddraw`)**, **WinXP 3D DirectX 8/9 (`DXVK`)**, **Win16 (`OTVDM`)**, and **MS-DOS (`DOSBox-Staging`)**.
-- Built-in 1-click fixes: **Cap 60 FPS** (stops speed bugs), **Lock 1 CPU Core (`taskset`)** (stops multi-core freezes), **Safe 800×600 / 1024×768 Virtual Window**, **CD `.iso` auto-mount as `D:\`**, and **1-Click Crash Auto-Repair** (auto-detects missing `d3dx9` / `vcrun` / `ddraw` DLLs)!
+Open **Start Menu → Control Panel** (`unicore-center --control-panel`) for 1-click access to:
+- **Region, Language & Keyboard (`--region`):** 12 international languages, 21 global keyboard layouts (Arabic, Cyrillic, CJK, Thai, Dvorak, Colemak with automatic `Alt+Shift` toggle), 32 world timezones, and 24h/12h taskbar clock.
+- **Device Manager (`--devmgr`) & Storage Manager (`--storage`):** Inspect CPU, GPU, Network, Audio, Camera, USB, Bluetooth, HID & SANE Scanners; check S.M.A.R.T. health, safely eject USB drives, and clean temporary caches.
+- **Display & 10 Themes (`--themes`):** Multi-monitor layout, screen rotation (`0°/90°/180°/270°`), external DDC/CI brightness, and 10 complete desktop themes.
+- **Printers & Scanners:** On-demand CUPS USB/Wi-Fi printing (IPP Everywhere + Gutenprint) and live SANE scanner detection (`0 MB` idle when off).
 
 ---
 
-## 4. Phone Link, Cloud Drives, Windows Migration & Hardware Drivers
+## 3. Native AegisTunnel VPN & ResonanceFX Equalizer (`0 MB` Idle)
 
-Open **Settings → Phone & Cloud** or launch directly from Start Menu:
-1. **Phone Link (`--phone`):**
-   - **KDE Connect (`24.02.2`):** Sync phone notifications, SMS, shared clipboard, touchpad mouse, and Wi-Fi file sharing. Stays at **`0 MB` idle RAM** until enabled!
-   - **Android Screen Mirror (`scrcpy` + `adb`):** Mirror and control your Android screen over USB or Wi-Fi (`IP:5555`), with optional `--screen-off` battery-saver mode.
-2. **1-Click Cloud Drives (`--cloud`):**
-   - Connect **Google Drive, OneDrive, Dropbox, MEGA, or Nextcloud/WebDAV** via `rclone` VFS cache into `~/Cloud/<Name>` (visible directly in File Explorer sidebar).
-   - Credentials are locked to `chmod 0600` inside `/data/home/.config/rclone/rclone.conf`.
-3. **Safe Windows Migration Wizard (`--migrate`):**
-   - Mounts Windows NTFS partitions strictly **Read-Only (`ro`)** — zero risk to your Windows installation!
-   - Copies **Documents, Pictures, Desktop, Music, Videos, Saved Games, Windows Fonts**, converts **Chrome & Edge Bookmarks** to importable HTML, and scans `Program Files` to recommend matching apps in **UniCore Store**.
-4. **Hardware, NVIDIA NVK & Laptop Drivers (`--drivers`):**
-   - Built-in **NVIDIA NVK Vulkan 1.4** (`mesa-vulkan-nouveau`) + **NVIDIA Open GSP Firmware** (`nouveau.config=NvGspRm=1`) for GTX 16xx & RTX 20xx/30xx/40xx GPUs, plus **Hybrid Discrete GPU (`DRI_PRIME=1`)** offload mode for dual-GPU laptops.
-   - Automatic early **Intel & AMD CPU Microcode**, Qualcomm Atheros (`qca`) + Realtek (`rtw88`/`rtw89`) + Intel (`iwlwifi`) Wi-Fi stability tuning, live **CPU Thermal / Webcam / DDC-CI / Thunderbolt** status, **1-Click ALSA Unmute + Reset Audio & Bluetooth**, and on-demand **LVFS Firmware Updates (`fwupdmgr`)**.
+- **AegisTunnel VPN (`--vpn`):** Native pure-Rust WireGuard with **AmneziaWG Anti-DPI**, **REALITY TLS 1.3 TCP/443 Stealth Failover (Happy Eyeballs)**, **Hybrid Post-Quantum ML-KEM-768** key rotation, and **Local DNS Ad/Tracker Sinkhole** (`chmod 0600` keys).
+- **ResonanceFX Equalizer (`--equalizer`):** Native C++17 PipeWire LADSPA 1.1 studio with **10-Band Graphic EQ (31 Hz–16 kHz)**, **7 1-Click Acoustic Presets**, **Pure Bass**, **Silky Clarity**, **3D Surround**, **Binaural / 8D Spatial Orbit**, **Tube Warmth**, and **UPOLA Convolver IR**.
 
 ---
 
-## 5. Zero-Trust Security, Firewall & Encrypted Backups
+## 4. Apps, Mobile Subsystem & Simplified Classic PC Games
 
-- **App Sandbox Confinement (`bubblewrap`):** Every app runs with `--cap-drop ALL`, `--die-with-parent`, `--new-session`, `--unshare-uts`, private `/tmp` and `/data`, hidden `/etc/doas.conf` and `/etc/shadow`, and per-app switches for **Network, GPU, Documents, Camera, and Microphone**.
-- **Stateful Firewall (`nftables` / `unicore_fw`):** Drops unsolicited inbound traffic by default. *Home* profile allows local mDNS (`5353`) and KDE Connect LAN (`1714–1764`); *Public* profile locks all inbound ports tight.
-- **0-MB-Idle Architecture:** Heavy optional services (`kdeconnectd`, `cupsd`, `fwupd`, `ollama`, `bluetoothd`, `waydroid`) consume **0 MB RAM** until you turn them on.
-- **Encrypted `/data` Backups (`Settings → Security`):** Back up all personal files, sandboxes, and Wi-Fi/settings to local disk or USB with **AES-256-CBC (PBKDF2 100,000 iterations) + SHA-256 verification** and Tar-Slip protection.
-- **Live Security Audit:** Run `/usr/libexec/unicore-security-audit` or click **Run Security Audit** inside **User Guide** (`--help-guide`) to verify all zero-trust controls in real time.
+- **Universal App Store (`--tab store`) & Web Apps (`--webapps`):** Sandbox-isolated Linux (Flatpak), Desktop PC, Web (PWA), and Mobile apps.
+- **Mobile Subsystem (`--tab system`):** On-demand Waydroid `.apk` runner with 1-click **Device GSF Certification Helper** (`google.com/android/uncertified`) and **Open App Market (Aurora)**.
+- **Simplified Legacy Game Auto-Tune (`--retro-game`) & Unified Game Hub (`--games`):** 5 plain-language 1-click presets (*Smart Auto, 90s 2D Classic, 2000s 3D Classic, Retro DOS / 16-Bit, Ultra-Safe Legacy*) with automatic 1-core CPU lock, 60 FPS cap, rootless CD `.iso` mount (`D:\`), Gamepad Mapper (`--gamepad`), and Auto Save Backup (`--saves`).
 
 ---
 
-## 6. Immutable A/B OTA Updates, Auto-Rollback & Troubleshooting
+## 5. Phone Link, Cloud Drives, Family Safety & Zero-Trust A/B Updates
 
-- **Signed Ed25519 Updates:** Every official release manifest and catalog is signed offline with Ed25519 (`REQUIRE_SIGNATURE=1` verified against `/etc/unicore/update.pub`) plus SHA-256 verification of kernel, initramfs, and SquashFS.
-- **Zero-Downtime A/B Slots + Automatic Rollback:**
-  - Updates flash cleanly to the standby slot (`UNICORE_SYS_B` while running `UNICORE_SYS_A`) without touching `/data`.
-  - On reboot, `unicore-boot-health` verifies rootfs, `/data`, `uniload`, `unicore-center`, and the Wayland desktop session **before** confirming the boot (`confirm-boot`).
-  - If an update ever fails to boot twice, GRUB **automatically rolls back** to your previous working slot!
-  - You can also manually trigger a rollback anytime from **System → OS Updates → Rollback to Previous Slot**.
-- **Collecting Hardware Diagnostics (`unicore-diag`):** If you encounter a hardware quirk, run `unicore-diag --save-usb` (or click **Export Diagnostics** in System tab) to save a clean, privacy-safe report bundle.
-
----
-
-## 7. 1-Click Web Apps (PWA) & Family Parental Controls / Aplikasi Web & Kawalan Ibu Bapa (`v1.1.0`)
-
-* **1-Click Web Apps (`unicore-center --webapps`):** Turn everyday websites (**WhatsApp Web, YouTube, Gmail, Microsoft 365, Google Docs, Canva, ChatGPT, Spotify**, or any custom `https://` site) into clean standalone desktop apps in your Start Menu with isolated browser profiles and **`0 MB` idle RAM**.
-* **Family Safety & Parental Controls (`unicore-center --parental`):**
-  * **Family Safe DNS:** Enable Cloudflare for Families (`1.1.1.3` blocks malware + adult content, or `1.1.1.2` malware-only) persisted cleanly at boot via NetworkManager.
-  * **Daily Screen-Time Limit & Bedtime Curfew:** Set daily usage limits (`60–240 min`) and bedtime windows (`21:00–07:00`, `22:00–07:00`, etc.) with 1-click daily timer reset.
-  * **Per-App Blocklist:** Restrict specific sandbox apps or web apps (`webapp:youtube`, `steam`, etc.) cleanly without any heavy background daemon.
-
----
-
-*Built with care for everyday reliability — UniCore OS v1.1.0.*
+- **Phone Link (`--phone`), Cloud Drives (`--cloud`) & PC Data Migration (`--migrate`):** KDE Connect + `scrcpy` mirroring, `rclone` VFS `~/Cloud` mounts, and read-only NTFS file/font/bookmark migration.
+- **Family Safety (`--parental`):** 1-click Family Safe DNS (`1.1.1.3`), screen-time limits, bedtime curfew, and per-app blocking.
+- **Zero-Trust Security & A/B OTA:** `bubblewrap` confinement, `nftables` firewall, optional LUKS2 `/data` encryption, AES-256 backups, Ed25519 signed A/B OTA updates with health-gated auto-rollback (`unicore-boot-health`), and live `unicore-security-audit`.
