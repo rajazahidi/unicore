@@ -7,7 +7,7 @@
   </core>
 
   <theme>
-    <name>UniCore-Dark</name>
+    <name>UniCore-Midnight</name>
     <cornerRadius>10</cornerRadius>
     <font name="Sans" size="10" />
   </theme>
@@ -33,7 +33,7 @@
       <action name="Execute" command="pkill -f 'unicore-center --emoji' || /usr/bin/unicore-center --emoji" />
     </keybind>
     <keybind key="W-a">
-      <action name="Execute" command="/usr/bin/unicore-center --ai" />
+      <action name="Execute" command="pkill -f 'unicore-center --ai' || /usr/bin/unicore-center --ai" />
     </keybind>
     <keybind key="A-space">
       <action name="Execute" command="fuzzel" />

@@ -45,12 +45,12 @@
   "custom/center": {
     "format": "\uf290",
     "tooltip-format": "UniCore App Store & Center (Win+C)",
-    "on-click": "pgrep -f '/usr/bin/unicore-center$' >/dev/null || /usr/bin/unicore-center --tab store &"
+    "on-click": "pkill -f 'unicore-center --tab store' || /usr/bin/unicore-center --tab store &"
   },
   "custom/taskmgr": {
     "format": "\uf080",
     "tooltip-format": "Task Manager (Ctrl+Shift+Esc)",
-    "on-click": "/usr/bin/unicore-center --taskmgr &"
+    "on-click": "pkill -f 'unicore-center --taskmgr' || /usr/bin/unicore-center --taskmgr &"
   },
   "wlr/taskbar": {
     "format": "{title:.13}",
@@ -116,7 +116,7 @@
   "custom/power": {
     "format": "\uf011",
     "tooltip-format": "Power Options (Win+X)",
-    "on-click": "/usr/bin/unicore-center --power"
+    "on-click": "pkill -f 'unicore-center --power' || /usr/bin/unicore-center --power &"
   },
   "custom/desktop": {
     "format": " ",

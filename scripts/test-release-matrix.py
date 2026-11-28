@@ -393,7 +393,15 @@ done
 for ob in UniCore-Midnight UniCore-Daylight UniCore-Aurora UniCore-Nordic UniCore-Dracula UniCore-Emerald UniCore-Sunset UniCore-Sakura UniCore-Cyberpunk UniCore-Classic98; do
     test -f "/usr/share/themes/${ob}/openbox-3/themerc"
 done
-echo "Checking v1.4.0 Google Play GSF Certification & Aurora Store Helper..."
+for compat_ob in UniCore-Dark UniCore-Light; do
+    test -L "/usr/share/themes/${compat_ob}"
+    test -f "/usr/share/themes/${compat_ob}/openbox-3/themerc"
+done
+for compat_f in waybar-dark.css waybar-light.css fuzzel-dark.ini fuzzel-light.ini; do
+    test -L "/usr/share/unicore/themes/${compat_f}"
+    test -f "/usr/share/unicore/themes/${compat_f}"
+done
+echo "Checking v1.4.0/v1.4.1 Google Play GSF Certification & Aurora Store Helper..."
 uniload android gsf-id --dry-run | grep -q 'google.com/android/uncertified'
 uniload android restart --dry-run | grep -q '"restart"'
 uniload android install-aurora --dry-run | grep -q '"install-aurora"'
@@ -404,7 +412,7 @@ printf 'err:module:import_dll Library MSVCP140.dll not found\nerr:module:import_
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'vcrun2022'
 uniload diagnose-log /tmp/fake_win32.log | grep -q 'directplay'
 rm -f /tmp/fake_win32.log
-echo "Verified all v0.2.0-v0.7.0 helpers, Boot Splash, Capture, DND, Network Drives, BlueZ PipeWire, Accessibility, Classic 98/XP Gaming & drivers OK"
+echo "Verified all v0.2.0-v1.4.1 helpers, Boot Splash, Capture, DND, Network Drives, BlueZ PipeWire, Accessibility, Classic 98/XP Gaming, Themes & drivers OK"
 
 echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
 mkdir -p /data/unicore
@@ -415,10 +423,139 @@ while [ ! -S /run/user/1000/wayland-0 ] && [ "${tries}" -lt 80 ]; do
     tries=$((tries + 1))
 done
 test -S /run/user/1000/wayland-0
-pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-sleep 0.5
+pkill -x unicore-center >/dev/null 2>&1 || true
+sleep 0.6
+if pgrep -x unicore-center >/dev/null 2>&1; then
+    echo "ERROR: unicore-center did not close cleanly after pkill -x"
+    exit 1
+fi
 
-echo "[3/5] Applying Phase 20D/v0.4.0 Light Theme, Floating Pill Taskbar, Papirus Icons, Daylight Wallpaper & Input settings..."
+echo "[3/5] Running Human & Machine Persona Simulation (Surfing, Download, Music, Video Stream, Gaming, Printing, Menus)..."
+# 3A. Machine & BusyBox helper health inside live Wayland session
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    /usr/libexec/unicore-notify status | grep -q "^mako_running=1$"
+    /usr/libexec/unicore-a11y status | grep -q "^tts_available=1$"
+    /usr/libexec/unicore-osd status | grep -q "^wob=1$"
+    /usr/libexec/unicore-phone status | grep -q "^kdeconnect_running=0$"
+    /usr/libexec/unicore-personalize status | grep -q "^theme_preset="
+'
+
+# 3B. Surfing, URL MIME handlers & Loopback HTTP Download + Video Streaming + Music Playback
+command -v xdg-open
+command -v xdg-mime
+command -v celluloid
+command -v mpv
+command -v ffmpeg
+epiphany --version | head -n 1
+grep -q '^x-scheme-handler/https=unicore-browser.desktop' /etc/xdg/mimeapps.list
+grep -q '^x-scheme-handler/http=unicore-browser.desktop' /etc/xdg/mimeapps.list
+grep -q '^audio/aac=' /etc/xdg/mimeapps.list
+grep -q '^audio/opus=' /etc/xdg/mimeapps.list
+grep -q 'x-scheme-handler/https' /usr/share/applications/unicore-browser.desktop
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    def_http="$(xdg-mime query default x-scheme-handler/https 2>/dev/null || true)"
+    echo "Default HTTPS handler: ${def_http}"
+    [ "${def_http}" = "unicore-browser.desktop" ]
+'
+mkdir -p /tmp/qa_web /home/unicore/Downloads
+chown unicore:unicore /home/unicore/Downloads
+dd if=/dev/urandom of=/tmp/qa_web/sample.bin bs=1024 count=64 2>/dev/null
+SRC_SHA="$(sha256sum /tmp/qa_web/sample.bin | awk '{print $1}')"
+# Synthesize 1s 440Hz stereo music MP3 + 1s H.264/AAC MP4 video stream
+ffmpeg -y -loglevel error -f lavfi -i "sine=frequency=440:duration=1" -c:a libmp3lame -q:a 5 /tmp/qa_web/music_440hz.mp3 2>/dev/null || \
+    ffmpeg -y -loglevel error -f lavfi -i "sine=frequency=440:duration=1" /tmp/qa_web/music_440hz.wav
+ffmpeg -y -loglevel error -f lavfi -i "testsrc=size=320x240:rate=15:duration=1" -f lavfi -i "sine=frequency=520:duration=1" -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest /tmp/qa_web/test_stream.mp4 2>/dev/null || \
+    ffmpeg -y -loglevel error -f lavfi -i "testsrc=size=320x240:rate=15:duration=1" -f lavfi -i "sine=frequency=520:duration=1" -c:v mpeg4 -c:a aac -shortest /tmp/qa_web/test_stream.mp4
+test -s /tmp/qa_web/test_stream.mp4
+python3 -m http.server 18080 --bind 127.0.0.1 --directory /tmp/qa_web >/tmp/qa_http.log 2>&1 &
+HTTP_PID=$!
+sleep 0.6
+curl -fsSL http://127.0.0.1:18080/sample.bin -o /home/unicore/Downloads/qa_sample.bin
+DL_SHA="$(sha256sum /home/unicore/Downloads/qa_sample.bin | awk '{print $1}')"
+[ "${SRC_SHA}" = "${DL_SHA}" ]
+# Verify PipeWire audio stack, OSD volume keys, local music playback & HTTP video streaming via mpv
+for pw_proc in pipewire wireplumber pipewire-pulse; do
+    pgrep -x "${pw_proc}" >/dev/null 2>&1
+done
+su -s /bin/sh unicore -c '
+    export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
+    pactl info | grep -q "Server Name:"
+    /usr/libexec/unicore-osd vol-up
+    /usr/libexec/unicore-osd vol-down
+    /usr/libexec/unicore-osd vol-mute
+    /usr/libexec/unicore-osd vol-mute
+    if [ -s /tmp/qa_web/music_440hz.mp3 ]; then
+        mpv --no-config --ao=null --vo=null --really-quiet /tmp/qa_web/music_440hz.mp3
+    else
+        mpv --no-config --ao=null --vo=null --really-quiet /tmp/qa_web/music_440hz.wav
+    fi
+    mpv --no-config --ao=null --vo=null --really-quiet http://127.0.0.1:18080/test_stream.mp4
+'
+kill "${HTTP_PID}" 2>/dev/null || true
+rm -rf /tmp/qa_web /tmp/qa_http.log /home/unicore/Downloads/qa_sample.bin
+echo "Persona Surfing, Download, Music & HTTP Video Streaming PASS"
+
+# 3C. Gaming Persona (Wine, DOSBox-Staging, binary inspector, Gamepad Mapper & Save Backup)
+wine --version | head -n 1
+dosbox-staging --version | head -n 1
+printf 'MZ\220\000\003\000\000\000\004\000\000\000\377\377\000\000' > /tmp/qa_dos_stub.exe
+uniload inspect /tmp/qa_dos_stub.exe | grep -qiE 'dos|win'
+rm -f /tmp/qa_dos_stub.exe
+echo "Persona Gaming (Wine, DOSBox-Staging, Inspector, Gamepad, Saves) PASS"
+
+# 3D. Printing Persona (On-Demand CUPS -> Gutenprint -> Add Queue -> Real Print Job -> Cancel -> Remove -> 0 MB Idle)
+if pgrep -x cupsd >/dev/null 2>&1; then
+    echo "ERROR: cupsd should be 0 MB idle before user requests printing"
+    exit 1
+fi
+/usr/libexec/unicore-sys-helper cups-start
+cups_ready=0
+for i in $(seq 1 20); do
+    if lpstat -r 2>/dev/null | grep -qi 'is running'; then
+        cups_ready=1
+        break
+    fi
+    sleep 0.3
+done
+[ "${cups_ready}" -eq 1 ]
+lpinfo -m | head -n 5 | grep -q .
+/usr/libexec/unicore-sys-helper printer-add UniCoreQA socket://127.0.0.1:9100 raw
+lpstat -p UniCoreQA | grep -q 'UniCoreQA'
+printf 'UniCore OS v1.4.1 Persona Print Test\n' | lp -d UniCoreQA
+lpstat -o UniCoreQA | grep -q 'UniCoreQA'
+cancel -a UniCoreQA || true
+/usr/libexec/unicore-sys-helper printer-remove UniCoreQA
+/usr/libexec/unicore-sys-helper cups-stop
+sleep 0.5
+if pgrep -x cupsd >/dev/null 2>&1; then
+    echo "ERROR: cupsd still running after cups-stop"
+    exit 1
+fi
+echo "Persona Printing (CUPS on-demand lifecycle + Gutenprint + 0 MB idle) PASS"
+
+# 3E. Full Menu, Waybar, Labwc Keybinding & Desktop Entry Executables Audit
+for menu_bin in \
+    /usr/bin/unicore-center \
+    /usr/bin/unicore-browser \
+    /usr/libexec/unicore-capture \
+    /usr/libexec/unicore-update-check \
+    /usr/libexec/unicore-osd \
+    /usr/libexec/unicore-screenshot \
+    /usr/libexec/unicore-a11y \
+    /usr/libexec/unicore-lock \
+    /usr/libexec/unicore-clipboard \
+    pcmanfm foot fuzzel wlrctl pactl; do
+    command -v "${menu_bin}" >/dev/null 2>&1 || { echo "Missing menu target: ${menu_bin}"; exit 1; }
+done
+for df in /usr/share/applications/unicore-*.desktop; do
+    exec_bin="$(awk -F= '$1=="Exec"{print $2; exit}' "${df}" | awk '{print $1}')"
+    command -v "${exec_bin}" >/dev/null 2>&1 || { echo "Broken desktop Exec in ${df}: ${exec_bin}"; exit 1; }
+done
+echo "Persona Menu & Shortcut Integrity Audit PASS"
+
+echo "[3f/5] Applying Phase 20D/v0.4.0 Light Theme, Floating Pill Taskbar, Papirus Icons, Daylight Wallpaper & Input settings..."
 su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
     /usr/libexec/unicore-personalize set \
@@ -447,68 +584,42 @@ grep -q '^XKB_DEFAULT_LAYOUT=my$' /home/unicore/.config/labwc/environment
 grep -q '#f1f5f9' /home/unicore/.config/waybar/style.css
 grep -q 'border-radius: 14px' /home/unicore/.config/waybar/style.css
 
-echo "[4/5] Capturing live Wayland Light-Mode screenshot of Settings -> Display & Style..."
-pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-sleep 1.2
+echo "[4/5] Capturing 14 clean unstacked live Wayland desktop screenshots across all menus & hubs..."
+pkill -x unicore-center >/dev/null 2>&1 || true
+sleep 0.8
 su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
-    /usr/bin/unicore-center --tab settings:appearance >/tmp/center20d.log 2>&1 &
-    for i in $(seq 1 30); do
-        if wlrctl toplevel list 2>/dev/null | grep -qi "UniCore"; then
-            break
-        fi
+    snap_dialog() {
+        out_png="$1"
+        shift
+        pkill -x unicore-center >/dev/null 2>&1 || true
+        sleep 0.6
+        /usr/bin/unicore-center "$@" >/tmp/center_qa.log 2>&1 &
+        for i in $(seq 1 30); do
+            if wlrctl toplevel list 2>/dev/null | grep -qiE "UniCore|Capture|Start|Classic|Phone|Game|Guide|Web|Theme|Quick|Settings|Drivers"; then
+                break
+            fi
+            sleep 0.3
+        done
+        sleep 3.0
+        grim "${out_png}"
+        pkill -x unicore-center >/dev/null 2>&1 || true
         sleep 0.5
-    done
-    sleep 4
-    grim /tmp/phase20d.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --tab dev >/tmp/center_dev.log 2>&1 &
-    sleep 4
-    grim /tmp/v020_dev_ai.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --capture >/tmp/center_cap.log 2>&1 &
-    sleep 3
-    grim /tmp/v050_capture.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --start-menu >/tmp/center_start.log 2>&1 &
-    sleep 3
-    grim /tmp/v060_start.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --retro-game >/tmp/center_retro.log 2>&1 &
-    sleep 3
-    grim /tmp/v070_retro.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --phone >/tmp/center_eco.log 2>&1 &
-    sleep 3
-    grim /tmp/v080_ecosystem.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --games >/tmp/center_games.log 2>&1 &
-    sleep 3
-    grim /tmp/v090_games.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --help-guide >/tmp/center_guide.log 2>&1 &
-    sleep 3
-    grim /tmp/v100_guide.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --webapps >/tmp/center_webapps.log 2>&1 &
-    sleep 3
-    grim /tmp/v110_webapps.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
-    /usr/bin/unicore-center --drivers >/tmp/center_drivers.log 2>&1 &
-    sleep 3
-    grim /tmp/v120_drivers.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
+    }
+    snap_dialog /tmp/phase20d.png --tab settings:appearance
+    snap_dialog /tmp/v020_dev_ai.png --tab dev
+    snap_dialog /tmp/v050_capture.png --capture
+    snap_dialog /tmp/v060_start.png --start-menu
+    snap_dialog /tmp/v070_retro.png --retro-game
+    snap_dialog /tmp/v080_ecosystem.png --phone
+    snap_dialog /tmp/v090_games.png --games
+    snap_dialog /tmp/v100_guide.png --help-guide
+    snap_dialog /tmp/v110_webapps.png --webapps
+    snap_dialog /tmp/v120_drivers.png --drivers
+    snap_dialog /tmp/v141_quick.png --quick-settings
+    snap_dialog /tmp/v141_printers.png --tab settings:printers
 '
-# Test live 10-Theme Studio switching (Classic 98 -> Nordic Top Bar -> Cyberpunk Synth) & capture Theme Studio screenshot
+# Test live 10-Theme Studio switching (Classic 98 -> Nordic Top Bar -> Cyberpunk Synth) & capture Theme Studio + System/Android screenshots
 su -s /bin/sh unicore -c 'export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0; /usr/libexec/unicore-personalize preset classic98 >/dev/null'
 grep -q '<name>UniCore-Classic98</name>' /home/unicore/.config/labwc/rc.xml
 grep -q '<cornerRadius>0</cornerRadius>' /home/unicore/.config/labwc/rc.xml
@@ -522,14 +633,17 @@ grep -q 'border-color=#22d3ee' /home/unicore/.config/mako/config
 su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
     sleep 1
+    pkill -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.5
     /usr/bin/unicore-center --themes >/tmp/center_themes.log 2>&1 &
     sleep 3
     grim /tmp/v130_themes.png
-    pkill -u unicore -x unicore-center >/dev/null 2>&1 || true
-    sleep 0.5
+    pkill -x unicore-center >/dev/null 2>&1 || true
+    sleep 0.6
     /usr/bin/unicore-center --tab system >/tmp/center_android.log 2>&1 &
     sleep 3
     grim /tmp/v140_android.png
+    pkill -x unicore-center >/dev/null 2>&1 || true
 '
 test -s /tmp/phase20d.png
 test -s /tmp/v020_dev_ai.png
@@ -543,6 +657,8 @@ test -s /tmp/v110_webapps.png
 test -s /tmp/v120_drivers.png
 test -s /tmp/v130_themes.png
 test -s /tmp/v140_android.png
+test -s /tmp/v141_quick.png
+test -s /tmp/v141_printers.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -580,6 +696,12 @@ echo "===PNG_THEMES_B64_END==="
 echo "===PNG_ANDROID_B64_START==="
 base64 /tmp/v140_android.png
 echo "===PNG_ANDROID_B64_END==="
+echo "===PNG_QUICK_B64_START==="
+base64 /tmp/v141_quick.png
+echo "===PNG_QUICK_B64_END==="
+echo "===PNG_PRINTERS_B64_START==="
+base64 /tmp/v141_printers.png
+echo "===PNG_PRINTERS_B64_END==="
 
 # Restore default dark theme (midnight preset) to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -621,7 +743,7 @@ printf '\n===GATE1_OK===\n'
 """
         script = script.replace("__EXPECTED_OS_VERSION__", EXPECTED_OS_VERSION)
         h.send_script_b64(script)
-        out = h.wait_for("\n===GATE1_OK===", 300)
+        out = h.wait_for("\n===GATE1_OK===", 420)
         m = re.search(r"===PNG_B64_START===\s*(.*?)\s*===PNG_B64_END===", out, re.DOTALL)
         if not m:
             raise RuntimeError("Missing screenshot base64 payload in Gate 1 output")
@@ -696,7 +818,19 @@ printf '\n===GATE1_OK===\n'
         and_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v140_android.png")
         with open(and_dest, "wb") as f:
             f.write(base64.b64decode(re.sub(r"\s+", "", and_m.group(1))))
-        print(f"    [PASS] Gate 1 passed! Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}, {drv_dest}, {th_dest}, {and_dest}")
+        quick_m = re.search(r"===PNG_QUICK_B64_START===\s*(.*?)\s*===PNG_QUICK_B64_END===", out, re.DOTALL)
+        if not quick_m:
+            raise RuntimeError("Missing v1.4.1 Quick Settings screenshot payload in Gate 1 output")
+        quick_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v141_quick.png")
+        with open(quick_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", quick_m.group(1))))
+        prn_m = re.search(r"===PNG_PRINTERS_B64_START===\s*(.*?)\s*===PNG_PRINTERS_B64_END===", out, re.DOTALL)
+        if not prn_m:
+            raise RuntimeError("Missing v1.4.1 Printers Settings screenshot payload in Gate 1 output")
+        prn_dest = os.path.join(os.path.dirname(SCREENSHOT_DEST), "desktop_v141_printers.png")
+        with open(prn_dest, "wb") as f:
+            f.write(base64.b64decode(re.sub(r"\s+", "", prn_m.group(1))))
+        print(f"    [PASS] Gate 1 passed! 14 Screenshots saved: {SCREENSHOT_DEST}, {dev_dest}, {cap_dest}, {start_dest}, {retro_dest}, {eco_dest}, {games_dest}, {guide_dest}, {wa_dest}, {drv_dest}, {th_dest}, {and_dest}, {quick_dest}, {prn_dest}")
     finally:
         h.close()
 

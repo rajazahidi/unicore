@@ -885,6 +885,24 @@ def generate_all(rootfs: str) -> None:
         write_foot_ini(t, os.path.join(themes_dir, f"foot-{tid}.ini"))
         write_mako_conf(t, os.path.join(themes_dir, f"mako-{tid}.conf"))
 
+    # Backward-compatible symlinks replacing legacy static dark/light duplicate files
+    compat_links = [
+        (os.path.join(ob_root, "UniCore-Dark"), "UniCore-Midnight"),
+        (os.path.join(ob_root, "UniCore-Light"), "UniCore-Daylight"),
+        (os.path.join(themes_dir, "waybar-dark.css"), "waybar-midnight.css"),
+        (os.path.join(themes_dir, "waybar-light.css"), "waybar-daylight.css"),
+        (os.path.join(themes_dir, "fuzzel-dark.ini"), "fuzzel-midnight.ini"),
+        (os.path.join(themes_dir, "fuzzel-light.ini"), "fuzzel-daylight.ini"),
+    ]
+    for link_path, target in compat_links:
+        if os.path.lexists(link_path):
+            if os.path.isdir(link_path) and not os.path.islink(link_path):
+                import shutil
+                shutil.rmtree(link_path)
+            else:
+                os.unlink(link_path)
+        os.symlink(target, link_path)
+
     print(f"Generated 10 UniCore OS Desktop Theme Environments into {rootfs}")
 
 

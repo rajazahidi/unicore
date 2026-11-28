@@ -550,6 +550,22 @@ pub fn filter_start_menu_apps(
         .collect()
 }
 
+/// Filter apps for the "All Applications" section below Pinned Apps.
+/// When viewing the unfiltered "All" list with an empty search query, exclude apps
+/// already shown in the top Pinned Apps grid to avoid visual duplication.
+pub fn filter_start_menu_all_section(
+    all: &[DesktopAppItem],
+    category: &str,
+    query: &str,
+) -> Vec<DesktopAppItem> {
+    let mut filtered = filter_start_menu_apps(all, category, query);
+    let cat = category.trim();
+    if (cat.is_empty() || cat.eq_ignore_ascii_case("all")) && query.trim().is_empty() {
+        filtered.retain(|a| !a.pinned);
+    }
+    filtered
+}
+
 pub fn launch_desktop_command(exec_cmd: &str) -> Result<(), String> {
     let trimmed = exec_cmd.trim();
     if trimmed.is_empty() {

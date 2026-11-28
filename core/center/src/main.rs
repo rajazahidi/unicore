@@ -29,7 +29,7 @@ use unicore_center::ecosystem::{
     hw_set_wifi_powersave, inspect_windows_partition, phone_connect_adb_wifi, phone_device_action,
     phone_mirror_android, phone_service_action, phone_set_autostart, read_cloud_overview,
     read_hw_overview, read_phone_overview, run_windows_migration, scan_windows_partitions,
-    WindowsPartition,
+    CloudOverview, HardwareOverview, PhoneOverview, WindowsPartition,
 };
 use unicore_center::family::{
     bedtime_from_index, bedtime_to_index, daily_limit_from_index, daily_limit_to_index,
@@ -83,7 +83,7 @@ use unicore_center::settings::{
     KB_LAYOUTS, THEME_PRESETS, WALLPAPER_PRESETS,
 };
 use unicore_center::start_emoji::{
-    discover_start_menu_apps, filter_emojis, filter_start_menu_apps, friendly_hw_summary,
+    discover_start_menu_apps, filter_emojis, filter_start_menu_all_section, friendly_hw_summary,
     insert_emoji, launch_desktop_command, oobe_bundle_catalog_ids, open_user_folder,
     DesktopAppItem,
 };
@@ -544,7 +544,7 @@ fn refresh_start_menu(ui: &MainWindow, all_apps: &[DesktopAppItem], category: &s
     }
     ui.set_start_pinned_rows(ModelRc::new(VecModel::from(pinned_rows)));
 
-    let filtered = filter_start_menu_apps(all_apps, category, query);
+    let filtered = filter_start_menu_all_section(all_apps, category, query);
     let mut app_rows = Vec::new();
     for chunk in filtered.chunks(2) {
         let a = &chunk[0];
@@ -1008,8 +1008,12 @@ fn refresh_settings(ui: &MainWindow, state: &mut SettingsUiState) {
     state.users = users;
 }
 
-fn refresh_ecosystem(ui: &MainWindow) {
-    let phone = read_phone_overview();
+fn apply_ecosystem_overview(
+    ui: &MainWindow,
+    phone: PhoneOverview,
+    cloud: CloudOverview,
+    hw: HardwareOverview,
+) {
     ui.set_eco_kde_installed(phone.kdeconnect_installed);
     ui.set_eco_kde_running(phone.kdeconnect_running);
     ui.set_eco_kde_autostart(phone.kdeconnect_autostart);
@@ -1039,7 +1043,6 @@ fn refresh_ecosystem(ui: &MainWindow) {
     }
     ui.set_eco_kde_devices(ModelRc::new(VecModel::from(kde_rows)));
 
-    let cloud = read_cloud_overview();
     ui.set_eco_rclone_installed(cloud.rclone_installed);
     ui.set_eco_cloud_mount_base(SharedString::from(cloud.mount_base.as_str()));
     let cloud_rows: Vec<CloudRemoteRow> = cloud
@@ -1062,7 +1065,6 @@ fn refresh_ecosystem(ui: &MainWindow) {
     }
     ui.set_eco_cloud_remotes(ModelRc::new(VecModel::from(cloud_rows)));
 
-    let hw = read_hw_overview();
     ui.set_eco_hw_gpu(SharedString::from(format!("{} (driver: {})", hw.gpu_model, hw.gpu_driver)));
     ui.set_eco_hw_nvidia_summary(SharedString::from(format_nvidia_nvk_summary(&hw)));
     ui.set_eco_hw_nvidia_gsp(hw.nvidia_gsp != "off");
@@ -1089,6 +1091,23 @@ fn refresh_ecosystem(ui: &MainWindow) {
     ui.set_eco_hw_gpu_mode_idx(gpu_mode_to_index(&hw.gpu_mode));
     ui.set_eco_hw_wifi_ps(hw.wifi_powersave != "off");
     ui.set_eco_hw_fwupd_ok(hw.fwupd_available);
+}
+
+fn refresh_ecosystem(ui: &MainWindow) {
+    if ui.get_eco_hw_gpu().is_empty() {
+        ui.set_eco_hw_gpu(SharedString::from("Scanning hardware..."));
+    }
+    let ui_weak = ui.as_weak();
+    std::thread::spawn(move || {
+        let phone = read_phone_overview();
+        let cloud = read_cloud_overview();
+        let hw = read_hw_overview();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                apply_ecosystem_overview(&ui, phone, cloud, hw);
+            }
+        });
+    });
 }
 
 fn render_gamehub_cards(ui: &MainWindow, all: &[GameHubEntry], category: &str, query: &str) {

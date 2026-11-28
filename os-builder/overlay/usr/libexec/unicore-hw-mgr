@@ -256,9 +256,11 @@ case "${cmd}" in
                 amixer -q sset "${ctrl}" unmute >/dev/null 2>&1 || true
             done
         fi
-        pkill -u unicore -x pipewire-pulse 2>/dev/null || true
-        pkill -u unicore -x wireplumber 2>/dev/null || true
-        pkill -u unicore -x pipewire 2>/dev/null || true
+        su -s /bin/sh unicore -c '
+            pkill -x pipewire-pulse 2>/dev/null || true
+            pkill -x wireplumber 2>/dev/null || true
+            pkill -x pipewire 2>/dev/null || true
+        ' >/dev/null 2>&1 || true
         sleep 0.4
         su -s /bin/sh unicore -c '
             export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000

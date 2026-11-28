@@ -9,7 +9,7 @@ send_wob() {
     val="$1"
     [ "${val}" -lt 0 ] 2>/dev/null && val=0
     [ "${val}" -gt 100 ] 2>/dev/null && val=100
-    if [ -p "${WOB_PIPE}" ] && pgrep -u "$(id -u)" -x wob >/dev/null 2>&1; then
+    if [ -p "${WOB_PIPE}" ] && pgrep -x wob >/dev/null 2>&1; then
         printf '%s\n' "${val}" > "${WOB_PIPE}" &
     fi
 }
@@ -46,7 +46,7 @@ case "${cmd}" in
         mkdir -p "${RT_DIR}"
         rm -f "${WOB_PIPE}"
         mkfifo "${WOB_PIPE}"
-        pkill -u "$(id -u)" -x wob >/dev/null 2>&1 || true
+        pkill -x wob >/dev/null 2>&1 || true
         tail -f "${WOB_PIPE}" 2>/dev/null | wob --bar-color "#38bdf8ff" --background-color "#0f172ae0" --border-color "#38bdf8cc" --border-radius 8 --width 260 --height 32 </dev/null >/dev/null 2>&1 &
         ;;
     vol-up)

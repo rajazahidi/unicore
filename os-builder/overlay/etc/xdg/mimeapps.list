@@ -1,4 +1,8 @@
 [Default Applications]
+x-scheme-handler/http=unicore-browser.desktop;
+x-scheme-handler/https=unicore-browser.desktop;
+text/html=unicore-browser.desktop;
+application/xhtml+xml=unicore-browser.desktop;
 application/vnd.microsoft.portable-executable=unicore-center-open.desktop
 application/x-ms-dos-executable=unicore-center-open.desktop
 application/x-dosexec=unicore-center-open.desktop
@@ -31,9 +35,13 @@ video/x-matroska=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;
 video/webm=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
 video/x-msvideo=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
 video/quicktime=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
+video/x-flv=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
 audio/mpeg=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
 audio/flac=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
 audio/ogg=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
+audio/opus=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
+audio/aac=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
+audio/x-m4a=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
 audio/x-wav=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
 audio/mp4=io.github.celluloid_player.Celluloid.desktop;celluloid.desktop;mpv.desktop;
 application/pdf=org.gnome.Evince.desktop;evince.desktop;

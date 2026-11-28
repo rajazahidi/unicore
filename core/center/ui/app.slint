@@ -957,7 +957,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v1.4.0";
+    in-out property <string> login-clock-text: "UniCore OS v1.4.1";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1540,7 +1540,7 @@ export component MainWindow inherits Window {
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -2064,7 +2064,7 @@ export component MainWindow inherits Window {
                         ComboBox {
                             model: ["Local Offline (Ollama)", "Google Gemini API", "OpenAI-Compatible API"];
                             current-index <=> root.ai-provider-idx;
-                            width: 195px;
+                            width: 230px;
                         }
                         LineEdit {
                             text <=> root.ai-model-input;
@@ -4373,7 +4373,7 @@ export component MainWindow inherits Window {
                             LineEdit {
                                 text <=> root.fam-custom-name;
                                 placeholder-text: "App Name (e.g. Notion)";
-                                width: 170px;
+                                width: 205px;
                             }
                             LineEdit {
                                 text <=> root.fam-custom-url;
@@ -5733,6 +5733,7 @@ export component MainWindow inherits Window {
                                 text: "Export Diagnostics";
                                 clicked => { root.export-diagnostics(); }
                             }
+                            Rectangle { horizontal-stretch: 1; }
                         }
                     }
                 }
@@ -5925,6 +5926,7 @@ export component MainWindow inherits Window {
                                 enabled: !root.upd-busy;
                                 clicked => { root.power-action("reboot"); }
                             }
+                            Rectangle { horizontal-stretch: 1; }
                         }
 
                         if root.upd-status != "" : Text {
@@ -5996,6 +5998,11 @@ export component MainWindow inherits Window {
                                 enabled: !root.android-busy;
                                 clicked => { root.android-action("sync-shortcuts"); }
                             }
+                            Rectangle { horizontal-stretch: 1; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 10px;
                             Button {
                                 text: "Sync Clipboard";
                                 enabled: !root.android-busy;
@@ -6009,6 +6016,7 @@ export component MainWindow inherits Window {
                                 text: "Refresh";
                                 clicked => { root.refresh-all(); }
                             }
+                            Rectangle { horizontal-stretch: 1; }
                         }
 
                         HorizontalLayout {
@@ -6121,6 +6129,7 @@ export component MainWindow inherits Window {
                                 text: "Install OTVDM (Win16)";
                                 clicked => { root.win32-asset-action("install-otvdm"); }
                             }
+                            Rectangle { horizontal-stretch: 1; }
                         }
                     }
                 }
@@ -7661,7 +7670,7 @@ export component MainWindow inherits Window {
                             ComboBox {
                                 model: ["Local Offline (Ollama)", "Google Gemini API", "OpenAI-Compatible API"];
                                 current-index <=> root.ai-provider-idx;
-                                width: 195px;
+                                width: 235px;
                             }
                             if root.ai-provider-idx != 0 : LineEdit {
                                 text <=> root.ai-api-key-input;
@@ -7674,6 +7683,7 @@ export component MainWindow inherits Window {
                                 placeholder-text: "https://api.openai.com/v1";
                                 width: 190px;
                             }
+                            if root.ai-provider-idx == 0 : Rectangle { horizontal-stretch: 1; }
                             Button {
                                 text: "Save Provider";
                                 enabled: !root.ai-busy;

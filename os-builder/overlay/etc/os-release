@@ -1,6 +1,6 @@
 NAME="UniCore OS"
 ID=unicore
 ID_LIKE=alpine
-VERSION_ID="1.4.0"
-PRETTY_NAME="UniCore OS 1.4.0 (Google Play Helper & 10-Theme Studio)"
+VERSION_ID="1.4.1"
+PRETTY_NAME="UniCore OS 1.4.1 (Persona QA Polish, Google Play Helper & 10-Theme Studio)"
 HOME_URL="https://github.com/rajazahidi/unicore"

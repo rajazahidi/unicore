@@ -1264,8 +1264,8 @@ fn v060_start_menu_emoji_layouts_accents_friendly_header_and_oobe_packs_work() {
         desktop_layout_to_index, validate_accent_color, validate_desktop_layout, PersonalizeConfig,
     };
     use unicore_center::start_emoji::{
-        builtin_pinned_apps, filter_emojis, filter_start_menu_apps, friendly_hw_summary,
-        oobe_bundle_catalog_ids, parse_desktop_file,
+        builtin_pinned_apps, filter_emojis, filter_start_menu_all_section, filter_start_menu_apps,
+        friendly_hw_summary, oobe_bundle_catalog_ids, parse_desktop_file,
     };
 
     // 1. CLI flags for Start Menu & Emoji Picker
@@ -1310,6 +1310,12 @@ fn v060_start_menu_emoji_layouts_accents_friendly_header_and_oobe_packs_work() {
     all.push(parsed);
     assert_eq!(filter_start_menu_apps(&all, "all", "gimp").len(), 1);
     assert!(filter_start_menu_apps(&all, "media", "").len() >= 2);
+    // Start Menu "All Applications" section excludes pinned items when unfiltered, but keeps them on search/category
+    let dedup_all = filter_start_menu_all_section(&all, "all", "");
+    assert_eq!(dedup_all.len(), 1);
+    assert_eq!(dedup_all[0].name, "GIMP Studio");
+    assert!(!filter_start_menu_all_section(&all, "all", "browser").is_empty());
+    assert!(filter_start_menu_all_section(&all, "media", "").len() >= 2);
 
     // 4. Emoji Picker search (EN + BM keywords)
     let my_hits = filter_emojis("all", "malaysia");

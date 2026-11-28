@@ -376,12 +376,12 @@ write_waybar_config() {
   "custom/center": {
     "format": "\\uf290",
     "tooltip-format": "UniCore App Store & Center (Win+C)",
-    "on-click": "pgrep -f '/usr/bin/unicore-center$' >/dev/null || /usr/bin/unicore-center --tab store &"
+    "on-click": "pkill -f 'unicore-center --tab store' || /usr/bin/unicore-center --tab store &"
   },
   "custom/taskmgr": {
     "format": "\\uf080",
     "tooltip-format": "Task Manager (Ctrl+Shift+Esc)",
-    "on-click": "/usr/bin/unicore-center --taskmgr &"
+    "on-click": "pkill -f 'unicore-center --taskmgr' || /usr/bin/unicore-center --taskmgr &"
   },
   "wlr/taskbar": {
     "format": "${task_fmt}",
@@ -449,7 +449,7 @@ write_waybar_config() {
   "custom/power": {
     "format": "\\uf011",
     "tooltip-format": "Power Options (Win+X)",
-    "on-click": "/usr/bin/unicore-center --power"
+    "on-click": "pkill -f 'unicore-center --power' || /usr/bin/unicore-center --power &"
   },
   "custom/desktop": {
     "format": " ",
@@ -471,13 +471,13 @@ apply_configs() {
     if [ "${UNICORE_THEME}" = "light" ]; then
         GTK_THEME="Adwaita"
         GTK_PREFER_DARK="0"
-        OPENBOX_FALLBACK="UniCore-Light"
+        OPENBOX_FALLBACK="UniCore-Daylight"
         ICON_THEME="Papirus-Light"
         [ -d /usr/share/icons/Papirus-Light ] || ICON_THEME="Adwaita"
     else
         GTK_THEME="Adwaita-dark"
         GTK_PREFER_DARK="1"
-        OPENBOX_FALLBACK="UniCore-Dark"
+        OPENBOX_FALLBACK="UniCore-Midnight"
         ICON_THEME="Papirus-Dark"
         [ -d /usr/share/icons/Papirus-Dark ] || ICON_THEME="Adwaita"
     fi
@@ -696,7 +696,7 @@ EOF
     printf 'XKB_DEFAULT_LAYOUT=%s\n' "${UNICORE_KB_LAYOUT}" > "${CFG_ROOT}/labwc/environment"
 
     if [ "${no_reload}" = "0" ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
-        LABWC_P="$(pgrep -u "$(id -u)" -x labwc 2>/dev/null | head -n1 || true)"
+        LABWC_P="$(pgrep -x labwc 2>/dev/null | head -n1 || true)"
         if [ -n "${LABWC_P}" ]; then
             LABWC_PID="${LABWC_P}" labwc --reconfigure >/dev/null 2>&1 || true
             kill -HUP "${LABWC_P}" 2>/dev/null || true
@@ -713,11 +713,11 @@ EOF
             fi
             if command -v pcmanfm >/dev/null 2>&1; then
                 if [ "${UNICORE_DESKTOP_ICONS}" = "yes" ]; then
-                    if ! pgrep -u "$(id -u)" -f "pcmanfm --desktop" >/dev/null 2>&1; then
+                    if ! pgrep -f "pcmanfm --desktop" >/dev/null 2>&1; then
                         pcmanfm --desktop </dev/null >/dev/null 2>&1 &
                     fi
                 else
-                    pkill -u "$(id -u)" -f "pcmanfm --desktop" >/dev/null 2>&1 || true
+                    pkill -f "pcmanfm --desktop" >/dev/null 2>&1 || true
                 fi
             fi
             if command -v waybar >/dev/null 2>&1 && pgrep -x waybar >/dev/null 2>&1; then

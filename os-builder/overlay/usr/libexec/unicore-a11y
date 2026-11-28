@@ -15,7 +15,7 @@ find_osk_bin() {
 }
 
 osk_running() {
-    pgrep -u "$(id -u)" -f 'wvkbd' >/dev/null 2>&1
+    pgrep -f 'wvkbd' >/dev/null 2>&1
 }
 
 cmd="${1:-status}"
@@ -41,13 +41,13 @@ case "${cmd}" in
         ;;
 
     osk-stop)
-        pkill -u "$(id -u)" -f 'wvkbd' >/dev/null 2>&1 || true
+        pkill -f 'wvkbd' >/dev/null 2>&1 || true
         echo "On-screen keyboard closed"
         ;;
 
     osk-toggle)
         if osk_running; then
-            pkill -u "$(id -u)" -f 'wvkbd' >/dev/null 2>&1 || true
+            pkill -f 'wvkbd' >/dev/null 2>&1 || true
             echo "On-screen keyboard closed"
         else
             bin="$(find_osk_bin)" || { echo "On-screen keyboard (wvkbd) is not installed." >&2; exit 1; }
@@ -75,7 +75,7 @@ case "${cmd}" in
                 txt="UniCore OS accessibility speech is ready. Copy any text to read it aloud offline."
             fi
         fi
-        pkill -u "$(id -u)" -x espeak-ng >/dev/null 2>&1 || true
+        pkill -x espeak-ng >/dev/null 2>&1 || true
         espeak-ng -v "${voice}" -s 155 "${txt}" </dev/null >/dev/null 2>&1 &
         echo "Speaking text (${voice})"
         ;;
