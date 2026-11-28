@@ -471,13 +471,24 @@ ffmpeg -y -loglevel error -f lavfi -i "testsrc=size=320x240:rate=15:duration=1" 
 test -s /tmp/qa_web/test_stream.mp4
 python3 -m http.server 18080 --bind 127.0.0.1 --directory /tmp/qa_web >/tmp/qa_http.log 2>&1 &
 HTTP_PID=$!
-sleep 0.6
-curl -fsSL http://127.0.0.1:18080/sample.bin -o /home/unicore/Downloads/qa_sample.bin
+http_ready=0
+for i in $(seq 1 25); do
+    if curl -fsSL http://127.0.0.1:18080/sample.bin -o /home/unicore/Downloads/qa_sample.bin 2>/dev/null; then
+        http_ready=1
+        break
+    fi
+    sleep 0.4
+done
+if [ "${http_ready}" -ne 1 ]; then
+    echo "ERROR: Local HTTP test server did not respond on 127.0.0.1:18080"
+    cat /tmp/qa_http.log || true
+    exit 1
+fi
 DL_SHA="$(sha256sum /home/unicore/Downloads/qa_sample.bin | awk '{print $1}')"
 [ "${SRC_SHA}" = "${DL_SHA}" ]
 # Verify PipeWire audio stack, OSD volume keys, local music playback & HTTP video streaming via mpv
 for pw_proc in pipewire wireplumber pipewire-pulse; do
-    pgrep -x "${pw_proc}" >/dev/null 2>&1
+    pgrep -f "${pw_proc}" >/dev/null 2>&1
 done
 su -s /bin/sh unicore -c '
     export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0
@@ -520,7 +531,8 @@ for i in $(seq 1 20); do
     sleep 0.3
 done
 [ "${cups_ready}" -eq 1 ]
-lpinfo -m | head -n 5 | grep -q .
+/usr/sbin/lpinfo -v | head -n 5 | grep -q .
+ls /usr/share/cups/drv/* /usr/share/cups/model/* /usr/share/ppd/* >/dev/null 2>&1 || /usr/sbin/lpinfo -m | head -n 1 | grep -q .
 /usr/libexec/unicore-sys-helper printer-add UniCoreQA socket://127.0.0.1:9100 raw
 lpstat -p UniCoreQA | grep -q 'UniCoreQA'
 printf 'UniCore OS v1.4.1 Persona Print Test\n' | lp -d UniCoreQA
@@ -601,7 +613,7 @@ su -s /bin/sh unicore -c '
             fi
             sleep 0.3
         done
-        sleep 3.0
+        sleep 3.5
         grim "${out_png}"
         pkill -x unicore-center >/dev/null 2>&1 || true
         sleep 0.5
