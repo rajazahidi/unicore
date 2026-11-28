@@ -39,6 +39,12 @@
     <item label="10 Desktop Themes Studio">
       <action name="Execute" command="/usr/bin/unicore-center --themes" />
     </item>
+    <item label="AegisTunnel VPN (Anti-DPI &amp; PQ)">
+      <action name="Execute" command="/usr/bin/unicore-center --vpn" />
+    </item>
+    <item label="ResonanceFX Equalizer &amp; Audio DSP">
+      <action name="Execute" command="/usr/bin/unicore-center --equalizer" />
+    </item>
     <item label="Screen Capture &amp; Recorder">
       <action name="Execute" command="/usr/libexec/unicore-toggle --capture" />
     </item>

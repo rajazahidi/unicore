@@ -14,7 +14,7 @@ case "${cmd}" in
                 case "${TYPE_VAL}" in
                     disk|part|crypt)
                         case "${PATH_VAL}" in
-                            /dev/loop*|/dev/zram*|/dev/sr*) continue ;;
+                            /dev/loop*|/dev/zram*|/dev/sr*|/dev/fd*) continue ;;
                         esac
                         label="${MODEL_VAL}"
                         [ -n "${label}" ] || label="${TRAN_VAL:-Local Volume}"

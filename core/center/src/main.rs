@@ -5,6 +5,11 @@ use std::path::Path;
 use std::rc::Rc;
 
 use slint::{ModelRc, SharedString, VecModel};
+use unicore_center::aegis_rfx::{
+    load_resonance_params, parse_keygen_json, read_aegis_status, read_resonance_status,
+    resonance_preset_params, run_aegis_action, run_resonance_action, save_aegis_profile,
+    save_and_sync_resonance_params, transport_mode_from_index, AegisVpnProfile, ResonanceParams,
+};
 use unicore_center::backend::{CenterBackend, InstallRequest};
 use unicore_center::capture_a11y::{
     add_network_share, dismiss_all_notifications, list_network_shares, open_capture_dir,
@@ -402,6 +407,12 @@ fn apply_ui_language(ui: &MainWindow, lang: UiLang) {
         lbl_ext_brightness: l.lbl_ext_brightness.into(),
         retro_adv_show: l.retro_adv_show.into(),
         retro_adv_hide: l.retro_adv_hide.into(),
+        title_aegis_vpn: l.title_aegis_vpn.into(),
+        hdr_aegis_vpn: l.hdr_aegis_vpn.into(),
+        sub_aegis_vpn: l.sub_aegis_vpn.into(),
+        title_resonance_fx: l.title_resonance_fx.into(),
+        hdr_resonance_fx: l.hdr_resonance_fx.into(),
+        sub_resonance_fx: l.sub_resonance_fx.into(),
     });
     refresh_guide_chapters(ui, lang, ui.get_guide_chapter_idx());
     let cur_pers = load_personalize_config(&persistent_display_config_dir());
@@ -424,9 +435,110 @@ fn clear_v150_dialogs(ui: &MainWindow) {
     ui.set_devmgr_dialog_only(false);
     ui.set_storage_dialog_only(false);
     ui.set_region_dialog_only(false);
+    ui.set_aegis_vpn_dialog_only(false);
+    ui.set_resonance_dialog_only(false);
     ui.set_themes_dialog_only(false);
     ui.set_ecosystem_dialog_only(false);
     ui.set_open_dialog_only(false);
+}
+
+fn refresh_aegis_vpn(ui: &MainWindow) {
+    let st = read_aegis_status();
+    ui.set_aegis_installed(st.installed || !cfg!(target_os = "linux"));
+    ui.set_aegis_running(st.running);
+    ui.set_aegis_transport_label(SharedString::from(st.transport));
+    ui.set_aegis_pq_label(SharedString::from(format!(
+        "{} (Epoch {})",
+        st.pq_suite, st.pq_epoch
+    )));
+    ui.set_aegis_traffic_label(SharedString::from(format!(
+        "RX {} B  •  TX {} B  •  DNS Blocked: {}  •  Handshake: {}",
+        st.rx_bytes,
+        st.tx_bytes,
+        st.dns_blocked,
+        if st.handshake { "Established" } else { "Standby" }
+    )));
+}
+
+fn push_resonance_params_to_ui(ui: &MainWindow, p: &ResonanceParams) {
+    ui.set_rfx_eq_enabled(p.eq_enabled);
+    ui.set_rfx_b0(p.eq_bands[0]);
+    ui.set_rfx_b1(p.eq_bands[1]);
+    ui.set_rfx_b2(p.eq_bands[2]);
+    ui.set_rfx_b3(p.eq_bands[3]);
+    ui.set_rfx_b4(p.eq_bands[4]);
+    ui.set_rfx_b5(p.eq_bands[5]);
+    ui.set_rfx_b6(p.eq_bands[6]);
+    ui.set_rfx_b7(p.eq_bands[7]);
+    ui.set_rfx_b8(p.eq_bands[8]);
+    ui.set_rfx_b9(p.eq_bands[9]);
+    ui.set_rfx_bass_on(p.pure_bass_enabled);
+    ui.set_rfx_bass_mode(p.pure_bass_mode);
+    ui.set_rfx_bass_db(p.pure_bass_gain_db);
+    ui.set_rfx_clarity_on(p.clarity_enabled);
+    ui.set_rfx_clarity_mode(p.clarity_mode);
+    ui.set_rfx_clarity_db(p.clarity_gain_db);
+    ui.set_rfx_surround_on(p.surround_enabled);
+    ui.set_rfx_surround_pct(p.surround_level_pct as f32);
+    ui.set_rfx_binaural_on(p.binaural_enabled);
+    ui.set_rfx_binaural_mode(p.binaural_mode);
+    ui.set_rfx_tube_on(p.tube_enabled);
+    ui.set_rfx_tube_pct(p.tube_warmth_pct as f32);
+    ui.set_rfx_convolver_on(p.convolver_enabled);
+    ui.set_rfx_convolver_preset(p.convolver_preset);
+    ui.set_rfx_reverb_on(p.reverb_enabled);
+    ui.set_rfx_reverb_preset(p.reverb_preset);
+    ui.set_rfx_chorus_on(p.chorus_enabled);
+    ui.set_rfx_delay_on(p.delay_enabled);
+    ui.set_rfx_loudness_on(p.loudness_enabled);
+    ui.set_rfx_preamp_db(p.preamp_db);
+}
+
+fn collect_resonance_params_from_ui(ui: &MainWindow) -> ResonanceParams {
+    ResonanceParams {
+        master_enabled: true,
+        eq_enabled: ui.get_rfx_eq_enabled(),
+        eq_bands: [
+            ui.get_rfx_b0(),
+            ui.get_rfx_b1(),
+            ui.get_rfx_b2(),
+            ui.get_rfx_b3(),
+            ui.get_rfx_b4(),
+            ui.get_rfx_b5(),
+            ui.get_rfx_b6(),
+            ui.get_rfx_b7(),
+            ui.get_rfx_b8(),
+            ui.get_rfx_b9(),
+        ],
+        pure_bass_enabled: ui.get_rfx_bass_on(),
+        pure_bass_mode: ui.get_rfx_bass_mode(),
+        pure_bass_gain_db: ui.get_rfx_bass_db(),
+        clarity_enabled: ui.get_rfx_clarity_on(),
+        clarity_mode: ui.get_rfx_clarity_mode(),
+        clarity_gain_db: ui.get_rfx_clarity_db(),
+        surround_enabled: ui.get_rfx_surround_on(),
+        surround_level_pct: ui.get_rfx_surround_pct().round() as i32,
+        binaural_enabled: ui.get_rfx_binaural_on(),
+        binaural_mode: ui.get_rfx_binaural_mode(),
+        tube_enabled: ui.get_rfx_tube_on(),
+        tube_warmth_pct: ui.get_rfx_tube_pct().round() as i32,
+        convolver_enabled: ui.get_rfx_convolver_on(),
+        convolver_preset: ui.get_rfx_convolver_preset(),
+        reverb_enabled: ui.get_rfx_reverb_on(),
+        reverb_preset: ui.get_rfx_reverb_preset(),
+        chorus_enabled: ui.get_rfx_chorus_on(),
+        delay_enabled: ui.get_rfx_delay_on(),
+        loudness_enabled: ui.get_rfx_loudness_on(),
+        preamp_db: ui.get_rfx_preamp_db(),
+    }
+}
+
+fn refresh_resonance_fx(ui: &MainWindow) {
+    let st = read_resonance_status();
+    ui.set_rfx_installed(st.installed || !cfg!(target_os = "linux"));
+    ui.set_rfx_running(st.running);
+    let params = load_resonance_params();
+    push_resonance_params_to_ui(ui, &params);
 }
 
 fn render_devmgr_rows(ui: &MainWindow, all: &[DeviceEntry], filter: &str) {
@@ -1943,6 +2055,14 @@ fn main() {
             LaunchMode::RegionSettings => {
                 ui.set_region_dialog_only(true);
                 refresh_region(&ui);
+            }
+            LaunchMode::AegisVpn => {
+                ui.set_aegis_vpn_dialog_only(true);
+                refresh_aegis_vpn(&ui);
+            }
+            LaunchMode::ResonanceFx => {
+                ui.set_resonance_dialog_only(true);
+                refresh_resonance_fx(&ui);
             }
             LaunchMode::FullCenter | LaunchMode::CheckOnly(_) => {
                 if parsed.initial_tab == 3 {
@@ -5873,6 +5993,14 @@ fn main() {
                     ui.set_region_dialog_only(true);
                     refresh_region(&ui);
                 }
+                "vpn" => {
+                    ui.set_aegis_vpn_dialog_only(true);
+                    refresh_aegis_vpn(&ui);
+                }
+                "equalizer" => {
+                    ui.set_resonance_dialog_only(true);
+                    refresh_resonance_fx(&ui);
+                }
                 "themes" => {
                     ui.set_themes_dialog_only(true);
                     let cur = load_personalize_config(&persistent_display_config_dir());
@@ -6126,6 +6254,206 @@ fn main() {
                     }
                 });
             });
+        });
+    }
+
+    // === v1.6.0 Native AegisTunnel VPN & ResonanceFX Equalizer Studio Callbacks ===
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_aegis_refresh(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                refresh_aegis_vpn(&ui);
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_aegis_toggle_connect(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let action = if ui.get_aegis_running() { "stop" } else { "start" };
+            match run_aegis_action(action) {
+                Ok(msg) => {
+                    refresh_aegis_vpn(&ui);
+                    ui.set_aegis_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_aegis_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_aegis_save_profile(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let prof = AegisVpnProfile {
+                endpoint: ui.get_aegis_endpoint().to_string(),
+                tunnel_ipv4: ui.get_aegis_tunnel_ip().to_string(),
+                upstream_dns: ui.get_aegis_upstream_dns().to_string(),
+                private_key: ui.get_aegis_private_key().to_string(),
+                peer_public_key: ui.get_aegis_peer_pubkey().to_string(),
+                transport_mode: transport_mode_from_index(ui.get_aegis_transport_idx()).to_string(),
+                obfuscation_enabled: ui.get_aegis_obf_enabled(),
+                pq_enabled: ui.get_aegis_pq_enabled(),
+                dns_sinkhole_enabled: ui.get_aegis_dns_sinkhole(),
+                loopback_mode: ui.get_aegis_loopback_mode(),
+                reality_sni: ui.get_aegis_reality_sni().to_string(),
+            };
+            match save_aegis_profile(&prof) {
+                Ok(msg) => {
+                    ui.set_aegis_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_aegis_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_aegis_keygen(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match run_aegis_action("keygen") {
+                Ok(raw) => {
+                    if let Some((priv_k, pub_k)) = parse_keygen_json(&raw) {
+                        ui.set_aegis_private_key(SharedString::from(priv_k));
+                        if ui.get_aegis_peer_pubkey().is_empty() {
+                            ui.set_aegis_peer_pubkey(SharedString::from(pub_k.as_str()));
+                        }
+                        let msg = format!("Generated X25519 keypair (Public: {pub_k})");
+                        ui.set_aegis_status(SharedString::from(msg.as_str()));
+                        set_status(&ui, msg, false);
+                    } else {
+                        ui.set_aegis_status(SharedString::from(raw.as_str()));
+                    }
+                }
+                Err(err) => {
+                    ui.set_aegis_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_aegis_rotate_pq(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match run_aegis_action("rotate-pq") {
+                Ok(msg) => {
+                    refresh_aegis_vpn(&ui);
+                    ui.set_aegis_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_aegis_self_test(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match run_aegis_action("self-test") {
+                Ok(out) => {
+                    let msg = format!("AegisTunnel Self-Test PASS: {}", out.replace('\n', " "));
+                    ui.set_aegis_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_aegis_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_rfx_refresh(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                refresh_resonance_fx(&ui);
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_rfx_toggle_service(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let params = collect_resonance_params_from_ui(&ui);
+            let _ = save_and_sync_resonance_params(&params);
+            let action = if ui.get_rfx_running() { "stop" } else { "start" };
+            match run_resonance_action(action) {
+                Ok(msg) => {
+                    refresh_resonance_fx(&ui);
+                    ui.set_rfx_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_rfx_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_rfx_select_preset(move |idx| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let p = resonance_preset_params(idx);
+            push_resonance_params_to_ui(&ui, &p);
+            match save_and_sync_resonance_params(&p) {
+                Ok(msg) => {
+                    ui.set_rfx_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => set_status(&ui, err, true),
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_rfx_apply_params(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let params = collect_resonance_params_from_ui(&ui);
+            match save_and_sync_resonance_params(&params) {
+                Ok(msg) => {
+                    ui.set_rfx_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_rfx_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
+        });
+    }
+
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_rfx_self_test(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            match run_resonance_action("self-test") {
+                Ok(out) => {
+                    let msg = format!("ResonanceFX C++17 DSP Self-Test PASS: {out}");
+                    ui.set_rfx_status(SharedString::from(msg.as_str()));
+                    set_status(&ui, msg, false);
+                }
+                Err(err) => {
+                    ui.set_rfx_status(SharedString::from(err.as_str()));
+                    set_status(&ui, err, true);
+                }
+            }
         });
     }
 

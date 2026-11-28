@@ -440,7 +440,20 @@ su -s /bin/sh unicore -c '
     rmdir "/home/unicore/Desktop/New Folder"
 '
 grep -q '^Asia/Kuala_Lumpur$' /etc/timezone
-echo "Verified all v0.2.0-v1.5.0 helpers, Global Keyboards/Region, Device/Storage Manager, Context Menus, Themes & drivers OK"
+echo "Checking v1.6.0 Native AegisTunnel PQ-VPN & ResonanceFX PipeWire DSP (0 MB Idle + Self-Tests)..."
+test -x /usr/bin/unicore-aegis-vpn
+test -x /usr/libexec/unicore-aegis-ctl
+test -x /usr/libexec/unicore-resonance-ctl
+test -x /usr/libexec/unicore-resonance-test
+test -f /usr/lib/ladspa/libunicore_resonance_fx.so
+/usr/bin/unicore-aegis-vpn self-test | grep -q '"all_passed": true'
+/usr/libexec/unicore-aegis-ctl keygen | grep -q '"privateKey"'
+/usr/libexec/unicore-aegis-ctl status | grep -q '^installed=1$'
+/usr/libexec/unicore-aegis-ctl status | grep -q '^running=0$'
+/usr/libexec/unicore-resonance-ctl self-test | grep -q '"all_passed":true'
+/usr/libexec/unicore-resonance-ctl status | grep -q '^installed=1$'
+/usr/libexec/unicore-resonance-ctl status | grep -q '^running=0$'
+echo "Verified all v0.2.0-v1.6.0 helpers, AegisTunnel VPN, ResonanceFX DSP, Global Keyboards/Region, Device/Storage Manager, Context Menus, Themes & drivers OK"
 
 echo "[2/5] Bypassing OOBE for desktop verification & waiting for Wayland..."
 mkdir -p /data/unicore
@@ -531,10 +544,32 @@ su -s /bin/sh unicore -c '
         mpv --no-config --ao=null --vo=null --really-quiet /tmp/qa_web/music_440hz.wav
     fi
     mpv --no-config --ao=null --vo=null --really-quiet http://127.0.0.1:18080/test_stream.mp4
+    # v1.6.0 Live ResonanceFX PipeWire Equalizer LADSPA filter-chain start -> sink -> stop (0 MB idle restored)
+    /usr/libexec/unicore-resonance-ctl start
+    rfx_ready=0
+    for _r in $(seq 1 15); do
+        if pactl list short sinks 2>/dev/null | grep -q "unicore_resonance_fx_sink"; then
+            rfx_ready=1
+            break
+        fi
+        sleep 0.3
+    done
+    [ "${rfx_ready}" -eq 1 ]
+    /usr/libexec/unicore-resonance-ctl status | grep -q "^running=1$"
+    /usr/libexec/unicore-resonance-ctl stop
+    /usr/libexec/unicore-resonance-ctl status | grep -q "^running=0$"
+    # v1.6.0 Live AegisTunnel VPN TUN loopback start -> PQ key rotate -> stop (0 MB idle restored)
+    doas /usr/libexec/unicore-sys-helper aegis-start
+    sleep 1
+    /usr/libexec/unicore-aegis-ctl status | grep -q "^running=1$"
+    ip link show aegis0 >/dev/null 2>&1
+    doas /usr/libexec/unicore-sys-helper aegis-rotate-pq
+    doas /usr/libexec/unicore-sys-helper aegis-stop
+    /usr/libexec/unicore-aegis-ctl status | grep -q "^running=0$"
 '
 kill "${HTTP_PID}" 2>/dev/null || true
 rm -rf /tmp/qa_web /tmp/qa_http.log /home/unicore/Downloads/qa_sample.bin
-echo "Persona Surfing, Download, Music & HTTP Video Streaming PASS"
+echo "Persona Surfing, Download, Music, HTTP Video Streaming, ResonanceFX PipeWire DSP & AegisTunnel VPN PASS"
 
 # 3C. Gaming Persona (Wine, DOSBox-Staging, binary inspector, Gamepad Mapper & Save Backup)
 wine --version | head -n 1
@@ -648,7 +683,7 @@ grep -q '^XKB_DEFAULT_LAYOUT=my$' /home/unicore/.config/labwc/environment
 grep -q '#f1f5f9' /home/unicore/.config/waybar/style.css
 grep -q 'border-radius: 14px' /home/unicore/.config/waybar/style.css
 
-echo "[4/5] Capturing 18 clean unstacked live Wayland desktop screenshots across all menus & hubs..."
+echo "[4/5] Capturing 20 clean unstacked live Wayland desktop screenshots across all menus & hubs..."
 pkill -f '[u]nicore-center' >/dev/null 2>&1 || true
 sleep 0.8
 cat <<'EOF_SNAP' > /tmp/qa_snap.sh
@@ -661,7 +696,7 @@ pkill -f '[u]nicore-center' >/dev/null 2>&1 || true
 sleep 0.6
 /usr/bin/unicore-center "$@" >/tmp/center_qa.log 2>&1 &
 for i in $(seq 1 30); do
-    if wlrctl toplevel list 2>/dev/null | grep -qiE "UniCore|Capture|Start|Classic|Legacy|Phone|Game|Guide|Web|Theme|Quick|Settings|Drivers|Control|Device|Storage|Region|Language"; then
+    if wlrctl toplevel list 2>/dev/null | grep -qiE "UniCore|Capture|Start|Classic|Legacy|Phone|Game|Guide|Web|Theme|Quick|Settings|Drivers|Control|Device|Storage|Region|Language|AegisTunnel|ResonanceFX|Equalizer|VPN"; then
         break
     fi
     sleep 0.3
@@ -688,6 +723,8 @@ su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v150_cpanel.png --control-panel'
 su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v150_devmgr.png --devmgr'
 su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v150_storage.png --storage'
 su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v150_region.png --region'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v160_vpn.png --vpn'
+su -s /bin/sh unicore -c '/tmp/qa_snap.sh /tmp/v160_equalizer.png --equalizer'
 # Test live 10-Theme Studio switching (Classic 98 -> Nordic Top Bar -> Cyberpunk Synth) & capture Theme Studio + System/Android screenshots
 su -s /bin/sh unicore -c 'export HOME=/home/unicore XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0; /usr/libexec/unicore-personalize preset classic98 >/dev/null'
 grep -q '<name>UniCore-Classic98</name>' /home/unicore/.config/labwc/rc.xml
@@ -721,6 +758,8 @@ test -s /tmp/v150_cpanel.png
 test -s /tmp/v150_devmgr.png
 test -s /tmp/v150_storage.png
 test -s /tmp/v150_region.png
+test -s /tmp/v160_vpn.png
+test -s /tmp/v160_equalizer.png
 
 echo "===PNG_B64_START==="
 base64 /tmp/phase20d.png
@@ -776,6 +815,12 @@ echo "===PNG_STORAGE_B64_END==="
 echo "===PNG_REGION_B64_START==="
 base64 /tmp/v150_region.png
 echo "===PNG_REGION_B64_END==="
+echo "===PNG_VPN_B64_START==="
+base64 /tmp/v160_vpn.png
+echo "===PNG_VPN_B64_END==="
+echo "===PNG_EQ_B64_START==="
+base64 /tmp/v160_equalizer.png
+echo "===PNG_EQ_B64_END==="
 
 # Restore default dark theme (midnight preset) to test bidirectional switch cleanly
 su -s /bin/sh unicore -c '
@@ -909,6 +954,8 @@ printf '\n===GATE1_OK===\n'
             ("DEVMGR", "desktop_v150_devmgr.png", "v1.5.0 Device Manager"),
             ("STORAGE", "desktop_v150_storage.png", "v1.5.0 Storage Manager"),
             ("REGION", "desktop_v150_region.png", "v1.5.0 Region & Keyboard"),
+            ("VPN", "desktop_v160_vpn.png", "v1.6.0 AegisTunnel VPN"),
+            ("EQ", "desktop_v160_equalizer.png", "v1.6.0 ResonanceFX Equalizer"),
         ]:
             mm = re.search(
                 rf"===PNG_{tag_key}_B64_START===\s*(.*?)\s*===PNG_{tag_key}_B64_END===",
@@ -919,7 +966,7 @@ printf '\n===GATE1_OK===\n'
                 raise RuntimeError(f"Missing {label} screenshot payload in Gate 1 output")
             with open(os.path.join(os.path.dirname(SCREENSHOT_DEST), fname), "wb") as f:
                 f.write(base64.b64decode(re.sub(r"\s+", "", mm.group(1))))
-        print(f"    [PASS] Gate 1 passed! 18 Screenshots saved in {os.path.dirname(SCREENSHOT_DEST)}")
+        print(f"    [PASS] Gate 1 passed! 20 Screenshots saved in {os.path.dirname(SCREENSHOT_DEST)}")
     finally:
         h.close()
 

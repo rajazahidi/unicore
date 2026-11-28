@@ -307,6 +307,24 @@ case "$1" in
         [ "$#" -eq 2 ] || exit 2
         exec /usr/libexec/unicore-storage eject "$2"
         ;;
+    aegis-start)
+        exec /usr/libexec/unicore-aegis-ctl start
+        ;;
+    aegis-stop)
+        exec /usr/libexec/unicore-aegis-ctl stop
+        ;;
+    aegis-rotate-pq)
+        exec /usr/libexec/unicore-aegis-ctl rotate-pq
+        ;;
+    aegis-save-config)
+        mkdir -p /data/network
+        chmod 0700 /data/network 2>/dev/null || true
+        TMP_AEGIS="$(umask 077 && mktemp /data/network/.aegis-vpn.XXXXXX)"
+        cat > "${TMP_AEGIS}"
+        chmod 0600 "${TMP_AEGIS}"
+        mv -f "${TMP_AEGIS}" /data/network/aegis-vpn.json
+        echo "Saved /data/network/aegis-vpn.json (chmod 600)"
+        ;;
     set-user-password)
         [ "$#" -eq 1 ] || exit 2
         IFS= read -r user_pass || user_pass=""

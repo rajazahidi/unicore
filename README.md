@@ -1,10 +1,15 @@
-# UniCore OS (`1.5.0` — Global Control Panel, 12 Languages, 21 Keyboards, Device/Storage Manager & Sovereign Desktop Edition)
+# UniCore OS (`1.6.0` — Native AegisTunnel PQ-VPN, ResonanceFX PipeWire DSP & Sovereign Desktop Edition)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.22` + `linux-edge 6.15` + `Mesa 25.1` + `Wine 10.7`) built to run **native Linux (`Flatpak` / `ELF`)**, **Classic & Modern PC (`.exe`/`.msi`/16-bit `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **DOS (`.exe`/`.com`/`.bat`)**, **Web Apps (PWA)**, and **Mobile (`.apk` via Waydroid)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **2026 modern Intel/AMD/NVIDIA x86_64 & ARM64 PCs and laptops**.
 
 > **Official Bilingual Documentation:** Read the complete [Official User Guide (EN / BM)](docs/user-guide.md) — also built directly into the OS offline via **Start Menu → User Guide / Panduan Pengguna** (`unicore-center --help-guide`).
 
 ## Key Capabilities
+
+* **Native AegisTunnel Post-Quantum VPN & ResonanceFX PipeWire Equalizer (`v1.6.0`)**:
+  * **AegisTunnel VPN (`--vpn`, `/usr/bin/unicore-aegis-vpn`, `0 MB` Idle RAM)**: Pure-Rust static musl WireGuard engine embedded natively with **AmneziaWG Anti-DPI obfuscation**, **REALITY TLS 1.3 TCP/443 stealth fallback (Happy Eyeballs)**, **Hybrid Post-Quantum ML-KEM-768 + X25519 key rotation**, **Local DNS Ad/Tracker Sinkhole**, and **Zero-Drop Handover** — all managed via strictly whitelisted `doas` helpers (`chmod 0600` keys) and a clean graphical studio in Control Panel & Start Menu.
+  * **ResonanceFX PipeWire Equalizer & Spatial DSP (`--equalizer`, `/usr/lib/ladspa/libunicore_resonance_fx.so`, `0 MB` Idle RAM)**: Pure C++17 real-time LADSPA 1.1 PipeWire filter-chain studio offering a **10-Band Graphic Equalizer (31 Hz–16 kHz)**, **Pure Bass**, **Silky Clarity**, **3D Surround**, **Binaural / 8D Spatial Orbit**, **Analog Tube Warmth**, **UPOLA FFT Convolver IR**, **Schroeder Reverb**, **Stereo Chorus/Delay**, **Loudness**, and **7 1-Click Acoustic Presets** with hot-reload parameter sync and zero background RAM when toggled off.
+  * **Upgraded 2×5 Wide-Card Control Panel & Clean Storage Manager**: Polished 10-card Control Panel (`--control-panel`) with zero label truncation and legacy `/dev/fd*` floppy filtering in Storage Manager (`--storage`).
 
 * **Global Desktop Control Panel, Device/Storage Manager & Simplified Legacy Game Auto-Tune (`v1.5.0`)**:
   * **12 International Languages, 21 Global Keyboards & 32 World Regions/Timezones (`--region`)**: Full international font coverage (Latin, Arabic `font-noto-arabic`, CJK `font-wqy-zenhei`), automatic `us,<layout>` + `Alt+Shift` switching for non-Latin scripts (`ru`, `ar`, `jp`, `kr`, `cn`, `th`), Dvorak/Colemak variants, and live 24h/12h taskbar clock formatting.

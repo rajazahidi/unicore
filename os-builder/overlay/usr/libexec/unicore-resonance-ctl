@@ -1,0 +1,183 @@
+#!/bin/sh
+# UniCore OS Native ResonanceFX PipeWire Equalizer & Spatial DSP Controller (0 MB idle RAM when off)
+set -eu
+
+USER_HOME="${HOME:-/home/unicore}"
+CFG_DIR="/data/home/.config/unicore"
+[ -d "/data/home" ] || CFG_DIR="${USER_HOME}/.config/unicore"
+mkdir -p "${CFG_DIR}"
+PARAMS_FILE="${CFG_DIR}/resonance-fx.conf"
+PW_CONF="${CFG_DIR}/resonance-fx-pw.conf"
+RT_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+RT_PARAMS="${RT_DIR}/unicore-resonance-fx.conf"
+PID_FILE="${RT_DIR}/unicore-resonance-fx.pid"
+PLUGIN_SO="/usr/lib/ladspa/libunicore_resonance_fx.so"
+TEST_BIN="/usr/libexec/unicore-resonance-test"
+
+cmd="${1:-status}"
+shift || true
+
+is_running() {
+    [ -f "${PID_FILE}" ] || return 1
+    pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+    [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null
+}
+
+write_default_params() {
+    if [ ! -f "${PARAMS_FILE}" ]; then
+        cat <<'EOF' > "${PARAMS_FILE}"
+master_enabled=1
+eq_enabled=1
+eq_band_0=0.0
+eq_band_1=0.0
+eq_band_2=0.0
+eq_band_3=0.0
+eq_band_4=0.0
+eq_band_5=0.0
+eq_band_6=0.0
+eq_band_7=0.0
+eq_band_8=0.0
+eq_band_9=0.0
+pure_bass_enabled=1
+pure_bass_mode=1
+pure_bass_gain_db=3.5
+clarity_enabled=1
+clarity_mode=0
+clarity_gain_db=2.0
+surround_enabled=0
+surround_level=0.35
+binaural_enabled=0
+binaural_mode=0
+crossfeed_level=0.30
+pan_balance=0.0
+orbit_speed=0.35
+tube_enabled=0
+tube_warmth=0.40
+convolver_enabled=0
+convolver_preset=0
+reverb_enabled=0
+reverb_preset=0
+chorus_enabled=0
+delay_enabled=0
+loudness_enabled=0
+loudness_gain_db=2.0
+preamp_db=0.0
+limiter_threshold_db=-0.5
+EOF
+    fi
+    cp "${PARAMS_FILE}" "${RT_PARAMS}" 2>/dev/null || true
+}
+
+write_pw_filter_conf() {
+    cat <<EOF > "${PW_CONF}"
+context.properties = {
+    log.level = 0
+}
+context.spa-libs = {
+    audio.convert.* = audioconvert/libspa-audioconvert
+    support.*       = support/libspa-support
+}
+context.modules = [
+    { name = libpipewire-module-rt
+      flags = [ ifexists nofail ]
+    }
+    { name = libpipewire-module-protocol-native }
+    { name = libpipewire-module-client-node }
+    { name = libpipewire-module-adapter }
+    { name = libpipewire-module-filter-chain
+      args = {
+          node.description = "UniCore ResonanceFX DSP"
+          media.name       = "UniCore ResonanceFX DSP"
+          filter.graph = {
+              nodes = [
+                  {
+                      type   = ladspa
+                      name   = rfx
+                      plugin = ${PLUGIN_SO}
+                      label  = unicore_resonance_fx
+                      control = {
+                          "Master Enable" = 1.0
+                      }
+                  }
+              ]
+          }
+          audio.channels = 2
+          audio.position = [ FL FR ]
+          capture.props = {
+              node.name      = "unicore_resonance_fx_sink"
+              media.class    = Audio/Sink
+              priority.session = 1500
+              priority.driver  = 1500
+          }
+          playback.props = {
+              node.name      = "unicore_resonance_fx_out"
+              node.passive   = true
+          }
+      }
+    }
+]
+EOF
+}
+
+case "${cmd}" in
+    status)
+        installed=0
+        [ -f "${PLUGIN_SO}" ] && installed=1
+        running=0
+        is_running && running=1
+        printf 'installed=%s\nrunning=%s\nplugin=%s\nparams=%s\n' "${installed}" "${running}" "${PLUGIN_SO}" "${PARAMS_FILE}"
+        ;;
+
+    sync)
+        write_default_params
+        cp "${PARAMS_FILE}" "${RT_PARAMS}" 2>/dev/null || true
+        echo "Synced ResonanceFX DSP parameters"
+        ;;
+
+    start)
+        [ -f "${PLUGIN_SO}" ] || { echo "ResonanceFX LADSPA plugin missing: ${PLUGIN_SO}" >&2; exit 1; }
+        write_default_params
+        write_pw_filter_conf
+        if is_running; then
+            echo "ResonanceFX PipeWire DSP already active"
+            exit 0
+        fi
+        UNICORE_RESONANCE_CONF="${RT_PARAMS}" pipewire -c "${PW_CONF}" </dev/null >/tmp/unicore-resonance-fx.log 2>&1 &
+        pid=$!
+        printf '%s\n' "${pid}" > "${PID_FILE}"
+        for _i in 1 2 3 4 5 6 7 8 9 10; do
+            if pactl list short sinks 2>/dev/null | grep -q 'unicore_resonance_fx_sink'; then
+                pactl set-default-sink unicore_resonance_fx_sink 2>/dev/null || true
+                break
+            fi
+            sleep 0.2
+        done
+        echo "ResonanceFX PipeWire DSP started (pid=${pid}, sink=unicore_resonance_fx_sink)"
+        ;;
+
+    stop)
+        if is_running; then
+            pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+            kill -TERM "${pid}" 2>/dev/null || true
+            sleep 0.3
+            kill -0 "${pid}" 2>/dev/null && kill -KILL "${pid}" 2>/dev/null || true
+        fi
+        rm -f "${PID_FILE}"
+        # Restore first non-Resonance hardware sink as default if available
+        hw_sink="$(pactl list short sinks 2>/dev/null | awk '$2 != "unicore_resonance_fx_sink" {print $2; exit}' || true)"
+        if [ -n "${hw_sink}" ]; then
+            pactl set-default-sink "${hw_sink}" 2>/dev/null || true
+        fi
+        echo "ResonanceFX PipeWire DSP stopped (0 MB idle RAM)"
+        ;;
+
+    self-test)
+        [ -x "${TEST_BIN}" ] || { echo "Missing ${TEST_BIN}" >&2; exit 1; }
+        exec "${TEST_BIN}" "${PLUGIN_SO}"
+        ;;
+
+    *)
+        echo "Usage: unicore-resonance-ctl <status|sync|start|stop|self-test>" >&2
+        exit 2
+        ;;
+esac

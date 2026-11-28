@@ -52,7 +52,14 @@ jobs:
       - name: Run workspace unit & integration tests
         run: cargo test --workspace
 
+      - name: Build & test ResonanceFX C++17 PipeWire LADSPA plugin
+        run: |
+          make -C core/resonance-fx test
+          make -C core/resonance-fx clean
+
       - name: Verify cross-architecture musl checks (x86_64 & aarch64)
         run: |
-          cargo check --target x86_64-unknown-linux-musl -p uniload
-          cargo check --target aarch64-unknown-linux-musl -p uniload
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq musl-tools
+          CC_x86_64_unknown_linux_musl=musl-gcc cargo check --target x86_64-unknown-linux-musl -p uniload -p unicore-aegis-vpn
+          cargo check --target aarch64-unknown-linux-musl -p uniload -p aegis-proto

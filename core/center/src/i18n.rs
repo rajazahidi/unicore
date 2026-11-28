@@ -339,6 +339,13 @@ pub struct UiLabels {
     pub lbl_ext_brightness: &'static str,
     pub retro_adv_show: &'static str,
     pub retro_adv_hide: &'static str,
+    // v1.6.0 Native AegisTunnel VPN & ResonanceFX Equalizer Studio
+    pub title_aegis_vpn: &'static str,
+    pub hdr_aegis_vpn: &'static str,
+    pub sub_aegis_vpn: &'static str,
+    pub title_resonance_fx: &'static str,
+    pub hdr_resonance_fx: &'static str,
+    pub sub_resonance_fx: &'static str,
 }
 
 impl UiLabels {
@@ -564,7 +571,7 @@ impl UiLabels {
                 btn_backup_now: "Backup Selected Save",
                 btn_sync_cloud: "Sync Saves to Cloud",
                 chk_auto_backup: "Auto-Backup Game Saves on Exit",
-                title_guide: "UniCore OS v1.5.0 — Official User Guide & Security",
+                title_guide: "UniCore OS v1.6.0 — Official User Guide & Security",
                 btn_open_guide: "Guide",
                 guide_sec_hdr: "Live Zero-Trust Security & 0-MB-Idle Health",
                 btn_run_sec_audit: "Run Security Audit",
@@ -607,6 +614,12 @@ impl UiLabels {
                 lbl_ext_brightness: "External Monitor (DDC/CI):",
                 retro_adv_show: "> Show Advanced Hardware Tuning",
                 retro_adv_hide: "v Hide Advanced Hardware Tuning",
+                title_aegis_vpn: "AegisTunnel VPN — Anti-DPI & Post-Quantum",
+                hdr_aegis_vpn: "AegisTunnel Native VPN Engine",
+                sub_aegis_vpn: "WireGuard + AmneziaWG Anti-DPI • REALITY TCP/443 • Hybrid ML-KEM-768 • DNS Sinkhole (0 MB Idle)",
+                title_resonance_fx: "ResonanceFX — PipeWire 10-Band Equalizer & Spatial DSP",
+                hdr_resonance_fx: "ResonanceFX Audio DSP Studio",
+                sub_resonance_fx: "10-Band Graphic EQ • Pure Bass • Clarity • 3D Surround • 8D Orbit • Tube • UPOLA Convolver (0 MB Idle)",
             },
             UiLang::Ms => Self {
                 title_center: "Pusat Aplikasi UniCore",
@@ -828,7 +841,7 @@ impl UiLabels {
                 btn_backup_now: "Sandar Save Sekarang",
                 btn_sync_cloud: "Segerak Save ke Awan",
                 chk_auto_backup: "Auto-Sandar Save Apabila Tutup Game",
-                title_guide: "UniCore OS v1.5.0 — Panduan Pengguna Rasmi & Keselamatan",
+                title_guide: "UniCore OS v1.6.0 — Panduan Pengguna Rasmi & Keselamatan",
                 btn_open_guide: "Panduan",
                 guide_sec_hdr: "Audit Keselamatan Zero-Trust & Status 0-MB-Idle",
                 btn_run_sec_audit: "Jalankan Audit Keselamatan",
@@ -871,6 +884,12 @@ impl UiLabels {
                 lbl_ext_brightness: "Monitor Luar (DDC/CI):",
                 retro_adv_show: "> Tunjuk Penalaan Perkakasan Lanjutan",
                 retro_adv_hide: "v Sembunyikan Penalaan Lanjutan",
+                title_aegis_vpn: "AegisTunnel VPN — Anti-DPI & Pasca-Kuantum",
+                hdr_aegis_vpn: "Enjin VPN Natif AegisTunnel",
+                sub_aegis_vpn: "WireGuard + AmneziaWG Anti-DPI • REALITY TCP/443 • Hibrid ML-KEM-768 • Penyekat DNS (0 MB Melahu)",
+                title_resonance_fx: "ResonanceFX — Equalizer 10-Jalur PipeWire & DSP Ruang",
+                hdr_resonance_fx: "Studio DSP Audio ResonanceFX",
+                sub_resonance_fx: "Equalizer 10-Jalur • Pure Bass • Clarity • 3D Surround • 8D Orbit • Tube • Convolver (0 MB Melahu)",
             },
         }
     }

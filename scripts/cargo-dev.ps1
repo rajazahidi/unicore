@@ -23,8 +23,12 @@ if (-not (Get-Command "link.exe" -ErrorAction SilentlyContinue)) {
             if ($msvcVer) {
                 $vcBin = Join-Path $msvcVer.FullName "bin\Hostx64\x64"
                 $vcLib = Join-Path $msvcVer.FullName "lib\x64"
+                $vcInc = Join-Path $msvcVer.FullName "include"
                 if (Test-Path $vcBin) { $env:PATH = "$vcBin;$env:PATH" }
                 if (Test-Path $vcLib) { $env:LIB = "$vcLib;$env:LIB" }
+                if ((Test-Path $vcInc) -and ($env:INCLUDE -notlike "*$vcInc*")) {
+                    $env:INCLUDE = if ($env:INCLUDE) { "$vcInc;$env:INCLUDE" } else { $vcInc }
+                }
             }
         }
     }
@@ -42,6 +46,24 @@ foreach ($sdkRoot in $sdkCandidates) {
                 $libDir = Join-Path $latestVer.FullName $sub
                 if ((Test-Path $libDir) -and ($env:LIB -notlike "*$libDir*")) {
                     $env:LIB = if ($env:LIB) { "$env:LIB;$libDir" } else { $libDir }
+                }
+            }
+        }
+    }
+}
+
+$sdkIncCandidates = @(
+    "${env:ProgramFiles(x86)}\Windows Kits\10\Include",
+    "C:\winsdk\Windows Kits\10\Include"
+)
+foreach ($sdkIncRoot in $sdkIncCandidates) {
+    if (Test-Path $sdkIncRoot) {
+        $latestVer = Get-ChildItem $sdkIncRoot -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
+        if ($latestVer) {
+            foreach ($sub in @("ucrt", "um", "shared")) {
+                $incDir = Join-Path $latestVer.FullName $sub
+                if ((Test-Path $incDir) -and ($env:INCLUDE -notlike "*$incDir*")) {
+                    $env:INCLUDE = if ($env:INCLUDE) { "$env:INCLUDE;$incDir" } else { $incDir }
                 }
             }
         }

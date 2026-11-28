@@ -32,6 +32,8 @@ pub enum LaunchMode {
     DeviceManager,
     StorageManager,
     RegionSettings,
+    AegisVpn,
+    ResonanceFx,
     CheckOnly(Option<PathBuf>),
 }
 
@@ -80,6 +82,8 @@ OPTIONS:
   --devmgr               Open Structured Device Manager (CPU, GPU, Network, Audio, Storage, USB, Input)
   --storage              Open Storage Manager (Disks, Partitions, S.M.A.R.T, Safe USB Eject & Cache Cleaner)
   --region               Open International Languages (12), Global Keyboards (21) & World Regions (32)
+  --vpn                  Open Native AegisTunnel VPN Studio (WireGuard + AmneziaWG Anti-DPI + REALITY TCP/443 + PQ ML-KEM-768)
+  --equalizer            Open Native ResonanceFX PipeWire 10-Band Equalizer & Spatial DSP Studio
   --tab <NAME>           Open initial tab: apps | store[:retro] | dev | ai | install | system | settings[:wifi|bluetooth|audio|display|appearance|printers|security|power|users|ecosystem]
   --state-dir <DIR>      Override sandbox registry root (default: /data/uniload or .uniload_state)
   --apps-dir <DIR>       Override .desktop applications folder (default: ~/.local/share/applications)
@@ -205,6 +209,12 @@ pub fn parse_args(args: &[String]) -> Result<Option<ParsedCli>, String> {
             }
             "--region" | "--language" | "--keyboard" => {
                 mode = LaunchMode::RegionSettings;
+            }
+            "--vpn" | "--aegis-vpn" => {
+                mode = LaunchMode::AegisVpn;
+            }
+            "--equalizer" | "--eq" | "--resonance-fx" => {
+                mode = LaunchMode::ResonanceFx;
             }
             "--tab" => {
                 let raw = next_value(args, &mut idx, "--tab")?;

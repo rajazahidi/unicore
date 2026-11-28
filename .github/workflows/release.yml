@@ -58,7 +58,7 @@ jobs:
           set -eu
           mkdir -p /tmp/unicore-shim
           sudo apt-get update -qq
-          sudo apt-get install -y -qq shim-signed
+          sudo apt-get install -y -qq shim-signed musl-tools
           SHIM_SRC="$(find /usr/lib/shim -maxdepth 1 -name "${{ matrix.shim_dst }}.signed*" | sort | tail -n1 || true)"
           if [ -z "${SHIM_SRC}" ]; then
             SHIM_SRC="/usr/lib/shim/${{ matrix.shim_dst }}"
@@ -82,23 +82,32 @@ jobs:
           fi
           export "CARGO_TARGET_${UPPER_ARCH}_UNKNOWN_LINUX_MUSL_LINKER=${RUST_LLD}"
           export "CARGO_TARGET_${UPPER_ARCH}_UNKNOWN_LINUX_MUSL_RUSTFLAGS=-C link-self-contained=yes"
+          export "CC_${TARGET_ARCH}_unknown_linux_musl=musl-gcc"
+          export "CC_${UPPER_ARCH}_UNKNOWN_LINUX_MUSL=musl-gcc"
 
-          echo "==> Building static Rust uniload (${TARGET_ARCH}-unknown-linux-musl)"
-          cargo build --release --target "${TARGET_ARCH}-unknown-linux-musl" -p uniload
+          echo "==> Building static Rust uniload & unicore-aegis-vpn (${TARGET_ARCH}-unknown-linux-musl)"
+          cargo build --release --target "${TARGET_ARCH}-unknown-linux-musl" -p uniload -p unicore-aegis-vpn
 
-          echo "==> Extracting Alpine 3.22 musl dynamic sysroot (${TARGET_ARCH})"
+          echo "==> Extracting Alpine 3.22 musl dynamic sysroot & compiling ResonanceFX C++17 PipeWire DSP (${TARGET_ARCH})"
           MUSL_SYSROOT="/tmp/alpine-musl-sysroot-${TARGET_ARCH}"
-          mkdir -p "${MUSL_SYSROOT}"
+          mkdir -p "${MUSL_SYSROOT}" os-builder/out/ci-bins
           docker run --rm \
             -v "${MUSL_SYSROOT}:/out" \
+            -v "${PWD}/core/resonance-fx:/rfx:ro" \
+            -v "${PWD}/os-builder/out/ci-bins:/bins" \
             alpine:3.22 /bin/sh -c "
               set -eu
-              apk add --no-cache musl-dev libgcc
+              apk add --no-cache musl-dev libgcc g++ make
               cp -L /lib/ld-musl-${TARGET_ARCH}.so.1 /out/ld-musl-${TARGET_ARCH}.so.1
               cp -L /lib/ld-musl-${TARGET_ARCH}.so.1 /out/libc.so
               cp -L /usr/lib/Scrt1.o /usr/lib/crti.o /usr/lib/crtn.o /usr/lib/libdl.a /out/
               cp -L /usr/lib/libgcc_s.so.1 /out/libgcc_s.so.1
               cp -L /usr/lib/libgcc_s.so.1 /out/libgcc_s.so
+              cp -a /rfx /tmp/rfx-build
+              make -C /tmp/rfx-build test
+              cp /tmp/rfx-build/libunicore_resonance_fx.so /bins/libunicore_resonance_fx.so
+              cp /tmp/rfx-build/unicore-resonance-test /bins/unicore-resonance-test
+              chmod 0755 /bins/libunicore_resonance_fx.so /bins/unicore-resonance-test
             "
 
           echo "==> Building unicore-center (dynamic musl for Alpine 3.22 ${TARGET_ARCH})"
@@ -108,17 +117,19 @@ jobs:
             -L "native=${MUSL_SYSROOT}" \
             -C "link-arg=--dynamic-linker=/lib/ld-musl-${TARGET_ARCH}.so.1"
 
-          mkdir -p os-builder/out/ci-bins
           cp "target/${TARGET_ARCH}-unknown-linux-musl/release/unicore-center" os-builder/out/ci-bins/unicore-center
+          cp "target/${TARGET_ARCH}-unknown-linux-musl/release/unicore-aegis-vpn" os-builder/out/ci-bins/unicore-aegis-vpn
 
-          echo "==> Smoke-testing unicore-center dynamic linking inside native Alpine 3.22 (${TARGET_ARCH})"
+          echo "==> Smoke-testing unicore-center, AegisTunnel VPN & ResonanceFX DSP inside native Alpine 3.22 (${TARGET_ARCH})"
           docker run --rm \
             -v "${PWD}/os-builder/out/ci-bins:/bins:ro" \
             alpine:3.22 /bin/sh -c "
               set -eu
-              apk add --no-cache libgcc fontconfig freetype libxkbcommon wayland-libs-client
+              apk add --no-cache libgcc libstdc++ fontconfig freetype libxkbcommon wayland-libs-client
               ldd /bins/unicore-center
               /bins/unicore-center --check
+              /bins/unicore-aegis-vpn self-test
+              /bins/unicore-resonance-test /bins/libunicore_resonance_fx.so
             "
 
       - name: Fetch offline Win32/Win16 gaming runtimes (x86_64)
@@ -287,6 +298,9 @@ jobs:
             -e "FIRMWARE_PROFILE_OVERRIDE=${{ github.event.inputs.firmware_profile || 'slim' }}" \
             -e "UNILOAD_BIN_OVERRIDE=/work/target/${TARGET_ARCH}-unknown-linux-musl/release/uniload" \
             -e "UNICORE_CENTER_BIN_OVERRIDE=/work/os-builder/out/ci-bins/unicore-center" \
+            -e "AEGIS_VPN_BIN_OVERRIDE=/work/os-builder/out/ci-bins/unicore-aegis-vpn" \
+            -e "RESONANCE_SO_OVERRIDE=/work/os-builder/out/ci-bins/libunicore_resonance_fx.so" \
+            -e "RESONANCE_TEST_OVERRIDE=/work/os-builder/out/ci-bins/unicore-resonance-test" \
             -e "WINETRICKS_SCRIPT_OVERRIDE=/work/win32-assets/winetricks" \
             -e "SHIM_DIR_OVERRIDE=/work/shim" \
             ${EXTRA_ENV} \

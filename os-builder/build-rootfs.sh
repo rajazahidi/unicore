@@ -257,6 +257,7 @@ DESKTOP_PKGS=(
     btrfs-progs
     xfsprogs
     hdparm
+    libstdc++
 )
 
 if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "x86" ]]; then
@@ -500,6 +501,16 @@ fi
 
 install -m 0755 "${UNILOAD_BIN}" "${ROOTFS_DIR}/usr/bin/uniload"
 install -m 0755 "${UNICORE_CENTER_BIN}" "${ROOTFS_DIR}/usr/bin/unicore-center"
+if [[ -n "${AEGIS_VPN_BIN_OVERRIDE:-}" && -f "${AEGIS_VPN_BIN_OVERRIDE}" ]]; then
+    install -m 0755 "${AEGIS_VPN_BIN_OVERRIDE}" "${ROOTFS_DIR}/usr/bin/unicore-aegis-vpn"
+fi
+if [[ -n "${RESONANCE_SO_OVERRIDE:-}" && -f "${RESONANCE_SO_OVERRIDE}" ]]; then
+    mkdir -p "${ROOTFS_DIR}/usr/lib/ladspa"
+    install -m 0755 "${RESONANCE_SO_OVERRIDE}" "${ROOTFS_DIR}/usr/lib/ladspa/libunicore_resonance_fx.so"
+fi
+if [[ -n "${RESONANCE_TEST_OVERRIDE:-}" && -f "${RESONANCE_TEST_OVERRIDE}" ]]; then
+    install -m 0755 "${RESONANCE_TEST_OVERRIDE}" "${ROOTFS_DIR}/usr/libexec/unicore-resonance-test"
+fi
 chmod 0755 \
     "${ROOTFS_DIR}/usr/bin/unicore-browser" \
     "${ROOTFS_DIR}/usr/bin/unicore-setup-data" \
@@ -553,6 +564,8 @@ chmod 0755 \
     "${ROOTFS_DIR}/usr/libexec/unicore-devmgr" \
     "${ROOTFS_DIR}/usr/libexec/unicore-storage" \
     "${ROOTFS_DIR}/usr/libexec/unicore-desktop-action" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-aegis-ctl" \
+    "${ROOTFS_DIR}/usr/libexec/unicore-resonance-ctl" \
     "${ROOTFS_DIR}/etc/local.d/unicore-binfmt.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-android.start" \
     "${ROOTFS_DIR}/etc/local.d/unicore-hwprofile.start" \
@@ -927,7 +940,7 @@ fi
 echo "==> Packing immutable SquashFS root image (comp=${SQUASH_COMP}): ${SQUASH_IMG}"
 mksquashfs "${ROOTFS_DIR}" "${SQUASH_IMG}" -comp "${SQUASH_COMP}" -noappend
 
-OS_VERSION="1.5.0"
+OS_VERSION="1.6.0"
 if [[ -r "${ROOTFS_DIR}/etc/os-release" ]]; then
     parsed_ver="$(awk -F= '$1=="VERSION_ID"{gsub(/["'\'']/, "", $2); print $2; exit}' "${ROOTFS_DIR}/etc/os-release" 2>/dev/null || true)"
     [[ -n "${parsed_ver}" ]] && OS_VERSION="${parsed_ver}"

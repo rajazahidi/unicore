@@ -1,5 +1,6 @@
 //! UniCore OS App & Security Center core logic (headless-testable library).
 
+pub mod aegis_rfx;
 pub mod backend;
 pub mod capture_a11y;
 pub mod cli;

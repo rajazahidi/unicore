@@ -414,6 +414,12 @@ export struct UiText {
     lbl-ext-brightness: string,
     retro-adv-show: string,
     retro-adv-hide: string,
+    title-aegis-vpn: string,
+    hdr-aegis-vpn: string,
+    sub-aegis-vpn: string,
+    title-resonance-fx: string,
+    hdr-resonance-fx: string,
+    sub-resonance-fx: string,
 }
 
 export struct DeviceRow {
@@ -912,14 +918,14 @@ component WinEraRow inherits HorizontalLayout {
 }
 
 export component MainWindow inherits Window {
-    title: root.control-panel-only ? root.tr.title-control-panel : (root.devmgr-dialog-only ? root.tr.title-devmgr : (root.storage-dialog-only ? root.tr.title-storage : (root.region-dialog-only ? root.tr.title-region : (root.themes-dialog-only ? root.tr.title-theme-studio : (root.family-dialog-only ? root.tr.title-family-hub : (root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))))))))))));
-    preferred-width: root.control-panel-only ? 760px : (root.devmgr-dialog-only ? 780px : (root.storage-dialog-only ? 780px : (root.region-dialog-only ? 680px : (root.themes-dialog-only ? 860px : (root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 680px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 468px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))))))))));
-    preferred-height: root.control-panel-only ? 540px : (root.devmgr-dialog-only ? 580px : (root.storage-dialog-only ? 560px : (root.region-dialog-only ? 490px : (root.themes-dialog-only ? 468px : (root.family-dialog-only ? 600px : (root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 660px : (root.retro-wizard-only ? (root.retro-show-advanced ? 590px : 460px) : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))))))))))));
+    title: root.aegis-vpn-dialog-only ? root.tr.title-aegis-vpn : (root.resonance-dialog-only ? root.tr.title-resonance-fx : (root.control-panel-only ? root.tr.title-control-panel : (root.devmgr-dialog-only ? root.tr.title-devmgr : (root.storage-dialog-only ? root.tr.title-storage : (root.region-dialog-only ? root.tr.title-region : (root.themes-dialog-only ? root.tr.title-theme-studio : (root.family-dialog-only ? root.tr.title-family-hub : (root.guide-dialog-only ? root.tr.title-guide : (root.gamehub-dialog-only ? root.tr.title-gamehub : (root.ecosystem-dialog-only ? root.tr.title-ecosystem : (root.retro-wizard-only ? root.tr.title-retro-wizard : (root.repair-dialog-only ? root.tr.title-repair : (root.retro-pick-only ? root.tr.title-retro-pick : (root.start-menu-only ? root.tr.title-start-menu : (root.emoji-dialog-only ? root.tr.title-emoji : (root.capture-dialog-only ? root.tr.title-capture : (root.ai-dialog-only ? root.tr.title-ai : (root.login-dialog-only ? root.tr.title-login : (root.quick-settings-only ? root.tr.title-quick : (root.power-dialog-only ? root.tr.title-power : (root.taskmgr-dialog-only ? root.tr.title-taskmgr : (root.oobe-dialog-only ? root.tr.title-oobe : (root.open-dialog-only ? root.tr.title-open : root.tr.title-center)))))))))))))))))))))));
+    preferred-width: root.aegis-vpn-dialog-only ? 760px : (root.resonance-dialog-only ? 820px : (root.control-panel-only ? 780px : (root.devmgr-dialog-only ? 780px : (root.storage-dialog-only ? 780px : (root.region-dialog-only ? 680px : (root.themes-dialog-only ? 860px : (root.family-dialog-only ? 760px : (root.guide-dialog-only ? 780px : (root.gamehub-dialog-only ? 760px : (root.ecosystem-dialog-only ? 740px : (root.retro-wizard-only ? 680px : (root.repair-dialog-only ? 520px : (root.retro-pick-only ? 560px : (root.start-menu-only ? 600px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 520px : (root.ai-dialog-only ? 640px : (root.login-dialog-only ? 460px : (root.quick-settings-only ? 468px : (root.power-dialog-only ? 440px : (root.open-dialog-only ? 600px : (root.taskmgr-dialog-only ? 680px : 1040px))))))))))))))))))))));
+    preferred-height: root.aegis-vpn-dialog-only ? 610px : (root.resonance-dialog-only ? 650px : (root.control-panel-only ? 580px : (root.devmgr-dialog-only ? 580px : (root.storage-dialog-only ? 560px : (root.region-dialog-only ? 490px : (root.themes-dialog-only ? 468px : (root.family-dialog-only ? 600px : (root.guide-dialog-only ? 600px : (root.gamehub-dialog-only ? 600px : (root.ecosystem-dialog-only ? 660px : (root.retro-wizard-only ? (root.retro-show-advanced ? 590px : 460px) : (root.repair-dialog-only ? 340px : (root.retro-pick-only ? 420px : (root.start-menu-only ? 540px : (root.emoji-dialog-only ? 430px : (root.capture-dialog-only ? 400px : (root.ai-dialog-only ? 560px : (root.login-dialog-only ? 410px : (root.quick-settings-only ? 580px : (root.power-dialog-only ? 320px : (root.open-dialog-only ? (root.open-show-advanced ? 590px : 390px) : (root.taskmgr-dialog-only ? 520px : 650px))))))))))))))))))))));
     min-width: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 360px : 520px;
     min-height: (root.power-dialog-only || root.quick-settings-only || root.login-dialog-only || root.capture-dialog-only || root.emoji-dialog-only || root.repair-dialog-only) ? 280px : 360px;
     background: UiTheme.bg;
 
-    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only && !root.control-panel-only && !root.devmgr-dialog-only && !root.storage-dialog-only && !root.region-dialog-only && !root.picker-open;
+    private property <bool> show-tabs: !root.open-dialog-only && !root.power-dialog-only && !root.oobe-dialog-only && !root.taskmgr-dialog-only && !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only && !root.control-panel-only && !root.devmgr-dialog-only && !root.storage-dialog-only && !root.region-dialog-only && !root.aegis-vpn-dialog-only && !root.resonance-dialog-only && !root.picker-open;
 
     public function set-theme(light: bool) {
         UiTheme.light = light;
@@ -976,6 +982,62 @@ export component MainWindow inherits Window {
     in-out property <bool> devmgr-dialog-only: false;
     in-out property <bool> storage-dialog-only: false;
     in-out property <bool> region-dialog-only: false;
+    in-out property <bool> aegis-vpn-dialog-only: false;
+    in-out property <bool> resonance-dialog-only: false;
+    // v1.6.0 AegisTunnel VPN state
+    in-out property <bool> aegis-installed: true;
+    in-out property <bool> aegis-running: false;
+    in-out property <string> aegis-transport-label: "Idle (0 MB RAM)";
+    in-out property <string> aegis-pq-label: "X25519+ML-KEM-768 Ready";
+    in-out property <string> aegis-traffic-label: "RX 0 B  •  TX 0 B  •  DNS Blocked: 0";
+    in-out property <string> aegis-endpoint: "127.0.0.1:51820";
+    in-out property <string> aegis-tunnel-ip: "10.66.0.2";
+    in-out property <string> aegis-upstream-dns: "1.1.1.1";
+    in-out property <string> aegis-private-key: "";
+    in-out property <string> aegis-peer-pubkey: "";
+    in-out property <int> aegis-transport-idx: 0;
+    in-out property <bool> aegis-obf-enabled: true;
+    in-out property <bool> aegis-pq-enabled: true;
+    in-out property <bool> aegis-dns-sinkhole: true;
+    in-out property <bool> aegis-loopback-mode: true;
+    in-out property <string> aegis-reality-sni: "www.cloudflare.com";
+    in-out property <string> aegis-status: "";
+    // v1.6.0 ResonanceFX Equalizer & DSP state
+    in-out property <bool> rfx-installed: true;
+    in-out property <bool> rfx-running: false;
+    in-out property <int> rfx-preset-idx: 0;
+    in-out property <bool> rfx-eq-enabled: true;
+    in-out property <float> rfx-b0: 0;
+    in-out property <float> rfx-b1: 0;
+    in-out property <float> rfx-b2: 0;
+    in-out property <float> rfx-b3: 0;
+    in-out property <float> rfx-b4: 0;
+    in-out property <float> rfx-b5: 0;
+    in-out property <float> rfx-b6: 0;
+    in-out property <float> rfx-b7: 0;
+    in-out property <float> rfx-b8: 0;
+    in-out property <float> rfx-b9: 0;
+    in-out property <bool> rfx-bass-on: true;
+    in-out property <int> rfx-bass-mode: 1;
+    in-out property <float> rfx-bass-db: 3.5;
+    in-out property <bool> rfx-clarity-on: true;
+    in-out property <int> rfx-clarity-mode: 0;
+    in-out property <float> rfx-clarity-db: 2.0;
+    in-out property <bool> rfx-surround-on: false;
+    in-out property <float> rfx-surround-pct: 35;
+    in-out property <bool> rfx-binaural-on: false;
+    in-out property <int> rfx-binaural-mode: 0;
+    in-out property <bool> rfx-tube-on: false;
+    in-out property <float> rfx-tube-pct: 40;
+    in-out property <bool> rfx-convolver-on: false;
+    in-out property <int> rfx-convolver-preset: 0;
+    in-out property <bool> rfx-reverb-on: false;
+    in-out property <int> rfx-reverb-preset: 0;
+    in-out property <bool> rfx-chorus-on: false;
+    in-out property <bool> rfx-delay-on: false;
+    in-out property <bool> rfx-loudness-on: false;
+    in-out property <float> rfx-preamp-db: 0;
+    in-out property <string> rfx-status: "";
     in-out property <[DeviceRow]> devmgr-rows: [];
     in-out property <string> devmgr-filter: "all";
     in-out property <string> devmgr-status: "";
@@ -1019,7 +1081,7 @@ export component MainWindow inherits Window {
     in-out property <int> login-user-idx: 0;
     in-out property <string> login-password: "";
     in-out property <string> login-error: "";
-    in-out property <string> login-clock-text: "UniCore OS v1.5.0";
+    in-out property <string> login-clock-text: "UniCore OS v1.6.0";
     in-out property <bool> open-show-advanced: false;
     in-out property <[TaskEntry]> task-list: [];
     in-out property <int> selected-task-idx: -1;
@@ -1605,13 +1667,24 @@ export component MainWindow inherits Window {
     callback apply-display-ext(int, int, int, int, int);
     callback ext-brightness-changed(int);
     callback scan-scanners();
+    callback aegis-refresh();
+    callback aegis-toggle-connect();
+    callback aegis-save-profile();
+    callback aegis-keygen();
+    callback aegis-rotate-pq();
+    callback aegis-self-test();
+    callback rfx-refresh();
+    callback rfx-toggle-service();
+    callback rfx-select-preset(int);
+    callback rfx-apply-params();
+    callback rfx-self-test();
 
     VerticalLayout {
         padding: 14px;
         spacing: 12px;
 
         // Top Header Bar
-        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only && !root.control-panel-only && !root.devmgr-dialog-only && !root.storage-dialog-only && !root.region-dialog-only : Card {
+        if !root.quick-settings-only && !root.login-dialog-only && !root.ai-dialog-only && !root.capture-dialog-only && !root.start-menu-only && !root.emoji-dialog-only && !root.retro-wizard-only && !root.repair-dialog-only && !root.retro-pick-only && !root.ecosystem-dialog-only && !root.gamehub-dialog-only && !root.guide-dialog-only && !root.family-dialog-only && !root.themes-dialog-only && !root.control-panel-only && !root.devmgr-dialog-only && !root.storage-dialog-only && !root.region-dialog-only && !root.aegis-vpn-dialog-only && !root.resonance-dialog-only : Card {
             height: 54px;
             HorizontalLayout {
                 padding-left: 14px;
@@ -4800,63 +4873,40 @@ export component MainWindow inherits Window {
                 }
             }
 
-            // 2 x 4 Category Card Grid
+            // 2 Wide Columns x 5 Rows (10 Cards — zero text elision, includes AegisTunnel VPN & ResonanceFX EQ)
             VerticalLayout {
                 vertical-stretch: 1;
-                spacing: 10px;
+                spacing: 8px;
+
                 HorizontalLayout {
                     spacing: 10px;
                     vertical-stretch: 1;
-                    // 1. Network & Shares
                     Card {
                         horizontal-stretch: 1;
                         TouchArea { clicked => { root.cpanel-open-target("network"); } }
-                        VerticalLayout {
+                        HorizontalLayout {
                             padding: 12px;
-                            spacing: 6px;
-                            alignment: center;
-                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #0284c7; Text { text: "NET"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
-                            Text { text: root.tr.subtab-wifi; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
-                            Text { text: "Wi-Fi, Ethernet, SMB/NAS, VPN"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #0284c7; Text { text: "NET"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: root.tr.subtab-wifi; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "Wi-Fi, Ethernet, SMB/NAS Drives & Network Shares"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
                         }
                     }
-                    // 2. Audio & Bluetooth
                     Card {
                         horizontal-stretch: 1;
                         TouchArea { clicked => { root.cpanel-open-target("audio"); } }
-                        VerticalLayout {
+                        HorizontalLayout {
                             padding: 12px;
-                            spacing: 6px;
-                            alignment: center;
-                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #7c3aed; Text { text: "AUD"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
-                            Text { text: root.tr.subtab-audio; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
-                            Text { text: "PipeWire Output, Mic & Bluetooth"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
-                        }
-                    }
-                    // 3. Display & 10 Themes
-                    Card {
-                        horizontal-stretch: 1;
-                        TouchArea { clicked => { root.cpanel-open-target("display"); } }
-                        VerticalLayout {
-                            padding: 12px;
-                            spacing: 6px;
-                            alignment: center;
-                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #db2777; Text { text: "DSP"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
-                            Text { text: root.tr.subtab-display; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
-                            Text { text: "Resolution, Rotation, Multi-Monitor, 10 Themes"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
-                        }
-                    }
-                    // 4. Region, Language & Keyboard
-                    Card {
-                        horizontal-stretch: 1;
-                        TouchArea { clicked => { root.cpanel-open-target("region"); } }
-                        VerticalLayout {
-                            padding: 12px;
-                            spacing: 6px;
-                            alignment: center;
-                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #059669; Text { text: "LNG"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
-                            Text { text: root.tr.title-region; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
-                            Text { text: "12 Languages, 21 Keyboards, 32 Timezones"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #7c3aed; Text { text: "AUD"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: root.tr.subtab-audio + " & Bluetooth"; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "PipeWire Volume, Microphone, Output & A2DP Profiles"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
                         }
                     }
                 }
@@ -4864,56 +4914,131 @@ export component MainWindow inherits Window {
                 HorizontalLayout {
                     spacing: 10px;
                     vertical-stretch: 1;
-                    // 5. Device Manager
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("display"); } }
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #db2777; Text { text: "DSP"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: root.tr.subtab-display; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "Resolution, Rotation, Multi-Monitor, DDC & 10 Themes"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
+                        }
+                    }
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("region"); } }
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #059669; Text { text: "LNG"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: root.tr.title-region; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "12 Languages, 21 Global Keyboards & 32 Timezones"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    vertical-stretch: 1;
                     Card {
                         horizontal-stretch: 1;
                         TouchArea { clicked => { root.cpanel-open-target("devmgr"); } }
-                        VerticalLayout {
+                        HorizontalLayout {
                             padding: 12px;
-                            spacing: 6px;
-                            alignment: center;
-                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #0d9488; Text { text: "DEV"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
-                            Text { text: root.tr.title-devmgr; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
-                            Text { text: "CPU, GPU, PCI, USB, Camera & Drivers"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #0d9488; Text { text: "DEV"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: root.tr.title-devmgr; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "CPU, GPU, PCI, USB, Camera, HID & Kernel Drivers"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
                         }
                     }
-                    // 6. Storage Manager
                     Card {
                         horizontal-stretch: 1;
                         TouchArea { clicked => { root.cpanel-open-target("storage"); } }
-                        VerticalLayout {
+                        HorizontalLayout {
                             padding: 12px;
-                            spacing: 6px;
-                            alignment: center;
-                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #d97706; Text { text: "DSK"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
-                            Text { text: root.tr.title-storage; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
-                            Text { text: "Disks, Partitions, Safe USB Eject, Cache"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #d97706; Text { text: "DSK"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: root.tr.title-storage; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "Disks, Partitions, S.M.A.R.T, Safe USB Eject & Cache"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
                         }
                     }
-                    // 7. Printers & Scanners
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    vertical-stretch: 1;
                     Card {
                         horizontal-stretch: 1;
                         TouchArea { clicked => { root.cpanel-open-target("printers"); } }
-                        VerticalLayout {
+                        HorizontalLayout {
                             padding: 12px;
-                            spacing: 6px;
-                            alignment: center;
-                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #4f46e5; Text { text: "PRN"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
-                            Text { text: root.tr.subtab-printers; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
-                            Text { text: "CUPS USB/Wi-Fi Printers & SANE Scanners"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #4f46e5; Text { text: "PRN"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: root.tr.subtab-printers + " & Scanners"; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "On-Demand CUPS USB/Wi-Fi Printers & SANE Scanners"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
                         }
                     }
-                    // 8. Security, Power & Accounts
                     Card {
                         horizontal-stretch: 1;
                         TouchArea { clicked => { root.cpanel-open-target("security"); } }
-                        VerticalLayout {
+                        HorizontalLayout {
                             padding: 12px;
-                            spacing: 6px;
-                            alignment: center;
-                            Rectangle { width: 34px; height: 34px; border-radius: 8px; background: #dc2626; Text { text: "SEC"; color: #ffffff; font-size: 10px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
-                            Text { text: root.tr.subtab-security; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
-                            Text { text: "Firewall, VPN, Encrypted Backup & Users"; color: UiTheme.text-muted; font-size: 10.5px; wrap: word-wrap; }
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #dc2626; Text { text: "SEC"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: root.tr.subtab-security; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "Firewall (nftables), Encrypted Backups & Accounts"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    vertical-stretch: 1;
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("vpn"); } }
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #0369a1; Text { text: "VPN"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: "AegisTunnel VPN"; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "AmneziaWG Anti-DPI • REALITY TCP/443 • ML-KEM-768"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
+                        }
+                    }
+                    Card {
+                        horizontal-stretch: 1;
+                        TouchArea { clicked => { root.cpanel-open-target("equalizer"); } }
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 12px;
+                            Rectangle { width: 38px; height: 38px; border-radius: 9px; background: #9333ea; Text { text: "EQ"; color: #ffffff; font-size: 11px; font-weight: 800; horizontal-alignment: center; vertical-alignment: center; } }
+                            VerticalLayout {
+                                horizontal-stretch: 1; alignment: center; spacing: 2px;
+                                Text { text: "ResonanceFX Equalizer"; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; overflow: elide; }
+                                Text { text: "10-Band PipeWire EQ, Pure Bass, 3D Surround & 8D"; color: UiTheme.text-muted; font-size: 11px; overflow: elide; }
+                            }
                         }
                     }
                 }
@@ -5336,6 +5461,326 @@ export component MainWindow inherits Window {
                     text: root.tr.hdr-control-panel;
                     clicked => { root.cpanel-open-target("cpanel"); }
                 }
+                Rectangle { horizontal-stretch: 1; }
+                Button { height: 36px; text: root.tr.btn-close; clicked => { root.cancel-open(); } }
+            }
+        }
+
+        // v1.6.0 Native AegisTunnel VPN Studio (--vpn)
+        if root.aegis-vpn-dialog-only && !root.picker-open : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 64px;
+                border-radius: 10px;
+                background: root.aegis-running
+                    ? @linear-gradient(135deg, #064e3b 0%, #059669 60%, #0284c7 100%)
+                    : @linear-gradient(135deg, #0f172a 0%, #0369a1 60%, #1e3a8a 100%);
+                border-width: 1px;
+                border-color: root.aegis-running ? #34d399 : UiTheme.accent-bright;
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 2px;
+                        Text { text: root.tr.hdr-aegis-vpn; color: #ffffff; font-size: 16px; font-weight: 800; }
+                        Text { text: root.tr.sub-aegis-vpn; color: #e0f2fe; font-size: 10.5px; overflow: elide; }
+                    }
+                    Rectangle {
+                        width: 118px;
+                        height: 28px;
+                        y: 6px;
+                        border-radius: 14px;
+                        background: root.aegis-running ? #10b981 : #334155;
+                        Text {
+                            text: root.aegis-running ? "CONNECTED" : "IDLE (0 MB)";
+                            color: #ffffff;
+                            font-size: 11px;
+                            font-weight: 800;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TabPill { label: root.lang-badge; active: false; clicked => { root.toggle-language(); } }
+                }
+            }
+
+            Card {
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 5px;
+                    InfoRow { label: "Active Transport:"; value: root.aegis-transport-label; value-color: root.aegis-running ? UiTheme.text-ok : UiTheme.text-accent; }
+                    InfoRow { label: "Post-Quantum KEM:"; value: root.aegis-pq-label; value-color: UiTheme.text-accent; }
+                    InfoRow { label: "Live Telemetry:"; value: root.aegis-traffic-label; }
+                }
+            }
+
+            Card {
+                vertical-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+                        alignment: start;
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: "Server Endpoint:"; color: UiTheme.text-muted; font-size: 12px; width: 135px; vertical-alignment: center; }
+                            LineEdit { text <=> root.aegis-endpoint; placeholder-text: "vpn.example.com:51820"; horizontal-stretch: 1; }
+                            Text { text: "Tunnel IP:"; color: UiTheme.text-muted; font-size: 12px; width: 65px; vertical-alignment: center; }
+                            LineEdit { text <=> root.aegis-tunnel-ip; width: 120px; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: "Transport Engine:"; color: UiTheme.text-muted; font-size: 12px; width: 135px; vertical-alignment: center; }
+                            ComboBox {
+                                model: [
+                                    "Auto Happy Eyeballs (UDP + REALITY Fallback)",
+                                    "AmneziaWG Anti-DPI UDP",
+                                    "REALITY TLS 1.3 TCP/443 Stealth"
+                                ];
+                                current-index <=> root.aegis-transport-idx;
+                                horizontal-stretch: 1;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: "Private Key:"; color: UiTheme.text-muted; font-size: 12px; width: 135px; vertical-alignment: center; }
+                            LineEdit { text <=> root.aegis-private-key; placeholder-text: "Base64 X25519 Private Key (chmod 600)"; input-type: InputType.password; horizontal-stretch: 1; }
+                            Button { text: "Generate Keypair"; clicked => { root.aegis-keygen(); } }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: "Peer Public Key:"; color: UiTheme.text-muted; font-size: 12px; width: 135px; vertical-alignment: center; }
+                            LineEdit { text <=> root.aegis-peer-pubkey; placeholder-text: "Gateway Base64 X25519 Public Key"; horizontal-stretch: 1; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: "REALITY SNI / DNS:"; color: UiTheme.text-muted; font-size: 12px; width: 135px; vertical-alignment: center; }
+                            LineEdit { text <=> root.aegis-reality-sni; placeholder-text: "www.cloudflare.com"; horizontal-stretch: 1; }
+                            LineEdit { text <=> root.aegis-upstream-dns; placeholder-text: "1.1.1.1"; width: 120px; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 14px;
+                            Switch { text: "AmneziaWG Anti-DPI"; checked <=> root.aegis-obf-enabled; }
+                            Switch { text: "Hybrid PQ ML-KEM-768"; checked <=> root.aegis-pq-enabled; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 14px;
+                            Switch { text: "Local DNS Ad/Tracker Sinkhole"; checked <=> root.aegis-dns-sinkhole; }
+                            Switch { text: "Local Loopback Test Mode"; checked <=> root.aegis-loopback-mode; }
+                        }
+                    }
+                }
+            }
+
+            if root.aegis-status != "" : Text { text: root.aegis-status; color: UiTheme.text-accent; font-size: 11.5px; wrap: word-wrap; }
+
+            HorizontalLayout {
+                height: 36px;
+                spacing: 8px;
+                Button {
+                    height: 36px;
+                    text: root.aegis-running ? "Disconnect VPN" : "Connect AegisTunnel";
+                    primary: true;
+                    clicked => { root.aegis-toggle-connect(); }
+                }
+                Button { height: 36px; text: "Save Profile"; clicked => { root.aegis-save-profile(); } }
+                Button { height: 36px; text: "Rotate PQ Key"; enabled: root.aegis-running; clicked => { root.aegis-rotate-pq(); } }
+                Button { height: 36px; text: "Self-Test"; clicked => { root.aegis-self-test(); } }
+                Button { height: 36px; text: root.tr.hdr-control-panel; clicked => { root.cpanel-open-target("cpanel"); } }
+                Rectangle { horizontal-stretch: 1; }
+                Button { height: 36px; text: root.tr.btn-close; clicked => { root.cancel-open(); } }
+            }
+        }
+
+        // v1.6.0 Native ResonanceFX PipeWire 10-Band Equalizer & Spatial DSP Studio (--equalizer)
+        if root.resonance-dialog-only && !root.picker-open : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 10px;
+
+            Rectangle {
+                height: 64px;
+                border-radius: 10px;
+                background: root.rfx-running
+                    ? @linear-gradient(135deg, #4c1d95 0%, #7c3aed 55%, #db2777 100%)
+                    : @linear-gradient(135deg, #1e1b4b 0%, #4338ca 60%, #6d28d9 100%);
+                border-width: 1px;
+                border-color: root.rfx-running ? #f472b6 : UiTheme.accent-bright;
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 2px;
+                        Text { text: root.tr.hdr-resonance-fx; color: #ffffff; font-size: 16px; font-weight: 800; }
+                        Text { text: root.tr.sub-resonance-fx; color: #f3e8ff; font-size: 10.5px; overflow: elide; }
+                    }
+                    Rectangle {
+                        width: 126px;
+                        height: 28px;
+                        y: 6px;
+                        border-radius: 14px;
+                        background: root.rfx-running ? #ec4899 : #334155;
+                        Text {
+                            text: root.rfx-running ? "PIPEWIRE LIVE" : "IDLE (0 MB)";
+                            color: #ffffff;
+                            font-size: 11px;
+                            font-weight: 800;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TabPill { label: root.lang-badge; active: false; clicked => { root.toggle-language(); } }
+                }
+            }
+
+            // Master Power & Acoustic Presets Strip
+            Card {
+                HorizontalLayout {
+                    padding: 10px;
+                    spacing: 8px;
+                    Button {
+                        text: root.rfx-running ? "Disable PipeWire DSP (0 MB)" : "Enable PipeWire DSP";
+                        primary: !root.rfx-running;
+                        clicked => { root.rfx-toggle-service(); }
+                    }
+                    Text { text: "Preset:"; color: UiTheme.text-muted; font-size: 12px; vertical-alignment: center; }
+                    ComboBox {
+                        model: [
+                            "Flat Reference",
+                            "Pure Bass Boost",
+                            "Vocal & Podcast Studio",
+                            "Cinema 3D Surround",
+                            "Hi-Fi Warm Tube",
+                            "Gaming Footsteps",
+                            "8D Spatial Orbit Live"
+                        ];
+                        current-index <=> root.rfx-preset-idx;
+                        selected => { root.rfx-select-preset(self.current-index); }
+                        horizontal-stretch: 1;
+                    }
+                    Button { text: "DSP Self-Test"; clicked => { root.rfx-self-test(); } }
+                }
+            }
+
+            ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    // 10-Band Graphic Equalizer (2 clean columns x 5 bands)
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Switch { text: "10-Band Graphic Equalizer (-12 dB to +12 dB)"; checked <=> root.rfx-eq-enabled; horizontal-stretch: 1; }
+                                Text { text: "Preamp: " + (Math.round(root.rfx-preamp-db * 2) / 2) + " dB"; color: UiTheme.text-accent; font-size: 11.5px; vertical-alignment: center; }
+                                Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-preamp-db; width: 130px; }
+                            }
+                            HorizontalLayout {
+                                spacing: 16px;
+                                // Left 5 bands: 31Hz..500Hz
+                                VerticalLayout {
+                                    horizontal-stretch: 1; spacing: 4px;
+                                    HorizontalLayout { spacing: 6px; Text { text: "31 Hz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b0; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b0 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                    HorizontalLayout { spacing: 6px; Text { text: "62 Hz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b1; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b1 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                    HorizontalLayout { spacing: 6px; Text { text: "125 Hz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b2; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b2 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                    HorizontalLayout { spacing: 6px; Text { text: "250 Hz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b3; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b3 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                    HorizontalLayout { spacing: 6px; Text { text: "500 Hz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b4; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b4 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                }
+                                // Right 5 bands: 1kHz..16kHz
+                                VerticalLayout {
+                                    horizontal-stretch: 1; spacing: 4px;
+                                    HorizontalLayout { spacing: 6px; Text { text: "1 kHz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b5; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b5 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                    HorizontalLayout { spacing: 6px; Text { text: "2 kHz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b6; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b6 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                    HorizontalLayout { spacing: 6px; Text { text: "4 kHz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b7; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b7 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                    HorizontalLayout { spacing: 6px; Text { text: "8 kHz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b8; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b8 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                    HorizontalLayout { spacing: 6px; Text { text: "16 kHz"; width: 46px; font-size: 11.5px; color: UiTheme.text-muted; vertical-alignment: center; } Slider { minimum: -12; maximum: 12; step: 0.5; value <=> root.rfx-b9; horizontal-stretch: 1; } Text { text: (Math.round(root.rfx-b9 * 2) / 2) + " dB"; width: 52px; font-size: 11px; color: UiTheme.text-secondary; horizontal-alignment: right; vertical-alignment: center; } }
+                                }
+                            }
+                        }
+                    }
+
+                    // Spatial & Acoustic DSP Effects Rack
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            Text { text: "ResonanceFX Spatial & Acoustic DSP Pipeline (C++17 Real-Time)"; color: UiTheme.text-primary; font-size: 13px; font-weight: 700; }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Switch { text: "Pure Bass"; width: 130px; checked <=> root.rfx-bass-on; }
+                                ComboBox { model: ["Smooth Lows", "Deep Impact", "Subwoofer"]; current-index <=> root.rfx-bass-mode; width: 140px; }
+                                Slider { minimum: 0; maximum: 12; step: 0.5; value <=> root.rfx-bass-db; horizontal-stretch: 1; }
+                                Text { text: (Math.round(root.rfx-bass-db * 2) / 2) + " dB"; width: 48px; font-size: 11px; color: UiTheme.text-secondary; vertical-alignment: center; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Switch { text: "Silky Clarity"; width: 130px; checked <=> root.rfx-clarity-on; }
+                                ComboBox { model: ["Studio Natural", "Air Dynamic", "Ultra Hi-Fi"]; current-index <=> root.rfx-clarity-mode; width: 140px; }
+                                Slider { minimum: 0; maximum: 10; step: 0.5; value <=> root.rfx-clarity-db; horizontal-stretch: 1; }
+                                Text { text: (Math.round(root.rfx-clarity-db * 2) / 2) + " dB"; width: 48px; font-size: 11px; color: UiTheme.text-secondary; vertical-alignment: center; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Switch { text: "3D Surround"; width: 130px; checked <=> root.rfx-surround-on; }
+                                Slider { minimum: 0; maximum: 100; step: 5; value <=> root.rfx-surround-pct; horizontal-stretch: 1; }
+                                Text { text: Math.round(root.rfx-surround-pct) + "%"; width: 40px; font-size: 11px; color: UiTheme.text-secondary; vertical-alignment: center; }
+                                Switch { text: "Tube Warmth"; width: 130px; checked <=> root.rfx-tube-on; }
+                                Slider { minimum: 0; maximum: 100; step: 5; value <=> root.rfx-tube-pct; horizontal-stretch: 1; }
+                                Text { text: Math.round(root.rfx-tube-pct) + "%"; width: 40px; font-size: 11px; color: UiTheme.text-secondary; vertical-alignment: center; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Switch { text: "Binaural / 8D"; width: 130px; checked <=> root.rfx-binaural-on; }
+                                ComboBox { model: ["Natural Stage", "Studio Pan", "8D Orbit"]; current-index <=> root.rfx-binaural-mode; horizontal-stretch: 1; }
+                                Switch { text: "Convolver IR"; width: 130px; checked <=> root.rfx-convolver-on; }
+                                ComboBox { model: ["Studio Monitor", "Concert Hall", "Vinyl Club", "Headphone Ref"]; current-index <=> root.rfx-convolver-preset; horizontal-stretch: 1; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 14px;
+                                Switch { text: "Schroeder Reverb"; checked <=> root.rfx-reverb-on; }
+                                Switch { text: "Stereo Chorus"; checked <=> root.rfx-chorus-on; }
+                                Switch { text: "Stereo Delay"; checked <=> root.rfx-delay-on; }
+                                Switch { text: "Loudness"; checked <=> root.rfx-loudness-on; }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.rfx-status != "" : Text { text: root.rfx-status; color: UiTheme.text-accent; font-size: 11.5px; wrap: word-wrap; }
+
+            HorizontalLayout {
+                height: 36px;
+                spacing: 8px;
+                Button {
+                    height: 36px;
+                    text: "Apply Live to PipeWire";
+                    primary: true;
+                    clicked => { root.rfx-apply-params(); }
+                }
+                Button { height: 36px; text: root.tr.subtab-audio; clicked => { root.cpanel-open-target("audio"); } }
+                Button { height: 36px; text: root.tr.hdr-control-panel; clicked => { root.cpanel-open-target("cpanel"); } }
                 Rectangle { horizontal-stretch: 1; }
                 Button { height: 36px; text: root.tr.btn-close; clicked => { root.cancel-open(); } }
             }
@@ -7328,6 +7773,15 @@ export component MainWindow inherits Window {
                         font-size: 11px;
                         wrap: word-wrap;
                     }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Button {
+                            text: "Open ResonanceFX 10-Band Equalizer & Spatial DSP";
+                            primary: true;
+                            clicked => { root.cpanel-open-target("equalizer"); }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                    }
                 }
             }
 
@@ -8017,6 +8471,15 @@ export component MainWindow inherits Window {
                                 color: UiTheme.text-primary;
                                 font-size: 14px;
                                 font-weight: 700;
+                            }
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Button {
+                                    text: "Open AegisTunnel VPN Studio (Anti-DPI, REALITY TCP/443 & PQ ML-KEM-768)";
+                                    primary: true;
+                                    clicked => { root.cpanel-open-target("vpn"); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
                             }
 
                             if root.set-vpn-list.length == 0 : Text {

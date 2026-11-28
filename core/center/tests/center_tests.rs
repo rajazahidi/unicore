@@ -2163,6 +2163,85 @@ USB\tLogitech Receiver\tusbcore\tUSB\tConnected\n";
     assert_ne!(en.title_devmgr, ms.title_devmgr);
     assert_ne!(en.title_storage, ms.title_storage);
     assert_ne!(en.title_region, ms.title_region);
-    assert!(en.title_guide.contains("1.5.0"));
-    assert!(ms.title_guide.contains("1.5.0"));
+    assert!(en.title_guide.contains("1.6.0"));
+    assert!(ms.title_guide.contains("1.6.0"));
+}
+
+#[test]
+fn v160_aegis_vpn_and_resonance_fx_work() {
+    use unicore_center::aegis_rfx::{
+        parse_aegis_status, parse_keygen_json, parse_resonance_conf, parse_resonance_status,
+        render_aegis_config_json, render_resonance_conf, resonance_preset_params,
+        transport_mode_from_index, transport_mode_to_index, AegisVpnProfile,
+    };
+    use unicore_center::cli::{parse_args, LaunchMode};
+    use unicore_center::i18n::{UiLabels, UiLang};
+    use unicore_center::start_emoji::builtin_v160_apps;
+
+    // 1. CLI launch flags for AegisTunnel VPN & ResonanceFX Equalizer
+    assert_eq!(parse_args(&["--vpn".to_string()]).unwrap().unwrap().mode, LaunchMode::AegisVpn);
+    assert_eq!(parse_args(&["--aegis-vpn".to_string()]).unwrap().unwrap().mode, LaunchMode::AegisVpn);
+    assert_eq!(parse_args(&["--equalizer".to_string()]).unwrap().unwrap().mode, LaunchMode::ResonanceFx);
+    assert_eq!(parse_args(&["--eq".to_string()]).unwrap().unwrap().mode, LaunchMode::ResonanceFx);
+    assert_eq!(parse_args(&["--resonance-fx".to_string()]).unwrap().unwrap().mode, LaunchMode::ResonanceFx);
+
+    // 2. AegisTunnel status parsing, keygen JSON parsing, transport mode mapping & JSON config rendering
+    let st = parse_aegis_status(
+        "installed=1\nrunning=1\ntransport=REALITY TCP/443\npq_suite=X25519+ML-KEM-768\nhandshake=true\nrx_bytes=4096\ntx_bytes=2048\ndns_blocked=17\npq_epoch=3\n",
+    );
+    assert!(st.installed && st.running && st.handshake);
+    assert_eq!(st.transport, "REALITY TCP/443");
+    assert_eq!(st.rx_bytes, 4096);
+    assert_eq!(st.tx_bytes, 2048);
+    assert_eq!(st.dns_blocked, 17);
+    assert_eq!(st.pq_epoch, 3);
+
+    assert_eq!(transport_mode_to_index("FORCE_REALITY_TCP"), 2);
+    assert_eq!(transport_mode_from_index(1), "FORCE_UDP");
+    let (priv_k, pub_k) = parse_keygen_json(r#"{"privateKey":"AAAA1234","publicKey":"BBBB5678"}"#).unwrap();
+    assert_eq!(priv_k, "AAAA1234");
+    assert_eq!(pub_k, "BBBB5678");
+
+    let prof = AegisVpnProfile {
+        private_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_string(),
+        peer_public_key: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=".to_string(),
+        transport_mode: "FORCE_REALITY_TCP".to_string(),
+        ..Default::default()
+    };
+    let rendered_json = render_aegis_config_json(&prof);
+    assert!(rendered_json.contains("\"transportMode\": \"FORCE_REALITY_TCP\""));
+    assert!(rendered_json.contains("\"pqEnabled\": true"));
+    assert!(rendered_json.contains("\"dnsSinkholeEnabled\": true"));
+
+    // 3. ResonanceFX presets, config round-trip & PipeWire status parsing
+    let rst = parse_resonance_status(
+        "installed=1\nrunning=0\nplugin=/usr/lib/ladspa/libunicore_resonance_fx.so\nparams=/data/home/.config/unicore/resonance-fx.conf\n",
+    );
+    assert!(rst.installed && !rst.running);
+    assert!(rst.plugin_path.ends_with("libunicore_resonance_fx.so"));
+
+    let orbit = resonance_preset_params(6);
+    assert!(orbit.binaural_enabled);
+    assert_eq!(orbit.binaural_mode, 2);
+    assert!(orbit.surround_enabled);
+    let conf = render_resonance_conf(&orbit);
+    let reparsed = parse_resonance_conf(&conf);
+    assert!(reparsed.binaural_enabled);
+    assert_eq!(reparsed.binaural_mode, 2);
+    assert_eq!(reparsed.surround_level_pct, 50);
+    assert_eq!(reparsed.eq_bands[0], 3.0);
+    assert_eq!(reparsed.eq_bands[8], 3.0);
+
+    // 4. Start Menu v1.6.0 built-ins & bilingual EN/BM labels
+    let en_v160 = builtin_v160_apps(UiLang::En);
+    let ms_v160 = builtin_v160_apps(UiLang::Ms);
+    assert_eq!(en_v160.len(), 2);
+    assert_eq!(en_v160[0].exec_cmd, "/usr/bin/unicore-center --vpn");
+    assert_eq!(en_v160[1].exec_cmd, "/usr/bin/unicore-center --equalizer");
+    assert_ne!(en_v160[1].name, ms_v160[1].name);
+
+    let en = UiLabels::for_lang(UiLang::En);
+    let ms = UiLabels::for_lang(UiLang::Ms);
+    assert_ne!(en.hdr_resonance_fx, ms.hdr_resonance_fx);
+    assert_ne!(en.sub_aegis_vpn, ms.sub_aegis_vpn);
 }

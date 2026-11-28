@@ -495,6 +495,32 @@ pub fn builtin_v150_apps(lang: UiLang) -> Vec<DesktopAppItem> {
     ]
 }
 
+pub fn builtin_v160_apps(lang: UiLang) -> Vec<DesktopAppItem> {
+    let ms = lang == UiLang::Ms;
+    vec![
+        DesktopAppItem {
+            id: "unicore-aegis-vpn".to_string(),
+            name: "AegisTunnel VPN".to_string(),
+            comment: if ms { "VPN WireGuard + Anti-DPI AmneziaWG + REALITY + PQ ML-KEM-768 (0 MB idle)" } else { "WireGuard + AmneziaWG Anti-DPI + REALITY + PQ ML-KEM-768 VPN (0 MB idle)" }.to_string(),
+            category: "internet".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --vpn".to_string(),
+            badge: "VPN".to_string(),
+            accent_hex: "#0284c7".to_string(),
+            pinned: false,
+        },
+        DesktopAppItem {
+            id: "unicore-resonance-fx".to_string(),
+            name: if ms { "Equalizer ResonanceFX" } else { "ResonanceFX Equalizer" }.to_string(),
+            comment: if ms { "Equalizer 10-jalur PipeWire + Pure Bass + 3D Surround + 8D Orbit + Convolver (0 MB idle)" } else { "PipeWire 10-band EQ + Pure Bass + 3D Surround + 8D Orbit + Convolver DSP (0 MB idle)" }.to_string(),
+            category: "media".to_string(),
+            exec_cmd: "/usr/bin/unicore-center --equalizer".to_string(),
+            badge: "EQ".to_string(),
+            accent_hex: "#9333ea".to_string(),
+            pinned: false,
+        },
+    ]
+}
+
 pub fn discover_start_menu_apps(
     scan_dirs: &[&Path],
     sandbox_apps: &[AppSandbox],
@@ -502,6 +528,7 @@ pub fn discover_start_menu_apps(
 ) -> Vec<DesktopAppItem> {
     let mut items = builtin_pinned_apps(lang);
     items.extend(builtin_v150_apps(lang));
+    items.extend(builtin_v160_apps(lang));
     items.extend(builtin_ecosystem_apps(lang));
     items.extend(builtin_gamehub_apps(lang));
     items.extend(builtin_guide_apps(lang));

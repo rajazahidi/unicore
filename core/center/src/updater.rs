@@ -169,7 +169,7 @@ pub fn read_update_overview() -> UpdateOverview {
     let boot = read_boot_slot_info(Path::new("/mnt/unicore-boot.env"));
     let current_ver = std::fs::read_to_string("/etc/os-release")
         .map(|s| parse_os_version(&s))
-        .unwrap_or_else(|_| "1.5.0".to_string());
+        .unwrap_or_else(|_| "1.6.0".to_string());
     let json = build_update_status_json(&boot, &current_ver, None, &cfg, Some(false));
     parse_update_status_json(&json.to_string()).unwrap_or(UpdateOverview {
         current_version: current_ver,

@@ -1,0 +1,108 @@
+#!/bin/sh
+# UniCore OS Native AegisTunnel VPN Controller (0 MB idle RAM when disconnected)
+set -eu
+
+CONF_DIR="/data/network"
+[ -d "${CONF_DIR}" ] || CONF_DIR="${HOME:-/home/unicore}/.config/unicore"
+CONF_FILE="${CONF_DIR}/aegis-vpn.json"
+RUN_DIR="/run/unicore-aegis"
+PID_FILE="${RUN_DIR}/aegis.pid"
+TELEM_FILE="${RUN_DIR}/telemetry.json"
+AEGIS_BIN="/usr/bin/unicore-aegis-vpn"
+
+cmd="${1:-status}"
+shift || true
+
+is_running() {
+    [ -f "${PID_FILE}" ] || return 1
+    pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+    [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null
+}
+
+case "${cmd}" in
+    status)
+        installed=0
+        [ -x "${AEGIS_BIN}" ] && installed=1
+        running=0
+        is_running && running=1
+        printf 'installed=%s\nrunning=%s\nconfig=%s\n' "${installed}" "${running}" "${CONF_FILE}"
+        if [ "${running}" -eq 1 ] && [ -r "${TELEM_FILE}" ]; then
+            t_proto="$(jq -r '.transportProtocol // "Auto"' "${TELEM_FILE}" 2>/dev/null || echo 'Auto')"
+            t_pq="$(jq -r '.pqCipherSuite // "X25519+ML-KEM-768"' "${TELEM_FILE}" 2>/dev/null || echo 'X25519+ML-KEM-768')"
+            t_hs="$(jq -r '.handshakeEstablished // false' "${TELEM_FILE}" 2>/dev/null || echo 'false')"
+            t_rx="$(jq -r '.rxBytes // 0' "${TELEM_FILE}" 2>/dev/null || echo '0')"
+            t_tx="$(jq -r '.txBytes // 0' "${TELEM_FILE}" 2>/dev/null || echo '0')"
+            t_dns="$(jq -r '.dnsQueriesBlocked // 0' "${TELEM_FILE}" 2>/dev/null || echo '0')"
+            t_ep="$(jq -r '.pqEpoch // 0' "${TELEM_FILE}" 2>/dev/null || echo '0')"
+            printf 'transport=%s\npq_suite=%s\nhandshake=%s\nrx_bytes=%s\ntx_bytes=%s\ndns_blocked=%s\npq_epoch=%s\n' \
+                "${t_proto}" "${t_pq}" "${t_hs}" "${t_rx}" "${t_tx}" "${t_dns}" "${t_ep}"
+        else
+            printf 'transport=Idle (0 MB RAM)\npq_suite=X25519+ML-KEM-768 Ready\nhandshake=false\nrx_bytes=0\ntx_bytes=0\ndns_blocked=0\npq_epoch=0\n'
+        fi
+        ;;
+
+    keygen)
+        exec "${AEGIS_BIN}" keygen
+        ;;
+
+    self-test)
+        exec "${AEGIS_BIN}" self-test
+        ;;
+
+    start)
+        [ -x "${AEGIS_BIN}" ] || { echo "unicore-aegis-vpn binary missing" >&2; exit 1; }
+        mkdir -p "${RUN_DIR}" "${CONF_DIR}"
+        chmod 0700 "${CONF_DIR}" 2>/dev/null || true
+        if [ ! -f "${CONF_FILE}" ]; then
+            (umask 077 && "${AEGIS_BIN}" default-config > "${CONF_FILE}")
+        fi
+        if is_running; then
+            echo "AegisTunnel VPN already running"
+            exit 0
+        fi
+        modprobe tun 2>/dev/null || true
+        "${AEGIS_BIN}" up --config "${CONF_FILE}" --dev aegis0 --telemetry "${TELEM_FILE}" >/tmp/unicore-aegis.log 2>&1 &
+        pid=$!
+        printf '%s\n' "${pid}" > "${PID_FILE}"
+        # Configure aegis0 IPv4 once TUN device appears
+        tun_ip="$(jq -r '.tunnelIpv4 // "10.66.0.2"' "${CONF_FILE}" 2>/dev/null || echo '10.66.0.2')"
+        for _i in 1 2 3 4 5 6 7 8 9 10; do
+            if ip link show aegis0 >/dev/null 2>&1; then
+                ip addr flush dev aegis0 2>/dev/null || true
+                ip addr add "${tun_ip}/32" dev aegis0 2>/dev/null || true
+                ip link set dev aegis0 mtu 1280 up 2>/dev/null || true
+                break
+            fi
+            sleep 0.2
+        done
+        echo "AegisTunnel VPN started (pid=${pid}, dev=aegis0, ip=${tun_ip})"
+        ;;
+
+    stop)
+        if is_running; then
+            pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+            kill -TERM "${pid}" 2>/dev/null || true
+            sleep 0.4
+            kill -0 "${pid}" 2>/dev/null && kill -KILL "${pid}" 2>/dev/null || true
+        fi
+        rm -f "${PID_FILE}" "${TELEM_FILE}"
+        ip link delete aegis0 2>/dev/null || true
+        echo "AegisTunnel VPN stopped (0 MB idle RAM)"
+        ;;
+
+    rotate-pq)
+        if is_running; then
+            pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+            kill -HUP "${pid}" 2>/dev/null || true
+            echo "Requested Post-Quantum ML-KEM-768 key rotation"
+        else
+            echo "AegisTunnel VPN is not running" >&2
+            exit 1
+        fi
+        ;;
+
+    *)
+        echo "Usage: unicore-aegis-ctl <status|keygen|self-test|start|stop|rotate-pq>" >&2
+        exit 2
+        ;;
+esac

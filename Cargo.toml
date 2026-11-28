@@ -1,5 +1,5 @@
 [workspace]
-members = ["core/orchestrator", "core/center"]
+members = ["core/orchestrator", "core/center", "core/aegis-proto", "core/aegis-vpn"]
 resolver = "2"
 
 [profile.release]
