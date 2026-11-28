@@ -1,4 +1,4 @@
-# UniCore OS (`1.3.0` — 10-Theme Desktop Studio & Universal Hardware Edition)
+# UniCore OS (`1.3.1` — 10-Theme Desktop Studio & Universal Hardware Edition)
 
 **UniCore OS** is a lightweight, immutable Linux-based desktop operating system (`Alpine 3.22` + `linux-edge 6.15` + `Mesa 25.1` + `Wine 10.7`) built to run **native Linux (`Flatpak` / `ELF`)**, **Windows (`Win98`, `WinXP`, `Win7`, `Win10/11` `.exe`/`.msi`/Win16 `NE`, plus `Box64` + `Wine 11.0 WoW64` on `aarch64`)**, **MS-DOS (`.exe`/`.com`/`.bat`)**, **Web Apps (PWA)**, and **Android (`.apk`)** applications inside Zero-Trust sandboxes across **2005-era (`512 MB RAM`, no SSE4.2/AVX)** to **2026 modern Intel/AMD/NVIDIA x86_64 & ARM64 PCs and laptops**.
 

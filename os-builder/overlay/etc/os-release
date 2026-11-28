@@ -1,6 +1,6 @@
 NAME="UniCore OS"
 ID=unicore
 ID_LIKE=alpine
-VERSION_ID="1.3.0"
-PRETTY_NAME="UniCore OS 1.3.0 (10-Theme Desktop Studio)"
+VERSION_ID="1.3.1"
+PRETTY_NAME="UniCore OS 1.3.1 (10-Theme Desktop Studio)"
 HOME_URL="https://github.com/rajazahidi/unicore"
